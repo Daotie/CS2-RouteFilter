@@ -1,0 +1,31 @@
+.toggle { background: #2d8b70; }
+.toggle:hover { background: #38a889; }
+.selected { box-shadow: 0 0 0 3rem rgba(99, 236, 192, .6); }
+.panel {
+  position: fixed; left: 18rem; top: 88rem; z-index: 1000; width: 430rem; max-height: 76vh;
+  overflow: auto; padding: 18rem; border-radius: 12rem; color: var(--textColor);
+  background: rgba(30, 38, 46, .96); box-shadow: 0 8rem 28rem rgba(0,0,0,.45);
+  header { display: flex; justify-content: space-between; align-items: start; }
+  header div { display: flex; gap: 10rem; align-items: baseline; }
+  header small { opacity: .65; font-size: 11rem; }
+  header button { border: 0; background: transparent; color: inherit; font-size: 24rem; }
+  p { opacity: .8; line-height: 1.35; font-size: 13rem; }
+}
+.toolButton, .actions button, .modes button, .assetList button {
+  border: 0; border-radius: 6rem; color: white; background: rgba(255,255,255,.1); cursor: pointer;
+}
+.toolButton { width: 100%; padding: 9rem; background: #26785f; }
+.actions { display: flex; gap: 8rem; margin: 10rem 0; }
+.actions button { flex: 1; padding: 7rem; }
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8rem; margin: 10rem 0; }
+.modes button { padding: 8rem; }
+.modes .checked { background: #26785f; }
+.assetHeader { display: flex; justify-content: space-between; align-items: baseline; margin-top: 14rem; }
+.assetHeader small { opacity: .7; }
+.search { box-sizing: border-box; width: 100%; margin-top: 8rem; padding: 8rem 10rem; border: 1rem solid rgba(255,255,255,.18); border-radius: 6rem; color: white; background: rgba(0,0,0,.22); }
+.assetList { display: grid; grid-template-columns: 1fr 1fr; gap: 6rem; max-height: 390rem; overflow: auto; padding-right: 4rem; }
+.assetList button { display: flex; min-width: 0; align-items: center; gap: 7rem; padding: 7rem; text-align: left; }
+.assetList span { flex: 0 0 auto; display: inline-grid; place-items: center; width: 18rem; height: 18rem; border: 1rem solid #8ea09a; border-radius: 3rem; }
+.assetList em { overflow: hidden; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.assetList .checked { background: rgba(45, 139, 112, .65); }
+.empty { grid-column: 1 / -1; text-align: center; }

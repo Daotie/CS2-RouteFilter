@@ -1,0 +1,20 @@
+name: Feature request / 功能建议
+description: Propose a focused RouteFilter improvement / 提出聚焦的 RouteFilter 改进建议
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    attributes:
+      label: Problem / 要解决的问题
+      description: What gameplay problem should this solve? / 该功能要解决什么游戏问题？
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed behavior / 建议行为
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Alternatives and compatibility / 替代方案与兼容性
+      description: Include savegame, UI, performance, and mod-compatibility considerations. / 请说明存档、UI、性能和模组兼容性影响。

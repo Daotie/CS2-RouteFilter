@@ -1,0 +1,99 @@
+<p align="center">
+  <a href="README.md">English</a> · <strong>简体中文</strong>
+</p>
+
+# RouteFilter 路线通行筛选
+
+为 **《都市：天际线 II》** 的道路与轨道节点或整段路段提供逐车辆资产通行限制。
+
+![版本](https://img.shields.io/badge/版本-0.4.0--beta.1-2d8b70)
+![状态](https://img.shields.io/badge/状态-Beta-f0a202)
+![许可证](https://img.shields.io/badge/许可证-GPL--3.0--only-blue)
+
+当前测试版本：`0.4.0-beta.1`
+
+RouteFilter 提供专用的游戏内工具，可控制具体车辆资产是否能够通过选定的路网节点或整段道路、轨道。匹配车辆在前方检测到限制后，模组会立即请求其他路线。
+
+> RouteFilter 仍处于 Beta 阶段。测试前请备份重要存档，并阅读已知限制。
+
+## 功能
+
+- 按单个车辆资产限制通行，而非仅按宽泛交通类别。
+- 自动发现本体、内容包及当前可用的自定义车辆预制资产。
+- 按预制资产名称搜索，并任意组合选择。
+- 对单个节点或整段道路、有轨电车、铁路、地铁路段应用限制。
+- 匹配车辆检测到限制后立即请求替代路线。
+- 提供左上角可见面板；键盘快捷键仅为可选操作。
+- 根据游戏语言自动切换英文或简体中文。
+- 在存档中随每个限制目标保存所选预制资产引用。
+- 可配置应急车辆豁免及路线前瞻距离。
+
+## 安装
+
+1. 从 [GitHub Releases](https://github.com/Daotie/CS2-RouteFilter/releases) 下载最新压缩包。
+2. 解压到《都市：天际线 II》本地模组目录。
+3. 在当前播放集启用 **RouteFilter**，并在提示时重启游戏。
+4. 首次测试请使用已有备份的存档。
+
+## 使用方法
+
+1. 从游戏左上角工具栏打开 **RouteFilter**。
+2. 选择 **节点** 或 **整段路段**。
+3. 搜索并选择一个或多个车辆资产。
+4. 左键点击目标，以当前选择替换该目标的限制列表。
+5. 右键点击目标，清除其 RouteFilter 限制。
+
+内容发生变化后可在面板内刷新资产目录。`Ctrl+Shift+X` 可作为可选的工具开关快捷键。
+
+## 可配置项
+
+| 设置 | 默认值 | 用途 |
+| --- | --- | --- |
+| 逐资产限制 | 开启 | 在节点及路段按准确预制资产匹配执行限制。 |
+| 应急车辆保护 | 关闭 | 即使选中了对应资产，也始终放行警车、救护车和消防车。 |
+| 前瞻车道数 | 3 | 控制车辆提前检测限制的距离。 |
+
+## 绕行行为
+
+对于匹配车辆，RouteFilter 会短暂地将目标节点或路段呈现为寻路不可用，使该车辆当前路径失效，并在路线请求结束后移除临时屏障。并发请求采用引用计数处理。
+
+该机制会促使受影响车辆寻找绕行路线，但无法保证替代路线一定存在，也无法保证游戏在固定时间内完成寻路。
+
+## 存档数据
+
+`0.4.0-beta.1` 使用 RouteFilter 的逐资产 V1 存档结构。每个受限目标会保存所选车辆资产的预制实体引用。建议在新建城市或现有存档明确标记的备份分支上测试本 Beta。
+
+## 已知限制
+
+- 资产名称来自游戏或资产作者提供的技术名称，不一定存在本地化显示名。
+- 其他车辆若恰好在临时屏障生效的短暂窗口内请求路径，也可能绕开该目标。
+- 如果不存在有效替代路线，车辆可能持续重试，直到目标恢复可用或限制被移除。
+- 重建或替换路段后，与原游戏实体关联的限制可能丢失。
+- 在稳定版发布前，仍需更广泛地验证游戏内行为、存读档、性能和模组兼容性。
+
+## 开发
+
+需要《都市：天际线 II》官方模组工具链、.NET SDK，以及 Node.js 18 或更高版本。
+
+```powershell
+dotnet build RouteFilter.csproj -c Release
+cd UI
+npm ci
+$env:ROUTEFILTER_OUTPUT_DIR = (Join-Path (Get-Location) "build")
+npm run build
+npm audit --omit=dev
+```
+
+贡献规范见 [CONTRIBUTING.md](CONTRIBUTING.md)，发布检查表见 [RELEASING.md](RELEASING.md)。
+
+## 支持与安全
+
+- 使用帮助与问题报告：[SUPPORT.md](SUPPORT.md)
+- 安全问题披露：[SECURITY.md](SECURITY.md)
+- 版本历史：[CHANGELOG.md](CHANGELOG.md)
+
+## 许可证
+
+版权所有 © 2026 Daotie。RouteFilter 采用 [GNU General Public License v3.0 only](LICENSE) 许可。
+
+《都市：天际线 II》及相关名称是其各自权利人的商标。RouteFilter 是独立社区项目，与 Colossal Order 或 Paradox Interactive 不存在隶属、认可或官方合作关系。

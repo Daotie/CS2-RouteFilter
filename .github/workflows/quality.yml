@@ -1,0 +1,44 @@
+name: Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui-and-metadata:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: UI/package-lock.json
+      - name: Install UI dependencies
+        working-directory: UI
+        run: npm ci
+      - name: Build UI
+        working-directory: UI
+        env:
+          ROUTEFILTER_OUTPUT_DIR: ${{ github.workspace }}\UI\build
+        run: npm run build
+      - name: Audit runtime dependencies
+        working-directory: UI
+        run: npm audit --omit=dev
+      - name: Verify version consistency
+        shell: pwsh
+        run: |
+          $version = (Get-Content -Raw VERSION).Trim()
+          $files = @(
+            'Mod.cs', 'RouteFilter.csproj', 'UI/mod.json', 'UI/package.json',
+            'UI/package-lock.json', 'Properties/PublishConfiguration.xml',
+            'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'RELEASE_NOTES.md'
+          )
+          $missing = $files | Where-Object { -not (Select-String -Quiet -SimpleMatch $version -Path $_) }
+          if ($missing) { throw "Version $version is missing from: $($missing -join ', ')" }

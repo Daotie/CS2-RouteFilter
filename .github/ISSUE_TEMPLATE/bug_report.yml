@@ -1,0 +1,42 @@
+name: Bug report / 缺陷报告
+description: Report a reproducible RouteFilter defect / 报告可复现的 RouteFilter 缺陷
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: checkboxes
+    attributes:
+      label: Preflight / 提交前检查
+      options:
+        - label: I tested the latest release and searched existing issues. / 我已测试最新版本并搜索现有 Issue。
+          required: true
+        - label: I backed up the affected save. / 我已备份受影响的存档。
+          required: true
+  - type: input
+    attributes:
+      label: RouteFilter version / RouteFilter 版本
+      placeholder: 0.3.0-beta.1
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Game version / 游戏版本
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Description / 问题描述
+      description: Describe the expected and actual behavior. / 请说明预期行为与实际行为。
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Reproduction steps / 复现步骤
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Logs and playset / 日志与播放集
+      description: Attach Player.log and list other traffic or network mods. / 请附 Player.log，并列出其他交通或路网模组。
+    validations:
+      required: true

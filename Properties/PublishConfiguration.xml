@@ -1,0 +1,10 @@
+<Publish>
+  <DisplayName Value="RouteFilter" />
+  <ShortDescription Value="Asset-level vehicle restrictions for road and rail nodes or segments" />
+  <LongDescription>RouteFilter lets Cities: Skylines II players restrict individual vehicle assets at a network node or across an entire road or rail segment. Matching vehicles request a different route when the restriction is detected ahead.</LongDescription>
+  <Tag Value="Code Mod" />
+  <Tag Value="Traffic" />
+  <ModVersion Value="0.4.0-beta.1" />
+  <GameVersion Value="1.*" />
+  <ChangeLog>Added searchable, asset-level vehicle selection and a clean V1 save-data schema.</ChangeLog>
+</Publish>
