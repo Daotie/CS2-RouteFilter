@@ -1,0 +1,10 @@
+<Publish>
+  <DisplayName Value="NodeGate" />
+  <ShortDescription Value="Exact vehicle access control for road and rail nodes / 道路与轨道节点精确车型通行控制" />
+  <LongDescription>NodeGate adds per-vehicle node restrictions with an in-game bilingual panel. / NodeGate 提供带双语游戏内面板的节点精确车型限制。</LongDescription>
+  <Tag Value="Code Mod" />
+  <Tag Value="Traffic" />
+  <ModVersion Value="0.1.0-beta.1" />
+  <GameVersion Value="1.*" />
+  <ChangeLog>Initial beta / 首个 Beta 版本</ChangeLog>
+</Publish>

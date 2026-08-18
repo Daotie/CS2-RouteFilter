@@ -1,0 +1,62 @@
+using Colossal.IO.AssetDatabase;
+using Colossal.Logging;
+using Game;
+using Game.Input;
+using Game.Modding;
+using Game.SceneFlow;
+using NodeGate.Components;
+using NodeGate.Systems;
+
+namespace NodeGate;
+
+public sealed class Mod : IMod
+{
+    public const string Id = "NodeGate";
+    public const string Version = "0.1.0-beta.1";
+    public const string ToggleToolAction = "ToggleRestrictionTool";
+    public const string ApplyAction = "ApplyRestriction";
+    public const string ClearAction = "ClearRestriction";
+
+    public static readonly ILog Log = LogManager
+        .GetLogger($"{Id}.{nameof(Mod)}")
+        .SetShowsErrorsInUI(false);
+
+    public static Setting Settings { get; private set; } = null!;
+    public static ProxyAction ToggleTool { get; private set; } = null!;
+    public static ProxyAction Apply { get; private set; } = null!;
+    public static ProxyAction Clear { get; private set; } = null!;
+    public static VehicleTypeMask SelectedVehicleTypes { get; set; } = VehicleTypeMask.PrivateCar;
+
+    public void OnLoad(UpdateSystem updateSystem)
+    {
+        Log.Info(nameof(OnLoad));
+
+        Settings = new Setting(this);
+        Settings.RegisterInOptionsUI();
+        Settings.RegisterKeyBindings();
+        AssetDatabase.global.LoadSettings(Id, Settings, new Setting(this));
+
+        GameManager.instance.localizationManager.AddSource("en-US", new LocaleEN(Settings));
+        GameManager.instance.localizationManager.AddSource("zh-HANS", new LocaleZH(Settings));
+        GameManager.instance.localizationManager.AddSource("zh-CN", new LocaleZH(Settings));
+
+        ToggleTool = Settings.GetAction(ToggleToolAction);
+        Apply = Settings.GetAction(ApplyAction);
+        Clear = Settings.GetAction(ClearAction);
+        ToggleTool.shouldBeEnabled = true;
+        Apply.shouldBeEnabled = true;
+        Clear.shouldBeEnabled = true;
+
+        updateSystem.UpdateAt<RestrictionShortcutSystem>(SystemUpdatePhase.ToolUpdate);
+        updateSystem.UpdateAt<RestrictionToolSystem>(SystemUpdatePhase.ToolUpdate);
+        updateSystem.UpdateAt<NodeGateUISystem>(SystemUpdatePhase.UIUpdate);
+        updateSystem.UpdateAfter<RestrictionPathSystem, Game.Pathfind.LanesModifiedSystem>(SystemUpdatePhase.ModificationEnd);
+        updateSystem.UpdateAfter<VehicleGateSystem, Game.Simulation.CarNavigationSystem>(SystemUpdatePhase.GameSimulation);
+    }
+
+    public void OnDispose()
+    {
+        Settings?.UnregisterInOptionsUI();
+        Log.Info(nameof(OnDispose));
+    }
+}

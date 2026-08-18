@@ -1,0 +1,11 @@
+bin/
+obj/
+dist/
+UI/node_modules/
+UI/build/
+.vs/
+*.user
+.vs/
+tools/ApiInspector/bin/
+tools/ApiInspector/obj/
+*.user
