@@ -41,6 +41,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private ValueBinding<int> m_SelectedTargetKindBinding = null!;
     private ValueBinding<string> m_AssetCatalogBinding = null!;
     private ValueBinding<string> m_SelectedAssetsBinding = null!;
+    private Entity m_LastSelectedTarget = Entity.Null;
 
     public override GameMode gameMode => GameMode.GameOrEditor;
 
@@ -82,6 +83,11 @@ public sealed partial class RouteFilterUISystem : UISystemBase
             : m_RestrictionTool.HoveredTransportMode);
         m_SelectedTargetKindBinding.Update(m_RestrictionTool.SelectedTarget == Entity.Null ? 0
             : EntityManager.HasComponent<Game.Net.Node>(m_RestrictionTool.SelectedTarget) ? 1 : 2);
+        if (m_LastSelectedTarget != m_RestrictionTool.SelectedTarget)
+        {
+            m_LastSelectedTarget = m_RestrictionTool.SelectedTarget;
+            LoadSelectedTargetAssets(m_LastSelectedTarget);
+        }
         base.OnUpdate();
     }
 
@@ -122,14 +128,14 @@ public sealed partial class RouteFilterUISystem : UISystemBase
             if (EntityManager.TryGetComponent(entity, out CarData car))
             {
                 info.Mode = 1;
-                info.MaxSpeed = car.m_MaxSpeed / 2f;
+                info.MaxSpeed = car.m_MaxSpeed / 2f * 3.6f;
                 info.Acceleration = car.m_Acceleration;
                 info.Braking = car.m_Braking;
             }
             else if (EntityManager.TryGetComponent(entity, out TrainData train))
             {
                 info.Mode = 2;
-                info.MaxSpeed = train.m_MaxSpeed / 2f;
+                info.MaxSpeed = train.m_MaxSpeed / 2f * 3.6f;
                 info.Acceleration = train.m_Acceleration;
                 info.Braking = train.m_Braking;
             }
@@ -199,6 +205,19 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     }
 
     private static string Format(float value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private void LoadSelectedTargetAssets(Entity target)
+    {
+        Mod.SelectedVehicleAssets.Clear();
+        if (target != Entity.Null && EntityManager.Exists(target) &&
+            EntityManager.TryGetBuffer(target, true, out DynamicBuffer<Components.RestrictedVehicleAssetV1> assets))
+        {
+            foreach (var asset in assets)
+                if (asset.m_Prefab != Entity.Null && m_IdsByAsset.ContainsKey(asset.m_Prefab))
+                    Mod.SelectedVehicleAssets.Add(asset.m_Prefab);
+        }
+        UpdateSelectedBinding();
+    }
 
     private void ToggleAsset(int id)
     {

@@ -23,7 +23,7 @@ RouteFilter adds a focused in-game tool for controlling which exact vehicle asse
 - Search the asset list by prefab name and select any combination.
 - See a red circular node outline or dashed segment highlight under the cursor.
 - Filter the catalog automatically to road or rail assets supported by the hovered target.
-- Inspect maximum speed (editor value divided by two), acceleration, and braking on hover.
+- Inspect maximum speed in km/h, acceleration, and braking on hover.
 - Expand recognized engine/tractor groups to edit their carriages or trailers separately.
 - Apply restrictions to one node or a complete road, tram, train, or subway segment.
 - Request an alternate route as soon as a matching vehicle detects the restriction.
@@ -47,7 +47,7 @@ RouteFilter adds a focused in-game tool for controlling which exact vehicle asse
 4. Search the asset list and use the circular controls to mark assets as forbidden.
 5. Select **Apply list to selected target**. An empty forbidden list means all compatible assets are allowed.
 
-Selected entries are the assets that will be **forbidden**. **Forbid all assets** and **Allow all assets** affect the complete catalog, not only the current filter or page. When a recognized engine group is collapsed, changing it also changes its listed carriages; expand the group to edit entries separately. The panel can refresh its asset catalog after content changes. `Ctrl+Shift+X` is available as an optional tool toggle.
+Selected entries are the assets that will be **forbidden**. **Forbid all assets** and **Allow all assets** change the pending list for the currently selected target; they do not modify the map until **Apply list to selected target** is pressed. Selecting another target loads that target's saved list. The panel can refresh its asset catalog after content changes. `Ctrl+Shift+X` is available as an optional tool toggle.
 
 ## Configuration
 

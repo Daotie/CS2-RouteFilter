@@ -134,7 +134,7 @@ export const RouteFilterUI = () => {
       <input className={styles.search} value={search} onChange={event => setSearch(event.target.value)} placeholder={tr("RouteFilter.UI.Search", "Search vehicle assets")} />
       <div className={styles.details}>{hovered ? <>
         <div><AssetGlyph mode={hovered.mode} trailer={hovered.trailer} /><strong>{hovered.name}</strong></div>
-        <span>{tr("RouteFilter.UI.MaxSpeed", "Maximum speed (editor value ÷ 2)")}: <b>{hovered.maxSpeed}</b></span>
+        <span>{tr("RouteFilter.UI.MaxSpeed", "Maximum speed")}: <b>{hovered.maxSpeed} km/h</b></span>
         <span>{tr("RouteFilter.UI.Acceleration", "Acceleration")}: <b>{hovered.acceleration}</b></span>
         <span>{tr("RouteFilter.UI.Braking", "Braking")}: <b>{hovered.braking}</b></span>
       </> : <span>{tr("RouteFilter.UI.HoverInfo", "Hover an asset to view its base parameters.")}</span>}</div>
@@ -143,7 +143,6 @@ export const RouteFilterUI = () => {
         <button onClick={() => trigger(mod.id, "selectNoAssets", 0)}>{tr("RouteFilter.UI.AllowAll", "Allow all assets")}</button>
         <button className={styles.refresh} onClick={() => trigger(mod.id, "refreshAssets")}>↻</button>
       </div>
-      <div className={styles.groupHint}>{tr("RouteFilter.UI.GroupHint", "Collapsed engine groups apply to the engine and its carriages; expand to edit them separately.")}</div>
       <div className={styles.assetList} onWheel={event => { event.currentTarget.scrollTop += event.deltaY; event.stopPropagation(); }} onMouseLeave={() => setHovered(null)}>
         {visibleRoots.map(asset => renderAsset(asset))}
         {roots.length === 0 && <p className={styles.empty}>{tr("RouteFilter.UI.Empty", "No matching vehicle assets")}</p>}

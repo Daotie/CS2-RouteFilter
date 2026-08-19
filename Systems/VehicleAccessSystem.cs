@@ -3,9 +3,11 @@ using Game;
 using Game.Common;
 using Game.Net;
 using Game.Objects;
+using Game.Pathfind;
 using Game.Prefabs;
 using Game.Vehicles;
 using RouteFilter.Components;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
 using NetSubLane = Game.Net.SubLane;
@@ -20,6 +22,11 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
 {
     private EntityQuery m_Cars;
     private EntityQuery m_Trains;
+    private EntityQuery m_RestrictedNodes;
+    private EntityQuery m_RestrictedSegments;
+    private readonly List<Entity> m_PrefabBuffer = new();
+    private int m_DetoursSinceReport;
+    private int m_ReportTicks;
 
     protected override void OnCreate()
     {
@@ -30,13 +37,23 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
         m_Trains = GetEntityQuery(
             ComponentType.ReadWrite<TrainNavigation>(), ComponentType.ReadWrite<Moving>(),
             ComponentType.ReadOnly<TrainNavigationLane>(), ComponentType.Exclude<Deleted>());
+        m_RestrictedNodes = GetEntityQuery(ComponentType.ReadOnly<NodeAssetRestrictionV1>());
+        m_RestrictedSegments = GetEntityQuery(ComponentType.ReadOnly<SegmentAssetRestrictionV1>());
     }
 
     protected override void OnUpdate()
     {
-        if (!Mod.Settings.EnableExactRestrictions) return;
+        if (!Mod.Settings.EnableExactRestrictions ||
+            (m_RestrictedNodes.IsEmptyIgnoreFilter && m_RestrictedSegments.IsEmptyIgnoreFilter)) return;
         ProcessCars();
         ProcessTrains();
+        if (++m_ReportTicks >= 256)
+        {
+            if (m_DetoursSinceReport != 0)
+                Mod.Log.Info($"Exact-asset enforcement requested {m_DetoursSinceReport} vehicle detours during the last reporting interval");
+            m_DetoursSinceReport = 0;
+            m_ReportTicks = 0;
+        }
     }
 
     private void ProcessCars()
@@ -44,8 +61,8 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
         using var vehicles = m_Cars.ToEntityArray(Allocator.Temp);
         foreach (var vehicle in vehicles)
         {
-            if (IsProtectedEmergency(vehicle) || !TryGetVehiclePrefab(vehicle, out var prefab) ||
-                !TryGetBlockedTarget(vehicle, prefab, true, out var target)) continue;
+            if (IsProtectedEmergency(vehicle) || !LoadVehiclePrefabs(vehicle) ||
+                !TryGetBlockedTarget(vehicle, m_PrefabBuffer, true, out var target)) continue;
             RequestDetour(vehicle, target);
             var navigation = EntityManager.GetComponentData<CarNavigation>(vehicle);
             var moving = EntityManager.GetComponentData<Moving>(vehicle);
@@ -62,8 +79,8 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
         using var vehicles = m_Trains.ToEntityArray(Allocator.Temp);
         foreach (var vehicle in vehicles)
         {
-            if (!TryGetVehiclePrefab(vehicle, out var prefab) ||
-                !TryGetBlockedTarget(vehicle, prefab, false, out var target)) continue;
+            if (!LoadVehiclePrefabs(vehicle) ||
+                !TryGetBlockedTarget(vehicle, m_PrefabBuffer, false, out var target)) continue;
             RequestDetour(vehicle, target);
             var navigation = EntityManager.GetComponentData<TrainNavigation>(vehicle);
             var moving = EntityManager.GetComponentData<Moving>(vehicle);
@@ -75,41 +92,56 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
         }
     }
 
-    private bool TryGetBlockedTarget(Entity vehicle, Entity prefab, bool car, out Entity blockedTarget)
+    private bool TryGetBlockedTarget(Entity vehicle, List<Entity> prefabs, bool car, out Entity blockedTarget)
     {
         blockedTarget = Entity.Null;
-        var count = 0;
         var limit = System.Math.Max(1, Mod.Settings.LookAheadLanes);
         if (car)
         {
+            if (EntityManager.TryGetComponent(vehicle, out CarCurrentLane current) &&
+                (TryGetBlockingTarget(current.m_Lane, prefabs, out blockedTarget) ||
+                 TryGetBlockingTarget(current.m_ChangeLane, prefabs, out blockedTarget))) return true;
             var lanes = EntityManager.GetBuffer<CarNavigationLane>(vehicle, true);
-            for (var i = 0; i < lanes.Length && count++ < limit; i++)
-                if (TryGetBlockingTarget(lanes[i].m_Lane, prefab, out blockedTarget)) return true;
+            for (var i = 0; i < lanes.Length && i < limit; i++)
+                if (TryGetBlockingTarget(lanes[i].m_Lane, prefabs, out blockedTarget)) return true;
         }
         else
         {
+            if (EntityManager.TryGetComponent(vehicle, out TrainCurrentLane current) &&
+                (TryGetBlockingTarget(current.m_Front.m_Lane, prefabs, out blockedTarget) ||
+                 TryGetBlockingTarget(current.m_Rear.m_Lane, prefabs, out blockedTarget))) return true;
             var lanes = EntityManager.GetBuffer<TrainNavigationLane>(vehicle, true);
-            for (var i = 0; i < lanes.Length && count++ < limit; i++)
-                if (TryGetBlockingTarget(lanes[i].m_Lane, prefab, out blockedTarget)) return true;
+            for (var i = 0; i < lanes.Length && i < limit; i++)
+                if (TryGetBlockingTarget(lanes[i].m_Lane, prefabs, out blockedTarget)) return true;
+        }
+
+        if (EntityManager.TryGetComponent(vehicle, out PathOwner pathOwner) &&
+            EntityManager.TryGetBuffer(vehicle, true, out DynamicBuffer<PathElement> path))
+        {
+            var start = System.Math.Max(0, pathOwner.m_ElementIndex);
+            for (var i = start; i < path.Length && i < start + limit; i++)
+                if (TryGetBlockingTarget(path[i].m_Target, prefabs, out blockedTarget)) return true;
         }
         return false;
     }
 
-    private bool TryGetBlockingTarget(Entity lane, Entity prefab, out Entity blockedTarget)
+    private bool TryGetBlockingTarget(Entity lane, IReadOnlyCollection<Entity> prefabs, out Entity blockedTarget)
     {
         blockedTarget = Entity.Null;
+        if (lane == Entity.Null) return false;
         var entity = lane;
-        for (var depth = 0; depth < 3 && entity != Entity.Null; depth++)
+        for (var depth = 0; depth < 8 && entity != Entity.Null; depth++)
         {
-            if (EntityManager.HasComponent<NodeAssetRestrictionV1>(entity) && IsAssetRestricted(entity, prefab))
+            if (IsRestrictedTarget(entity, prefabs))
             {
                 blockedTarget = entity;
                 return true;
             }
-            if (EntityManager.HasComponent<SegmentAssetRestrictionV1>(entity) && IsAssetRestricted(entity, prefab))
+
+            if (EntityManager.TryGetComponent(entity, out Game.Net.Edge edge))
             {
-                blockedTarget = entity;
-                return true;
+                if (IsRestrictedTarget(edge.m_Start, prefabs)) { blockedTarget = edge.m_Start; return true; }
+                if (IsRestrictedTarget(edge.m_End, prefabs)) { blockedTarget = edge.m_End; return true; }
             }
             if (!EntityManager.TryGetComponent(entity, out Owner owner)) break;
             entity = owner.m_Owner;
@@ -117,20 +149,43 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
         return false;
     }
 
-    private bool IsAssetRestricted(Entity target, Entity prefab)
+    private bool IsRestrictedTarget(Entity target, IReadOnlyCollection<Entity> prefabs)
     {
+        if (target == Entity.Null ||
+            (!EntityManager.HasComponent<NodeAssetRestrictionV1>(target) &&
+             !EntityManager.HasComponent<SegmentAssetRestrictionV1>(target))) return false;
         if (!EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets)) return false;
         foreach (var asset in assets)
-            if (asset.m_Prefab == prefab) return true;
+            foreach (var prefab in prefabs)
+                if (prefab == asset.m_Prefab) return true;
         return false;
     }
 
-    private bool TryGetVehiclePrefab(Entity vehicle, out Entity prefab)
+    private bool LoadVehiclePrefabs(Entity vehicle)
     {
-        prefab = Entity.Null;
-        if (!EntityManager.TryGetComponent(vehicle, out PrefabRef prefabRef)) return false;
-        prefab = prefabRef.m_Prefab;
-        return prefab != Entity.Null;
+        m_PrefabBuffer.Clear();
+        AddPrefab(vehicle, m_PrefabBuffer);
+        AddLayoutPrefabs(vehicle, m_PrefabBuffer);
+        if (EntityManager.TryGetComponent(vehicle, out Controller controller) &&
+            controller.m_Controller != Entity.Null && controller.m_Controller != vehicle)
+        {
+            AddPrefab(controller.m_Controller, m_PrefabBuffer);
+            AddLayoutPrefabs(controller.m_Controller, m_PrefabBuffer);
+        }
+        return m_PrefabBuffer.Count != 0;
+    }
+
+    private void AddLayoutPrefabs(Entity controller, List<Entity> prefabs)
+    {
+        if (!EntityManager.TryGetBuffer(controller, true, out DynamicBuffer<LayoutElement> layout)) return;
+        foreach (var element in layout) AddPrefab(element.m_Vehicle, prefabs);
+    }
+
+    private void AddPrefab(Entity vehicle, List<Entity> prefabs)
+    {
+        if (vehicle == Entity.Null || !EntityManager.TryGetComponent(vehicle, out PrefabRef prefabRef) ||
+            prefabRef.m_Prefab == Entity.Null || prefabs.Contains(prefabRef.m_Prefab)) return;
+        prefabs.Add(prefabRef.m_Prefab);
     }
 
     private void RequestDetour(Entity vehicle, Entity target)
@@ -138,6 +193,7 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
         if (EntityManager.HasComponent<VehicleDetourRequest>(vehicle)) return;
 
         EntityManager.AddComponentData(vehicle, new VehicleDetourRequest(target));
+        m_DetoursSinceReport++;
         if (EntityManager.TryGetComponent(target, out AccessDetourBlock block))
         {
             if (block.m_RequestCount < ushort.MaxValue) block.m_RequestCount++;

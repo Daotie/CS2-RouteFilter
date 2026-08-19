@@ -8,7 +8,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 - Circular node outlines and dashed segment hover highlights.
 - Contextual road/rail asset filtering based on the hovered network target.
-- Hover details for maximum speed (editor value divided by two), acceleration, and braking.
+- Hover details for maximum speed in km/h, acceleration, and braking.
 - Expandable fixed-trailer and multiple-unit engine/carriage groups.
 - Minimal line icons for the toolbar, road vehicles, rail vehicles, and trailers.
 
@@ -21,6 +21,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Fixed segment raycasts that hit owned lanes instead of the parent network edge.
 - Isolated panel pointer input from the world tool and made asset/group controls independently clickable.
 - Added fixed-height scrolling plus pagination, and made catalog-wide allow/forbid actions independent of filtering.
+- Corrected maximum-speed presentation from metres per second to km/h.
+- Loaded each target's saved forbidden list on selection instead of reusing a global-looking pending state.
+- Expanded enforcement to current lanes, navigation lanes, path elements, network-node endpoints, and complete vehicle consists.
+- Scheduled exact-asset enforcement after road/rail navigation and before vehicle movement.
+- Reduced panel height and removed the redundant engine-group instruction line.
 
 ### 中文
 
@@ -32,6 +37,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - 修复射线命中路段子车道时无法解析到所属路段的问题。
 - 隔离面板与地图工具的鼠标输入，并将资产圆形控件和分组展开控件拆分为独立操作。
 - 新增固定高度滚动与分页兜底，全部禁行/放行不再受筛选条件影响。
+- 将最高速度从米/秒正确换算为 km/h 显示。
+- 选中目标时载入其独立保存的禁行清单，不再复用看似全图共享的暂存状态。
+- 将执行检测扩展到当前车道、导航车道、路径元素、路段端点节点和完整车辆编组。
+- 将逐资产拦截明确安排在道路/轨道导航之后、车辆移动之前。
+- 缩短面板并删除重复的编组操作说明行。
 
 ## 0.4.0-beta.1 — 2026-08-19
 

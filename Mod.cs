@@ -56,6 +56,9 @@ public sealed class Mod : IMod
         updateSystem.UpdateAt<RouteFilterUISystem>(SystemUpdatePhase.UIUpdate);
         updateSystem.UpdateAfter<RestrictionPathSystem, Game.Pathfind.LanesModifiedSystem>(SystemUpdatePhase.ModificationEnd);
         updateSystem.UpdateAfter<VehicleAccessSystem, Game.Simulation.CarNavigationSystem>(SystemUpdatePhase.GameSimulation);
+        updateSystem.UpdateAfter<VehicleAccessSystem, Game.Simulation.TrainNavigationSystem>(SystemUpdatePhase.GameSimulation);
+        updateSystem.UpdateBefore<VehicleAccessSystem, Game.Simulation.CarMoveSystem>(SystemUpdatePhase.GameSimulation);
+        updateSystem.UpdateBefore<VehicleAccessSystem, Game.Simulation.TrainMoveSystem>(SystemUpdatePhase.GameSimulation);
         updateSystem.UpdateAfter<VehicleDetourSystem, VehicleAccessSystem>(SystemUpdatePhase.GameSimulation);
     }
 
