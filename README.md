@@ -2,74 +2,123 @@
   <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
+<p align="center">
+  <!-- Replaceable release logo slot: assets/branding/routefilter-logo.png -->
+  <img src="assets/branding/routefilter-logo.png" width="240" alt="RouteFilter logo">
+</p>
+
 # RouteFilter
 
-Asset-level vehicle access restrictions for road and rail nodes or segments in **Cities: Skylines II**.
+Exact vehicle-asset access control for road and rail networks in **Cities: Skylines II**.
 
-![Version](https://img.shields.io/badge/version-0.4.0--beta.1-2d8b70)
-![Status](https://img.shields.io/badge/status-beta-f0a202)
+![Version](https://img.shields.io/badge/version-1.0.0-2d8b70)
+![Status](https://img.shields.io/badge/status-stable-1976d2)
 ![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)
 
-Current beta: `0.4.0-beta.1`
+RouteFilter lets you decide which exact vehicle assets may pass through one network node or an entire road, tram, train, or subway segment. A matching vehicle is stopped before crossing the restricted target and is asked to find another route when the network provides one.
 
-RouteFilter adds a focused in-game tool for controlling which exact vehicle assets may use a selected network node or an entire road or rail segment. When a matching vehicle detects the restriction ahead, the mod promptly requests another route.
+## Highlights
 
-> RouteFilter is beta software. Back up important saves and review the known limitations before testing.
+- Restrict individual vehicle assets instead of broad traffic categories.
+- Apply independent forbidden lists to specific nodes or complete network segments.
+- Support road vehicles, outside traffic, trams, trains, subway vehicles, engines, carriages, and recognized trailers.
+- Discover available base-game, content-pack, and custom vehicle prefabs automatically.
+- Filter the catalog to assets compatible with the selected road or rail target.
+- Search, paginate, and scroll the asset catalog without hiding the application controls.
+- Inspect an asset's maximum speed in km/h, acceleration, and braking on hover.
+- Group recognized engines or tractors with their carriages and trailers while retaining individual control.
+- Show clear node circles and segment outlines before selection, with a distinct selected-target highlight.
+- Load the saved forbidden list belonging to the selected target; pending changes never silently affect the whole map.
+- Request a detour through the game's pathfinding data and prevent a matching vehicle from simply driving through when no alternative exists.
+- Store restrictions in the savegame and follow the game's English or Simplified Chinese language automatically.
 
-## Features
+## In-game overview
 
-- Restrict individual vehicle assets rather than broad traffic classes.
-- Discover base-game, content-pack, and available custom vehicle prefabs automatically.
-- Search the asset list by prefab name and select any combination.
-- Apply restrictions to one node or a complete road, tram, train, or subway segment.
-- Request an alternate route as soon as a matching vehicle detects the restriction.
-- Use a visible top-left panel; the keyboard shortcut remains optional.
-- Follow the game's English or Simplified Chinese language setting automatically.
-- Store the selected prefab references with each restricted target in the savegame.
-- Configure emergency-vehicle exemptions and route look-ahead distance.
+### 1. Select a precise network target
+
+Choose **Node** or **Segment**, then left-click the highlighted target. Right-click cancels the selection. The panel opens together with the tool—there is no separate activation step.
+
+<!-- Screenshot placeholder: assets/screenshots/01-target-selection.png -->
+<!-- ![Selecting a highlighted road or rail target](assets/screenshots/01-target-selection.png) -->
+
+### 2. Choose exact vehicle assets
+
+Selected entries are the assets that will be **forbidden**. Road targets show road vehicles; rail targets show compatible rail assets. Hover an entry to inspect its base parameters. Expanding a recognized consist enables separate engine, carriage, or trailer choices.
+
+<!-- Screenshot placeholder: assets/screenshots/02-asset-catalog.png -->
+<!-- ![Filtering and selecting exact vehicle assets](assets/screenshots/02-asset-catalog.png) -->
+
+### 3. Review and apply
+
+**Forbid all assets** and **Allow all assets** only edit the pending list. Nothing is written to the map until **Apply list to selected target** is pressed. Selecting another target loads that target's own saved list. **Clear target restrictions** removes RouteFilter data from the selected target.
+
+<!-- Screenshot placeholder: assets/screenshots/03-apply-restriction.png -->
+<!-- ![Applying a forbidden list to one selected target](assets/screenshots/03-apply-restriction.png) -->
+
+### 4. Vehicle enforcement and rerouting
+
+RouteFilter checks current lanes, upcoming navigation lanes, path elements, node endpoints, and every recognized prefab in a vehicle consist. For a matching vehicle, it briefly marks the target unavailable to the pathfinder and invalidates that vehicle's current path. If a valid alternative exists, the vehicle can reroute; otherwise it is prevented from continuing normally through the restricted target and may retry.
+
+<!-- Screenshot placeholder: assets/screenshots/04-rerouting-result.png -->
+<!-- ![A restricted vehicle taking an alternate route](assets/screenshots/04-rerouting-result.png) -->
 
 ## Installation
 
-1. Download the latest package from [GitHub Releases](https://github.com/Daotie/CS2-RouteFilter/releases).
-2. Extract the package into the local Cities: Skylines II mods directory.
-3. Enable **RouteFilter** in the active playset and restart the game when prompted.
-4. Test with a backed-up save first.
+### Paradox Mods
 
-## Usage
+Subscribe to **RouteFilter** on Paradox Mods and add it to the active playset once the listing is available. Restart the game if the playset requests it.
 
-1. Open **RouteFilter** from the top-left game toolbar.
+### Manual installation
+
+1. Download the latest archive from [GitHub Releases](https://github.com/Daotie/CS2-RouteFilter/releases).
+2. Extract it into the local Cities: Skylines II mods directory.
+3. Enable **RouteFilter** in the active playset.
+4. Restart the game before replacing an older DLL.
+
+Back up important cities before changing any code-mod setup.
+
+## Quick start
+
+1. Click the RouteFilter button in the top-left toolbar, or press `Ctrl+Shift+N`.
 2. Choose **Node** or **Segment**.
-3. Search for and select one or more vehicle assets.
-4. Left-click a target to replace its restriction list with the current selection.
-5. Right-click a target to clear its RouteFilter restriction.
+3. Left-click the network target to edit.
+4. Select the vehicle assets that should be forbidden.
+5. Press **Apply list to selected target**.
+6. Re-select the target at any time to review or change its saved list.
 
-The panel can refresh its asset catalog after content changes. `Ctrl+Shift+X` is available as an optional tool toggle.
+The shortcut is remappable in the game's settings. Closing the panel also closes the selection tool.
 
 ## Configuration
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| Asset-level restrictions | On | Enforces exact prefab matches at nodes and segments. |
-| Emergency vehicle protection | Off | Exempts police, ambulance, and fire vehicles even when selected. |
-| Look-ahead lanes | 3 | Controls how early an approaching vehicle checks for restrictions. |
+| Asset-level restrictions | On | Enables exact prefab matching at restricted nodes and segments. |
+| Emergency vehicle protection | Off | Allows police cars, ambulances, and fire engines even if their assets are selected. |
+| Look-ahead lanes | 3 | Controls how early an approaching vehicle checks for a restriction. |
+| Show/hide panel | `Ctrl+Shift+N` | Opens or closes both the RouteFilter panel and selection tool. |
 
-## Rerouting behavior
+## Save data and upgrades
 
-For a matching vehicle, RouteFilter briefly presents the selected node or segment as unavailable to the pathfinder, invalidates that vehicle's current path, and removes the temporary barrier after the route request finishes. Concurrent requests are reference-counted.
+RouteFilter `1.0.0` uses the asset-level V1 save schema introduced during the public beta. Each restricted target stores exact prefab entity references. Saves created with `0.4.0-beta.1` or `0.5.0-beta.1` remain on the same schema.
 
-This prompts the affected vehicle to seek a detour, but it cannot guarantee that a valid alternate route exists or that the game will complete pathfinding within a fixed time.
+Rebuilding, replacing, or deleting a road or track segment creates new game entities and may remove restrictions attached to the original target. Review restrictions after substantial network reconstruction.
 
-## Save data
+## Important behavior and limitations
 
-Version `0.4.0-beta.1` uses RouteFilter's asset-level V1 save schema. Each restricted target stores prefab entity references for the selected vehicle assets. Start testing this beta on a new city or a clearly identified backup branch of an existing save.
+- Asset names are technical prefab names supplied by the game or asset author; a localized display name may not exist.
+- Engine/carriage grouping appears only where the game exposes a fixed-trailer or multiple-unit relationship.
+- A fixed public-transport route cannot always be changed into a valid detour. When no alternative exists, the affected vehicle is stopped and may retry; RouteFilter does not redraw the player's transport line.
+- During the short pathfinding barrier window, another vehicle requesting a route may also avoid the selected target.
+- Compatibility with mods that replace vehicle navigation, pathfinding, or network entities cannot be guaranteed. Report conflicts with a minimal playset and logs.
 
-## Known limitations
+## Compatibility and support
 
-- Prefab names are the technical asset names supplied by the game or asset author; localized display names are not always available.
-- A different vehicle requesting a path during the short temporary-barrier window may also avoid the target.
-- If no valid alternative exists, the affected vehicle may retry until access becomes possible or the restriction is removed.
-- Rebuilding or replacing a network segment may remove the restriction associated with the original entity.
-- Runtime behavior, save/reload, performance, and mod compatibility still require broader in-game testing before a stable release.
+RouteFilter uses the official Cities: Skylines II code-mod toolchain and does not require a separate framework mod. For problems, first reproduce with the latest release and the smallest practical playset, then include the game version, RouteFilter version, reproduction steps, active traffic/network mods, and `Player.log`.
+
+- Help and bug reports: [SUPPORT.md](SUPPORT.md)
+- Security disclosures: [SECURITY.md](SECURITY.md)
+- Release history: [CHANGELOG.md](CHANGELOG.md)
+- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Development
 
@@ -84,15 +133,9 @@ npm run build
 npm audit --omit=dev
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution standards and [RELEASING.md](RELEASING.md) for the release checklist.
+The official Paradox Mods metadata and publish profiles are stored under `Properties`. See [RELEASING.md](RELEASING.md) for the complete release checklist.
 
-## Support and security
-
-- Usage help and bug reports: [SUPPORT.md](SUPPORT.md)
-- Security disclosures: [SECURITY.md](SECURITY.md)
-- Release history: [CHANGELOG.md](CHANGELOG.md)
-
-## License
+## License and attribution
 
 Copyright © 2026 Daotie. RouteFilter is licensed under the [GNU General Public License v3.0 only](LICENSE).
 

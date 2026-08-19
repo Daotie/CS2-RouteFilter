@@ -28,7 +28,7 @@ public sealed class Setting : ModSetting
     [SettingsUISlider(min = 1, max = 8, step = 1, scalarMultiplier = 1, unit = Game.UI.Unit.kInteger)]
     public int LookAheadLanes { get; set; }
 
-    [SettingsUIKeyboardBinding(BindingKeyboard.X, Mod.ToggleToolAction, ctrl: true, shift: true)]
+    [SettingsUIKeyboardBinding(BindingKeyboard.N, Mod.ToggleToolAction, ctrl: true, shift: true)]
     [SettingsUISection(kSection, kToolGroup)]
     public ProxyBinding ToggleToolBinding { get; set; }
 
@@ -66,25 +66,37 @@ internal abstract class LocaleBase : IDictionarySource
             [Setting.GetOptionDescLocaleID(nameof(Setting.ProtectEmergencyVehicles))] = Chinese ? "不拦截警车、救护车和消防车，即使选择了对应资产。" : "Never blocks police cars, ambulances, or fire engines, even when their assets are selected.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.LookAheadLanes))] = Chinese ? "前瞻车道数" : "Look-ahead lanes",
             [Setting.GetOptionDescLocaleID(nameof(Setting.LookAheadLanes))] = Chinese ? "检测前方多少段导航车道。" : "Number of upcoming navigation lanes checked for restrictions.",
-            [Setting.GetOptionLabelLocaleID(nameof(Setting.ToggleToolBinding))] = Chinese ? "开关 RouteFilter 工具" : "Toggle RouteFilter tool",
-            [Setting.GetOptionDescLocaleID(nameof(Setting.ToggleToolBinding))] = Chinese ? "也可以点击游戏左上角按钮。" : "You can also use the top-left game UI button.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.ToggleToolBinding))] = Chinese ? "显示或隐藏 RouteFilter 面板" : "Show or hide the RouteFilter panel",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.ToggleToolBinding))] = Chinese ? "默认快捷键为 Ctrl+Shift+N，也可以点击游戏左上角按钮。" : "The default shortcut is Ctrl+Shift+N; you can also use the top-left game UI button.",
             [Setting.GetBindingMapLocaleID()] = "RouteFilter",
-            [Setting.GetBindingKeyLocaleID(Mod.ToggleToolAction)] = Chinese ? "开关 RouteFilter 工具" : "Toggle RouteFilter tool",
+            [Setting.GetBindingKeyLocaleID(Mod.ToggleToolAction)] = Chinese ? "显示或隐藏 RouteFilter 面板" : "Show or hide the RouteFilter panel",
             [Setting.GetBindingKeyLocaleID(Mod.ApplyAction)] = Chinese ? "应用限制" : "Apply restrictions",
             [Setting.GetBindingKeyLocaleID(Mod.ClearAction)] = Chinese ? "清除限制" : "Clear restrictions",
             ["RouteFilter.UI.Title"] = Chinese ? "路线通行筛选" : "RouteFilter",
-            ["RouteFilter.UI.Instruction"] = Chinese ? "选择目标与车辆资产；左键应用限制，右键清除。" : "Choose a target and vehicle assets; left-click to apply or right-click to clear.",
-            ["RouteFilter.UI.Active"] = Chinese ? "工具已启用" : "Tool active",
-            ["RouteFilter.UI.Inactive"] = Chinese ? "打开工具" : "Open tool",
             ["RouteFilter.UI.Node"] = Chinese ? "节点" : "Node",
             ["RouteFilter.UI.Segment"] = Chinese ? "整段路段" : "Segment",
             ["RouteFilter.UI.Search"] = Chinese ? "搜索车辆资产" : "Search vehicle assets",
-            ["RouteFilter.UI.Assets"] = Chinese ? "车辆资产" : "Vehicle assets",
-            ["RouteFilter.UI.Selected"] = Chinese ? "已选择" : "selected",
-            ["RouteFilter.UI.All"] = Chinese ? "全选" : "Select all",
-            ["RouteFilter.UI.None"] = Chinese ? "清空" : "Clear selection",
-            ["RouteFilter.UI.Refresh"] = Chinese ? "刷新资产" : "Refresh assets",
             ["RouteFilter.UI.Empty"] = Chinese ? "没有匹配的车辆资产" : "No matching vehicle assets",
+            ["RouteFilter.UI.ForbiddenTitle"] = Chinese ? "禁行资产" : "Forbidden assets",
+            ["RouteFilter.UI.ForbiddenHint"] = Chinese ? "选中的资产将被禁止通行；未选中的资产保持允许通行。" : "Selected assets will be blocked. Unselected assets remain allowed.",
+            ["RouteFilter.UI.ForbiddenCount"] = Chinese ? "项禁行" : "forbidden",
+            ["RouteFilter.UI.RoadAssets"] = Chinese ? "道路车辆" : "Road vehicles",
+            ["RouteFilter.UI.RailAssets"] = Chinese ? "轨道车辆" : "Rail vehicles",
+            ["RouteFilter.UI.MixedAssets"] = Chinese ? "道路与轨道车辆" : "Road and rail vehicles",
+            ["RouteFilter.UI.HoverTarget"] = Chinese ? "将鼠标移到目标上以筛选资产" : "Hover a target to filter assets",
+            ["RouteFilter.UI.MaxSpeed"] = Chinese ? "最高速度" : "Maximum speed",
+            ["RouteFilter.UI.Acceleration"] = Chinese ? "加速度" : "Acceleration",
+            ["RouteFilter.UI.Braking"] = Chinese ? "制动减速度" : "Braking",
+            ["RouteFilter.UI.HoverInfo"] = Chinese ? "将鼠标移到资产上查看基础参数。" : "Hover an asset to view its base parameters.",
+            ["RouteFilter.UI.ForbidAll"] = Chinese ? "全部资产禁行" : "Forbid all assets",
+            ["RouteFilter.UI.AllowAll"] = Chinese ? "全部资产放行" : "Allow all assets",
+            ["RouteFilter.UI.NodeSelected"] = Chinese ? "已选中节点" : "Node selected",
+            ["RouteFilter.UI.SegmentSelected"] = Chinese ? "已选中路段" : "Segment selected",
+            ["RouteFilter.UI.SelectTarget"] = Chinese ? "请先在地图上单击节点或路段" : "Click a node or segment on the map first",
+            ["RouteFilter.UI.SelectionHint"] = Chinese ? "左键选中，右键取消选中。" : "Left-click selects; right-click cancels the selection.",
+            ["RouteFilter.UI.ApplyToTarget"] = Chinese ? "应用到所选目标" : "Apply list to selected target",
+            ["RouteFilter.UI.ClearTarget"] = Chinese ? "清除目标限制" : "Clear target restrictions",
+            ["RouteFilter.UI.CancelTarget"] = Chinese ? "取消选中" : "Cancel selection",
         };
     }
 

@@ -3,9 +3,9 @@
     <Configurations>Debug;Release</Configurations>
     <AssemblyName>RouteFilter</AssemblyName>
     <RootNamespace>RouteFilter</RootNamespace>
-    <Version>0.4.0-beta.1</Version>
-    <AssemblyVersion>0.4.0.0</AssemblyVersion>
-    <FileVersion>0.4.0.0</FileVersion>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
     <Authors>Daotie</Authors>
     <Description>Asset-level vehicle access restrictions for road and rail nodes or segments in Cities: Skylines II.</Description>
     <Title>RouteFilter</Title>
@@ -14,6 +14,8 @@
     <LangVersion>9.0</LangVersion>
     <ToolchainPath Condition="'$(ToolchainPath)' == '' AND '$(CSII_TOOLPATH)' != ''">$(CSII_TOOLPATH)</ToolchainPath>
     <ToolchainPath Condition="'$(ToolchainPath)' == '' AND Exists('D:\SteamLibrary\steamapps\common\Cities Skylines II\Cities2_Data\Content\Game\.ModdingToolchain\Mod.props')">D:\SteamLibrary\steamapps\common\Cities Skylines II\Cities2_Data\Content\Game\.ModdingToolchain</ToolchainPath>
+    <ModPublisherPath Condition="'$(ModPublisherPath)' == '' AND Exists('$(ToolchainPath)\ModPublisher\ModPublisher.exe')">$(ToolchainPath)\ModPublisher\ModPublisher.exe</ModPublisherPath>
+    <ModPublisherPath Condition="'$(ModPublisherPath)' == '' AND Exists('D:\SteamLibrary\steamapps\common\Cities Skylines II\Cities2_Data\Content\Game\.ModdingToolchain\ModPublisher\ModPublisher.exe')">D:\SteamLibrary\steamapps\common\Cities Skylines II\Cities2_Data\Content\Game\.ModdingToolchain\ModPublisher\ModPublisher.exe</ModPublisherPath>
     <ManagedPath Condition="'$(ManagedPath)' == '' AND Exists('D:\SteamLibrary\steamapps\common\Cities Skylines II\Cities2_Data\Managed\Game.dll')">D:\SteamLibrary\steamapps\common\Cities Skylines II\Cities2_Data\Managed</ManagedPath>
     <MSCORLIBPath Condition="'$(MSCORLIBPath)' == '' AND Exists('$(ManagedPath)\mscorlib.dll')">$(ManagedPath)\mscorlib.dll</MSCORLIBPath>
     <EnableDefaultItems>true</EnableDefaultItems>
