@@ -90,9 +90,16 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.Acceleration"] = Chinese ? "加速度" : "Acceleration",
             ["RouteFilter.UI.Braking"] = Chinese ? "制动减速度" : "Braking",
             ["RouteFilter.UI.HoverInfo"] = Chinese ? "将鼠标移到资产上查看基础参数。" : "Hover an asset to view its base parameters.",
-            ["RouteFilter.UI.ForbidAll"] = Chinese ? "当前显示全部禁行" : "Forbid all shown",
-            ["RouteFilter.UI.AllowAll"] = Chinese ? "当前显示全部放行" : "Allow all shown",
+            ["RouteFilter.UI.ForbidAll"] = Chinese ? "全部资产禁行" : "Forbid all assets",
+            ["RouteFilter.UI.AllowAll"] = Chinese ? "全部资产放行" : "Allow all assets",
             ["RouteFilter.UI.GroupHint"] = Chinese ? "折叠时操作牵引车辆会同时应用于车厢；展开后可单独修改。" : "Collapsed engine groups apply to the engine and its carriages; expand to edit them separately.",
+            ["RouteFilter.UI.NodeSelected"] = Chinese ? "已选中节点" : "Node selected",
+            ["RouteFilter.UI.SegmentSelected"] = Chinese ? "已选中路段" : "Segment selected",
+            ["RouteFilter.UI.SelectTarget"] = Chinese ? "请先在地图上单击节点或路段" : "Click a node or segment on the map first",
+            ["RouteFilter.UI.SelectionHint"] = Chinese ? "左键选中，右键取消选中。" : "Left-click selects; right-click cancels the selection.",
+            ["RouteFilter.UI.ApplyToTarget"] = Chinese ? "应用到所选目标" : "Apply list to selected target",
+            ["RouteFilter.UI.ClearTarget"] = Chinese ? "清除目标限制" : "Clear target restrictions",
+            ["RouteFilter.UI.CancelTarget"] = Chinese ? "取消选中" : "Cancel selection",
         };
     }
 

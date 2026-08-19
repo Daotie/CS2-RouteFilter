@@ -16,6 +16,9 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 {
     public Entity HoveredTarget { get; private set; } = Entity.Null;
     public int HoveredTransportMode { get; private set; }
+    public Entity SelectedTarget { get; private set; } = Entity.Null;
+    public int SelectedTransportMode { get; private set; }
+    public bool PointerOverUi { get; private set; }
 
     public override string toolID => "RouteFilterTool";
     public override bool allowUnderground => true;
@@ -29,6 +32,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         {
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
+            ClearSelection();
             m_ToolSystem.selected = Entity.Null;
             m_ToolSystem.activeTool = m_DefaultToolSystem;
         }
@@ -50,38 +54,48 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
     protected override JobHandle OnUpdate(JobHandle inputDeps)
     {
+        if (SelectedTarget != Entity.Null && !EntityManager.Exists(SelectedTarget)) ClearSelection();
+
+        if (PointerOverUi)
+        {
+            HoveredTarget = Entity.Null;
+            HoveredTransportMode = 0;
+            m_ToolSystem.selected = SelectedTarget;
+            return inputDeps;
+        }
+
         if (!GetRaycastResult(out Entity entity, out RaycastHit hit))
         {
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
-            m_ToolSystem.selected = Entity.Null;
+            m_ToolSystem.selected = SelectedTarget;
+            if (Mod.Clear.WasPressedThisFrame()) ClearSelection();
             return inputDeps;
         }
 
         var target = ResolveTarget(entity, hit.m_HitPosition);
         HoveredTarget = target;
         HoveredTransportMode = GetTransportMode(target);
-        m_ToolSystem.selected = target;
-        if (target == Entity.Null)
+        m_ToolSystem.selected = SelectedTarget != Entity.Null ? SelectedTarget : target;
+        if (Mod.Clear.WasPressedThisFrame())
+        {
+            ClearSelection();
             return inputDeps;
-
-        if (Mod.Apply.WasPressedThisFrame())
-            SetRestriction(target, Mod.SelectedVehicleAssets);
-        else if (Mod.Clear.WasPressedThisFrame())
-            ClearRestriction(target);
+        }
+        if (target != Entity.Null && Mod.Apply.WasPressedThisFrame()) SelectTarget(target);
 
         return inputDeps;
     }
 
     private Entity ResolveTarget(Entity entity, float3 hitPosition)
     {
-        if (Mod.SelectedTargetMode == RestrictionTargetMode.Segment)
-            return EntityManager.HasComponent<Edge>(entity) ? entity : Entity.Null;
+        var edgeEntity = FindOwningEdge(entity);
+        if (Mod.SelectedTargetMode == RestrictionTargetMode.Segment) return edgeEntity;
 
         if (EntityManager.HasComponent<Node>(entity))
             return entity;
 
-        if (!EntityManager.TryGetComponent(entity, out Edge edge))
+        if (edgeEntity == Entity.Null || !EntityManager.TryGetComponent(edgeEntity, out Edge edge))
             return Entity.Null;
 
         if (!EntityManager.TryGetComponent(edge.m_Start, out Node start) ||
@@ -91,6 +105,53 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         return math.distancesq(start.m_Position, hitPosition) <= math.distancesq(end.m_Position, hitPosition)
             ? edge.m_Start
             : edge.m_End;
+    }
+
+    private Entity FindOwningEdge(Entity entity)
+    {
+        var current = entity;
+        for (var depth = 0; depth < 8 && current != Entity.Null; depth++)
+        {
+            if (EntityManager.HasComponent<Edge>(current)) return current;
+            if (!EntityManager.TryGetComponent(current, out Owner owner) || owner.m_Owner == current) break;
+            current = owner.m_Owner;
+        }
+        return Entity.Null;
+    }
+
+    public void SetPointerOverUi(bool value) => PointerOverUi = value;
+
+    public void SelectTarget(Entity target)
+    {
+        if (target == Entity.Null) return;
+        SelectedTarget = target;
+        SelectedTransportMode = GetTransportMode(target);
+        m_ToolSystem.selected = target;
+        Mod.Log.Info($"Selected {(EntityManager.HasComponent<Node>(target) ? "node" : "segment")} {target.Index}:{target.Version}");
+    }
+
+    public void ClearSelection()
+    {
+        SelectedTarget = Entity.Null;
+        SelectedTransportMode = 0;
+        m_ToolSystem.selected = Entity.Null;
+    }
+
+    public void ApplySelection()
+    {
+        if (SelectedTarget == Entity.Null)
+        {
+            Mod.Log.Warn("Apply ignored: no node or segment selected");
+            return;
+        }
+        SetRestriction(SelectedTarget, Mod.SelectedVehicleAssets);
+    }
+
+    public void ClearSelectedRestriction()
+    {
+        if (SelectedTarget == Entity.Null) return;
+        ClearRestriction(SelectedTarget);
+        Mod.Log.Info($"Restrictions cleared from {SelectedTarget.Index}:{SelectedTarget.Version}");
     }
 
     public void SetRestriction(Entity target, IReadOnlyCollection<Entity> vehicleAssets)
@@ -108,7 +169,8 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         }
         if (compatibleAssets.Count == 0)
         {
-            Mod.Log.Warn($"Apply ignored for {target.Index}:{target.Version}: no compatible forbidden assets selected");
+            ClearRestriction(target);
+            Mod.Log.Info($"{(isNode ? "Node" : "Segment")} {target.Index}:{target.Version} set to allow all compatible vehicle assets");
             return;
         }
 

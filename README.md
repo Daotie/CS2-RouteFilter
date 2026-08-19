@@ -43,11 +43,11 @@ RouteFilter adds a focused in-game tool for controlling which exact vehicle asse
 
 1. Open **RouteFilter** from the top-left game toolbar.
 2. Choose **Node** or **Segment**.
-3. Search for and select one or more vehicle assets.
-4. Left-click a target to replace its restriction list with the current selection.
-5. Right-click a target to clear its RouteFilter restriction.
+3. Left-click a node or segment on the map to select it; right-click cancels the target selection.
+4. Search the asset list and use the circular controls to mark assets as forbidden.
+5. Select **Apply list to selected target**. An empty forbidden list means all compatible assets are allowed.
 
-Selected entries are the assets that will be **forbidden**. When a recognized engine group is collapsed, changing it also changes its listed carriages; expand the group to edit entries separately. The panel can refresh its asset catalog after content changes. `Ctrl+Shift+X` is available as an optional tool toggle.
+Selected entries are the assets that will be **forbidden**. **Forbid all assets** and **Allow all assets** affect the complete catalog, not only the current filter or page. When a recognized engine group is collapsed, changing it also changes its listed carriages; expand the group to edit entries separately. The panel can refresh its asset catalog after content changes. `Ctrl+Shift+X` is available as an optional tool toggle.
 
 ## Configuration
 

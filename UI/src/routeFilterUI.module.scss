@@ -2,26 +2,30 @@
 .toggle:hover { background: #354650; }
 .selected { box-shadow: 0 0 0 3rem rgba(255, 94, 66, .72); }
 .panel {
-  position: fixed; left: 18rem; top: 88rem; z-index: 1000; width: 470rem; height: 720rem;
+  position: fixed; left: 18rem; top: 88rem; z-index: 1000; width: 470rem; height: 820rem;
   padding: 16rem; border-radius: 12rem; color: var(--textColor); background: rgba(28, 35, 42, .98);
-  box-shadow: 0 8rem 28rem rgba(0,0,0,.48); display: flex; flex-direction: column;
+  box-shadow: 0 8rem 28rem rgba(0,0,0,.48); display: flex; flex-direction: column; pointer-events: auto;
   header { display: flex; justify-content: space-between; align-items: center; flex: 0 0 auto; }
-  header div { display: flex; align-items: baseline; }
+  header div { display: flex; align-items: center; }
   header small { opacity: .65; font-size: 11rem; margin-left: 10rem; }
   header button { border: 0; background: transparent; color: inherit; font-size: 24rem; }
 }
 .warning { flex: 0 0 auto; margin-top: 8rem; padding: 9rem 11rem; border-left: 3rem solid #ff5e42; background: rgba(255,94,66,.12); }
 .warning strong, .warning span { display: block; }
 .warning span { margin-top: 3rem; opacity: .82; font-size: 12rem; }
-.toolButton, .actions button, .modes button, .assetButton, .expand {
+.toolButton, .actions button, .modes button, .expand, .pager button, .applyActions button {
   border: 0; border-radius: 6rem; color: white; background: rgba(255,255,255,.09); cursor: pointer;
 }
 .toolButton { flex: 0 0 auto; width: 100%; padding: 8rem; background: #3b5969; }
+.targetStatus { flex: 0 0 auto; margin-top: 8rem; padding: 7rem 9rem; border: 1rem solid rgba(255,255,255,.16); border-radius: 6rem; }
+.targetStatus strong, .targetStatus span { display: block; }
+.targetStatus span { margin-top: 2rem; opacity: .7; font-size: 11rem; }
+.targetReady { border-color: #53ccef; background-color: rgba(45,174,214,.13); }
 .modes { display: flex; flex: 0 0 auto; margin-top: 9rem; margin-bottom: 8rem; }
 .modes button { flex: 1 1 50%; padding: 8rem; }
 .modes button + button { margin-left: 8rem; }
 .modes .modeSelected { background: #3b5969; box-shadow: inset 0 -2rem #8ed6f4; }
-.assetHeader { display: flex; flex: 0 0 auto; justify-content: space-between; align-items: baseline; margin-top: 12rem; }
+.assetHeader { display: flex; flex: 0 0 auto; justify-content: space-between; align-items: center; margin-top: 10rem; }
 .assetHeader small { opacity: .72; }
 .search { width: 100%; margin-top: 7rem; padding: 8rem 10rem; border: 1rem solid rgba(255,255,255,.18); border-radius: 6rem; color: white; background: rgba(0,0,0,.22); }
 .details { flex: 0 0 75rem; margin-top: 7rem; padding: 8rem 10rem; border-radius: 6rem; background: rgba(0,0,0,.2); font-size: 12rem; overflow: hidden; }
@@ -33,17 +37,27 @@
 .actions button + button { margin-left: 7rem; }
 .actions .refresh { flex: 0 0 38rem; }
 .groupHint { flex: 0 0 auto; margin-top: 7rem; opacity: .68; font-size: 11rem; }
-.assetList { flex: 1 1 auto; min-height: 0; margin-top: 7rem; overflow-y: scroll; overflow-x: hidden; padding-right: 5rem; }
-.assetRow { display: flex; width: 100%; margin-bottom: 5rem; }
+.assetList { flex: 0 0 280rem; height: 280rem; margin-top: 7rem; overflow-y: auto; overflow-x: hidden; padding-right: 5rem; }
+.assetRow { display: flex; width: 100%; min-height: 34rem; margin-bottom: 5rem; align-items: center; border-radius: 6rem; background-color: rgba(255,255,255,.07); }
 .assetRow.child { margin-left: 24rem; width: auto; }
+.assetRow.forbidden { background-color: rgba(190, 58, 40, .78); }
+.assetRow.partial { background-color: rgba(202, 125, 35, .62); }
 .expand, .expandSpacer { flex: 0 0 25rem; width: 25rem; margin-right: 5rem; }
 .expand { font-size: 20rem; line-height: 30rem; }
-.assetButton { display: flex; flex: 1 1 auto; min-width: 0; height: 34rem; align-items: center; padding: 5rem 7rem; text-align: left; }
-.assetButton .check { flex: 0 0 18rem; display: inline-flex; align-items: center; justify-content: center; width: 18rem; height: 18rem; border: 1rem solid #8c989f; border-radius: 9rem; }
-.assetButton em { flex: 1 1 auto; min-width: 0; overflow: hidden; margin-left: 7rem; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
-.assetButton small { flex: 0 0 auto; opacity: .65; margin-left: 6rem; }
-.assetButton.forbidden { background: rgba(190, 58, 40, .78); }
-.assetButton.partial { background: rgba(202, 125, 35, .62); }
+.check { flex: 0 0 20rem; display: flex; align-items: center; justify-content: center; width: 20rem; height: 20rem; padding: 0; border: 1rem solid #a9b3b9; border-radius: 10rem; color: white; background-color: rgba(0,0,0,.2); }
+.checked { border-color: white; background-color: #a93428; }
+.partialCheck { background-color: #a96a23; }
+.assetMain { display: flex; flex: 1 1 auto; min-width: 0; height: 34rem; align-items: center; padding: 5rem 7rem 5rem 0; }
+.assetMain em { flex: 1 1 auto; min-width: 0; overflow: hidden; margin-left: 7rem; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.assetMain small { flex: 0 0 auto; opacity: .65; margin-left: 6rem; }
 .glyph { flex: 0 0 22rem; width: 22rem; height: 22rem; margin-left: 7rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .details .glyph { margin-left: 0; margin-right: 7rem; }
 .empty { text-align: center; opacity: .65; }
+.pager { display: flex; flex: 0 0 30rem; align-items: center; justify-content: center; margin-top: 5rem; }
+.pager button { width: 42rem; height: 28rem; }
+.pager span { min-width: 150rem; text-align: center; font-size: 11rem; opacity: .78; }
+.pager button:disabled, .applyActions button:disabled { opacity: .35; }
+.applyActions { display: flex; flex: 0 0 auto; margin-top: 7rem; }
+.applyActions button { flex: 1 1 auto; padding: 8rem 5rem; }
+.applyActions button + button { margin-left: 6rem; }
+.applyActions .applyButton { background-color: #287a98; }

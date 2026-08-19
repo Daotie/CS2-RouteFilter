@@ -38,6 +38,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private ValueBinding<bool> m_ToolActiveBinding = null!;
     private ValueBinding<int> m_TargetModeBinding = null!;
     private ValueBinding<int> m_TargetTransportBinding = null!;
+    private ValueBinding<int> m_SelectedTargetKindBinding = null!;
     private ValueBinding<string> m_AssetCatalogBinding = null!;
     private ValueBinding<string> m_SelectedAssetsBinding = null!;
 
@@ -54,6 +55,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         m_ToolActiveBinding = CreateValue("toolActive", false);
         m_TargetModeBinding = CreateValue("targetMode", (int)Mod.SelectedTargetMode);
         m_TargetTransportBinding = CreateValue("targetTransport", 0);
+        m_SelectedTargetKindBinding = CreateValue("selectedTargetKind", 0);
         m_AssetCatalogBinding = CreateValue("assetCatalog", string.Empty);
         m_SelectedAssetsBinding = CreateValue("selectedAssetIds", string.Empty);
 
@@ -64,6 +66,10 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         AddBinding(new TriggerBinding<int>(Mod.Id, "selectAllAssets", SelectAllAssets));
         AddBinding(new TriggerBinding<int>(Mod.Id, "selectNoAssets", SelectNoAssets));
         AddBinding(new TriggerBinding(Mod.Id, "refreshAssets", RefreshAssetCatalog));
+        AddBinding(new TriggerBinding(Mod.Id, "applySelection", m_RestrictionTool.ApplySelection));
+        AddBinding(new TriggerBinding(Mod.Id, "clearSelectedRestriction", m_RestrictionTool.ClearSelectedRestriction));
+        AddBinding(new TriggerBinding(Mod.Id, "cancelSelection", m_RestrictionTool.ClearSelection));
+        AddBinding(new TriggerBinding<bool>(Mod.Id, "setPointerOverUi", m_RestrictionTool.SetPointerOverUi));
     }
 
     protected override void OnUpdate()
@@ -71,7 +77,11 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         if (m_AssetsById.Count == 0 && !m_VehiclePrefabQuery.IsEmptyIgnoreFilter) RefreshAssetCatalog();
         m_ToolActiveBinding.Update(m_ToolSystem.activeTool == m_RestrictionTool);
         m_TargetModeBinding.Update((int)Mod.SelectedTargetMode);
-        m_TargetTransportBinding.Update(m_RestrictionTool.HoveredTransportMode);
+        m_TargetTransportBinding.Update(m_RestrictionTool.SelectedTarget != Entity.Null
+            ? m_RestrictionTool.SelectedTransportMode
+            : m_RestrictionTool.HoveredTransportMode);
+        m_SelectedTargetKindBinding.Update(m_RestrictionTool.SelectedTarget == Entity.Null ? 0
+            : EntityManager.HasComponent<Game.Net.Node>(m_RestrictionTool.SelectedTarget) ? 1 : 2);
         base.OnUpdate();
     }
 
@@ -91,6 +101,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private void SetTargetMode(int value)
     {
         Mod.SelectedTargetMode = value == 1 ? Components.RestrictionTargetMode.Segment : Components.RestrictionTargetMode.Node;
+        m_RestrictionTool.ClearSelection();
         m_TargetModeBinding.Update((int)Mod.SelectedTargetMode);
     }
 
@@ -191,9 +202,10 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     private void ToggleAsset(int id)
     {
-        if (!m_AssetsById.TryGetValue(id, out var entity)) return;
+        if (!m_AssetsById.TryGetValue(id, out var entity)) { Mod.Log.Warn($"UI requested unknown asset id {id}"); return; }
         if (!Mod.SelectedVehicleAssets.Add(entity)) Mod.SelectedVehicleAssets.Remove(entity);
         UpdateSelectedBinding();
+        Mod.Log.Debug($"Asset {id} toggled; {Mod.SelectedVehicleAssets.Count} forbidden assets selected");
     }
 
     private void ToggleAssetGroup(int id, bool includeChildren)
@@ -208,6 +220,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
             else Mod.SelectedVehicleAssets.Add(item);
         }
         UpdateSelectedBinding();
+        Mod.Log.Debug($"Asset group {id} toggled (children: {includeChildren}); {Mod.SelectedVehicleAssets.Count} forbidden assets selected");
     }
 
     private void SelectAllAssets(int mode)
@@ -215,12 +228,14 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         foreach (var pair in m_AssetsById)
             if (mode == 0 || m_ModeByAsset[pair.Value] == mode) Mod.SelectedVehicleAssets.Add(pair.Value);
         UpdateSelectedBinding();
+        Mod.Log.Debug($"All {m_AssetsById.Count} catalog assets selected as forbidden");
     }
 
     private void SelectNoAssets(int mode)
     {
         Mod.SelectedVehicleAssets.RemoveWhere(entity => mode == 0 || (m_ModeByAsset.TryGetValue(entity, out var assetMode) && assetMode == mode));
         UpdateSelectedBinding();
+        Mod.Log.Debug("All catalog assets set to allowed");
     }
 
     private void UpdateSelectedBinding()
