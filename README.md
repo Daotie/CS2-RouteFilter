@@ -6,11 +6,11 @@
 
 Asset-level vehicle access restrictions for road and rail nodes or segments in **Cities: Skylines II**.
 
-![Version](https://img.shields.io/badge/version-0.4.0--beta.1-2d8b70)
+![Version](https://img.shields.io/badge/version-0.5.0--beta.1-2d8b70)
 ![Status](https://img.shields.io/badge/status-beta-f0a202)
 ![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)
 
-Current beta: `0.4.0-beta.1`
+Current beta: `0.5.0-beta.1`
 
 RouteFilter adds a focused in-game tool for controlling which exact vehicle assets may use a selected network node or an entire road or rail segment. When a matching vehicle detects the restriction ahead, the mod promptly requests another route.
 
@@ -21,6 +21,10 @@ RouteFilter adds a focused in-game tool for controlling which exact vehicle asse
 - Restrict individual vehicle assets rather than broad traffic classes.
 - Discover base-game, content-pack, and available custom vehicle prefabs automatically.
 - Search the asset list by prefab name and select any combination.
+- See a red circular node outline or dashed segment highlight under the cursor.
+- Filter the catalog automatically to road or rail assets supported by the hovered target.
+- Inspect maximum speed (editor value divided by two), acceleration, and braking on hover.
+- Expand recognized engine/tractor groups to edit their carriages or trailers separately.
 - Apply restrictions to one node or a complete road, tram, train, or subway segment.
 - Request an alternate route as soon as a matching vehicle detects the restriction.
 - Use a visible top-left panel; the keyboard shortcut remains optional.
@@ -43,7 +47,7 @@ RouteFilter adds a focused in-game tool for controlling which exact vehicle asse
 4. Left-click a target to replace its restriction list with the current selection.
 5. Right-click a target to clear its RouteFilter restriction.
 
-The panel can refresh its asset catalog after content changes. `Ctrl+Shift+X` is available as an optional tool toggle.
+Selected entries are the assets that will be **forbidden**. When a recognized engine group is collapsed, changing it also changes its listed carriages; expand the group to edit entries separately. The panel can refresh its asset catalog after content changes. `Ctrl+Shift+X` is available as an optional tool toggle.
 
 ## Configuration
 
@@ -61,11 +65,12 @@ This prompts the affected vehicle to seek a detour, but it cannot guarantee that
 
 ## Save data
 
-Version `0.4.0-beta.1` uses RouteFilter's asset-level V1 save schema. Each restricted target stores prefab entity references for the selected vehicle assets. Start testing this beta on a new city or a clearly identified backup branch of an existing save.
+Version `0.5.0-beta.1` uses RouteFilter's asset-level V1 save schema. Each restricted target stores prefab entity references for the selected vehicle assets. Start testing this beta on a new city or a clearly identified backup branch of an existing save.
 
 ## Known limitations
 
 - Prefab names are the technical asset names supplied by the game or asset author; localized display names are not always available.
+- Engine-carriage grouping is shown only where the game exposes an explicit fixed-trailer or multiple-unit relationship.
 - A different vehicle requesting a path during the short temporary-barrier window may also avoid the target.
 - If no valid alternative exists, the affected vehicle may retry until access becomes possible or the restriction is removed.
 - Rebuilding or replacing a network segment may remove the restriction associated with the original entity.

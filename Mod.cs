@@ -14,7 +14,7 @@ namespace RouteFilter;
 public sealed class Mod : IMod
 {
     public const string Id = "RouteFilter";
-    public const string Version = "0.4.0-beta.1";
+    public const string Version = "0.5.0-beta.1";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";
@@ -52,6 +52,7 @@ public sealed class Mod : IMod
 
         updateSystem.UpdateAt<RestrictionShortcutSystem>(SystemUpdatePhase.ToolUpdate);
         updateSystem.UpdateAt<RestrictionToolSystem>(SystemUpdatePhase.ToolUpdate);
+        updateSystem.UpdateAfter<RestrictionOverlaySystem, RestrictionToolSystem>(SystemUpdatePhase.ToolUpdate);
         updateSystem.UpdateAt<RouteFilterUISystem>(SystemUpdatePhase.UIUpdate);
         updateSystem.UpdateAfter<RestrictionPathSystem, Game.Pathfind.LanesModifiedSystem>(SystemUpdatePhase.ModificationEnd);
         updateSystem.UpdateAfter<VehicleAccessSystem, Game.Simulation.CarNavigationSystem>(SystemUpdatePhase.GameSimulation);
