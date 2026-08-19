@@ -66,7 +66,7 @@ RouteFilter 会检查当前车道、前方导航车道、底层路径元素、�
 
 ### Paradox Mods
 
-Paradox Mods 页面上线后，订阅 **RouteFilter** 并将其加入当前播放集；如果播放集提示重启，请重启游戏。
+[Paradox Mods 页面](https://mods.paradoxplaza.com/mods/155839/Windows)订阅 **RouteFilter** 并将其加入当前播放集；如果播放集提示重启，请重启游戏。
 
 ### 手动安装
 
