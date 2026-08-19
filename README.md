@@ -66,7 +66,7 @@ RouteFilter checks current lanes, upcoming navigation lanes, path elements, node
 
 ### Paradox Mods
 
-Subscribe to **RouteFilter** on Paradox Mods and add it to the active playset once the listing is available. Restart the game if the playset requests it.
+Subscribe to **RouteFilter** on [Paradox Mods](https://mods.paradoxplaza.com/mods/155839/Windows) and add it to the active playset. Restart the game if the playset requests it.
 
 ### Manual installation
 
