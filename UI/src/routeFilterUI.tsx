@@ -41,13 +41,13 @@ const AssetGlyph = ({ mode, trailer }: { mode: number; trailer: boolean }) => <s
 </svg>;
 
 export const RouteFilterUI = () => {
-  const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
   const [hovered, setHovered] = useState<VehicleAsset | null>(null);
   const [page, setPage] = useState(0);
   const anchor = useRef<HTMLDivElement | null>(null);
   const active = useValue(toolActive$);
+  const open = active;
   const targetMode = useValue(targetMode$);
   const targetTransport = useValue(targetTransport$);
   const selectedTargetKind = useValue(selectedTargetKind$);
@@ -80,10 +80,7 @@ export const RouteFilterUI = () => {
     return () => { trigger(mod.id, "setPointerOverUi", false); };
   }, [open]);
 
-  const togglePanel = () => {
-    setOpen(!open);
-    if (!open && !active) trigger(mod.id, "toggleTool");
-  };
+  const togglePanel = () => trigger(mod.id, "toggleTool");
   const toggleExpanded = (id: number) => setExpanded(current => {
     const next = new Set(current);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -120,13 +117,12 @@ export const RouteFilterUI = () => {
   return <div ref={anchor}>
     <Button src={icon} variant="floating" className={classNames(styles.toggle, { [styles.selected]: active })} onSelect={togglePanel} />
     {open && <Portal><section className={styles.panel} onMouseEnter={() => trigger(mod.id, "setPointerOverUi", true)} onMouseLeave={() => trigger(mod.id, "setPointerOverUi", false)}>
-      <header><div><strong>{tr("RouteFilter.UI.Title", "RouteFilter")}</strong><small>v{mod.version}</small></div><button onClick={() => setOpen(false)}>×</button></header>
+      <header><div><strong>{tr("RouteFilter.UI.Title", "RouteFilter")}</strong><small>v{mod.version}</small></div><button onClick={() => trigger(mod.id, "toggleTool")}>×</button></header>
       <div className={styles.warning}><strong>{tr("RouteFilter.UI.ForbiddenTitle", "Forbidden assets")}</strong><span>{tr("RouteFilter.UI.ForbiddenHint", "Selected assets will be blocked. Unselected assets remain allowed.")}</span></div>
       <div className={styles.modes}>
         <button className={classNames({ [styles.modeSelected]: targetMode === 0 })} onClick={() => trigger(mod.id, "setTargetMode", 0)}>{tr("RouteFilter.UI.Node", "Node")}</button>
         <button className={classNames({ [styles.modeSelected]: targetMode === 1 })} onClick={() => trigger(mod.id, "setTargetMode", 1)}>{tr("RouteFilter.UI.Segment", "Segment")}</button>
       </div>
-      <button className={styles.toolButton} onClick={() => trigger(mod.id, "toggleTool")}>{active ? tr("RouteFilter.UI.Active", "Tool active") : tr("RouteFilter.UI.Inactive", "Open tool")}</button>
       <div className={classNames(styles.targetStatus, { [styles.targetReady]: selectedTargetKind !== 0 })}>
         <strong>{selectedTargetLabel}</strong><span>{tr("RouteFilter.UI.SelectionHint", "Left-click selects; right-click cancels the selection.")}</span>
       </div>

@@ -1,29 +1,57 @@
-# RouteFilter 0.5.0-beta.1
+# RouteFilter 1.0.0
 
 ## English
 
-This beta rebuilds the asset panel for responsiveness and clarity. The catalog is now sent only when it changes, while the list uses a game-compatible scrollable flex layout instead of unsupported grid CSS.
+RouteFilter 1.0.0 is the first stable release of the exact vehicle-asset access tool for Cities: Skylines II road and rail networks.
 
-Nodes receive a red circular hover outline and segments a dashed highlight. The panel filters road or rail assets according to the hovered target, clearly states that selected entries are forbidden, and shows maximum speed in km/h, acceleration, and braking when an asset is hovered.
+### Player-facing changes
 
-Where the game exposes an explicit fixed-trailer or multiple-unit relationship, RouteFilter groups carriages beneath their tractor or engine. A collapsed group action applies to the engine and listed carriages; expanding it enables individual selection.
+- Opening the RouteFilter panel now activates the selection tool immediately. The redundant in-panel tool activation button has been removed, and closing the panel closes the tool.
+- The default remappable panel shortcut is now `Ctrl+Shift+N`.
+- The panel uses viewport-aware top and bottom boundaries. The target selector, asset list, paging controls, and application buttons remain on one screen; only the asset list scrolls.
+- Maximum speed is displayed in km/h, with acceleration and braking available on asset hover.
+- Each selected node or segment loads its own saved forbidden list. Bulk selection changes remain pending until the player explicitly applies them to that target.
+- Road and rail catalogs are filtered by target compatibility, and recognized engines, carriages, and trailers can be controlled as a group or individually.
 
-Target editing now follows an explicit select, configure, and apply workflow. Left-click selects a node or segment, right-click cancels that selection, and panel actions apply or clear restrictions only on the selected target. Panel input is isolated from world clicks, segment hits resolve through owned lanes, and the asset list adds pagination alongside scrolling. Catalog-wide allow/forbid actions always affect every asset.
+### Restriction enforcement
 
-Selecting a target now loads only that target's saved forbidden list, while bulk controls remain pending until the explicit apply action. Enforcement checks current and upcoming navigation lanes, underlying path elements, node endpoints, and every prefab in a vehicle consist. It runs before vehicle movement so road vehicles, fixed-route trains, and outside traffic cannot continue normally through a matching restriction.
+- Exact prefab matching covers the vehicle controller and all recognized assets in its consist.
+- Detection checks current lanes, upcoming navigation lanes, underlying path elements, and restricted node endpoints.
+- Enforcement runs after road and rail navigation updates but before vehicle movement.
+- Matching vehicles request a new path while the selected target is temporarily presented as unavailable to the native pathfinder.
+- If a fixed transit route or disconnected network offers no valid detour, the matching vehicle is stopped and may retry instead of continuing normally through the restriction.
+- Outside traffic is evaluated through the same exact-asset path.
 
-This remains a beta release. Verify scrolling, target detection, grouping, node and segment application, detours, and save/reload behavior on a backed-up city.
+### Save compatibility
+
+Version 1.0.0 retains the asset-level V1 save schema used by `0.4.0-beta.1` and `0.5.0-beta.1`. Existing restrictions created by those RouteFilter versions remain structurally compatible.
+
+Please report reproducible compatibility issues with the game version, active traffic/network mods, reproduction steps, and `Player.log`.
 
 ## 中文
 
-本 Beta 重构了资产面板的响应与表达。资产目录只在内容变化时发送，列表使用游戏 UI 引擎兼容的可滚动 Flex 布局，不再采用不受支持的 Grid CSS。
+RouteFilter 1.0.0 是首个正式版本，为《都市：天际线 II》道路与轨道路网提供精确到车辆资产的通行控制。
 
-节点现会显示红色圆形悬浮线框，路段显示虚线高亮。面板会根据悬浮目标筛选道路或轨道资产，明确提示“选中即禁行”，并在悬浮资产时显示以 km/h 为单位的最高速度、加速度和制动减速度。
+### 玩家可见改动
 
-当游戏提供明确的固定挂车或动车组关系时，RouteFilter 会将车厢归入牵引车辆。折叠状态下操作分组会同时作用于车头及所列车厢；展开后可以逐项选择。
+- 打开 RouteFilter 面板时会立即启用选择工具，不再显示重复的“打开工具”按钮；关闭面板时工具也会关闭。
+- 默认且可重新绑定的面板快捷键改为 `Ctrl+Shift+N`。
+- 面板根据视口上下边界自适应，目标选择、资产列表、分页和应用按钮保持在同一页面，只有资产列表内部滚动。
+- 最高速度以 km/h 显示，悬浮资产时同时显示加速度和制动减速度。
+- 每个节点或路段会加载自己保存的禁行清单；批量选择仅修改待应用清单，明确点击应用后才写入目标。
+- 道路与轨道资产会按目标兼容性筛选，已识别车头、车厢和挂车可分组或逐项控制。
 
-目标编辑现采用明确的“选择、配置、应用”流程：左键选中节点或路段，右键取消选择，面板中的应用或清除操作只作用于所选目标。面板鼠标输入已与地图工具隔离，路段命中会从子车道追溯到所属路段；资产列表在滚动之外增加分页兜底，全部禁行/放行始终作用于完整目录。
+### 禁行执行
 
-选中目标时只加载该目标保存的禁行清单，批量操作在明确点击应用前仅修改待应用清单。执行检测现覆盖当前及前方导航车道、底层路径元素、路段端点节点和车辆完整编组，并在车辆移动前运行，使道路车辆、固定线路列车和过境交通都不能继续正常穿过匹配的限制目标。
+- 准确预制资产匹配覆盖车辆控制实体及编组内所有已识别资产。
+- 检测覆盖当前车道、前方导航车道、底层路径元素和受限节点端点。
+- 执行顺序位于道路、轨道导航更新之后以及车辆实际移动之前。
+- 命中车辆请求新路径时，目标会短暂以不可用状态提供给原生寻路系统。
+- 固定公共交通线路或断开路网没有有效绕行路线时，匹配车辆会停车并可能重试，而不是继续正常穿过限制。
+- 过境交通使用相同的逐资产检测链路。
 
-本版本仍处于 Beta 阶段。请在有备份的城市中验证滚动、目标识别、分组、节点与路段应用、车辆绕行及存读档行为。
+### 存档兼容
+
+1.0.0 保留 `0.4.0-beta.1` 与 `0.5.0-beta.1` 使用的逐资产 V1 存档结构，这些 RouteFilter 版本创建的限制在结构上保持兼容。
+
+报告可复现的兼容性问题时，请提供游戏版本、当前交通/路网模组、复现步骤和 `Player.log`。

@@ -1,10 +1,51 @@
 <Publish>
+  <!-- Add <ModId Value="..." /> after the first successful Paradox Mods submission. -->
   <DisplayName Value="RouteFilter" />
-  <ShortDescription Value="Asset-level vehicle restrictions for road and rail nodes or segments" />
-  <LongDescription>RouteFilter lets Cities: Skylines II players restrict individual vehicle assets at a network node or across an entire road or rail segment. Matching vehicles request a different route when the restriction is detected ahead.</LongDescription>
+  <ShortDescription Value="Exact vehicle-asset access restrictions for road and rail nodes or segments" />
+  <LongDescription># RouteFilter
+
+RouteFilter gives Cities: Skylines II players precise control over which vehicle assets may use a selected road or rail node or an entire network segment.
+
+## Main features
+
+- Restrict exact road, tram, train, subway, carriage, trailer, and outside-traffic assets.
+- Keep an independent forbidden list on every selected node or segment.
+- Filter the catalog automatically for the selected road or rail target.
+- Search assets and inspect maximum speed, acceleration, and braking.
+- Group recognized engines and trailers while retaining individual control.
+- Request a new route through the native pathfinder when a matching vehicle approaches.
+- Stop matching vehicles when a fixed route has no valid alternative.
+- Save restrictions with the city and switch automatically between English and Simplified Chinese.
+
+## Basic use
+
+Open the RouteFilter panel from the top-left toolbar or press Ctrl+Shift+N. Select Node or Segment, left-click a network target, choose the assets that should be forbidden, then apply the list to the selected target. Right-click cancels target selection.
+
+Bulk allow/forbid actions edit only the pending list. They do not change the map until the explicit apply button is pressed.
+
+## Important notes
+
+Technical prefab names may not have localized display names. Rebuilding a network segment can replace its game entity and remove restrictions attached to the original. RouteFilter cannot redraw a fixed public-transport line; when no valid detour exists, the affected vehicle stops and may retry.
+
+RouteFilter is an independent GPL-3.0-only community project by Daotie. It is not affiliated with or endorsed by Colossal Order or Paradox Interactive.</LongDescription>
+  <Thumbnail Value="Properties/Thumbnail.png" />
+  <!-- Add screenshots after replacing the documented files under Properties/Screenshots. -->
+  <!-- <Screenshot Value="Properties/Screenshots/01-target-selection.png" /> -->
+  <!-- <Screenshot Value="Properties/Screenshots/02-asset-catalog.png" /> -->
+  <!-- <Screenshot Value="Properties/Screenshots/03-apply-restriction.png" /> -->
+  <!-- <Screenshot Value="Properties/Screenshots/04-rerouting-result.png" /> -->
   <Tag Value="Code Mod" />
   <Tag Value="Traffic" />
-  <ModVersion Value="0.5.0-beta.1" />
-  <GameVersion Value="1.*" />
-  <ChangeLog>Rebuilt the asset UI, added target overlays, contextual filtering, vehicle details, and engine-carriage groups.</ChangeLog>
+  <ModVersion Value="1.0.0" />
+  <GameVersion Value="1.5.*" />
+  <ChangeLog>## RouteFilter 1.0.0
+
+- First stable release.
+- Opens the panel and selection tool together; default shortcut is Ctrl+Shift+N.
+- Keeps the asset list and application controls visible in one viewport-aware panel.
+- Supports exact asset restrictions on road and rail nodes or full segments.
+- Matches complete recognized vehicle consists, fixed-route rail vehicles, and outside traffic.
+- Requests native pathfinding detours and stops matching vehicles when no alternative exists.
+- Preserves the asset-level V1 save schema used by the public beta.</ChangeLog>
+  <ExternalLink Type="github" Url="https://github.com/Daotie/CS2-RouteFilter" />
 </Publish>

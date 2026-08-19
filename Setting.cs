@@ -28,7 +28,7 @@ public sealed class Setting : ModSetting
     [SettingsUISlider(min = 1, max = 8, step = 1, scalarMultiplier = 1, unit = Game.UI.Unit.kInteger)]
     public int LookAheadLanes { get; set; }
 
-    [SettingsUIKeyboardBinding(BindingKeyboard.X, Mod.ToggleToolAction, ctrl: true, shift: true)]
+    [SettingsUIKeyboardBinding(BindingKeyboard.N, Mod.ToggleToolAction, ctrl: true, shift: true)]
     [SettingsUISection(kSection, kToolGroup)]
     public ProxyBinding ToggleToolBinding { get; set; }
 
@@ -66,15 +66,13 @@ internal abstract class LocaleBase : IDictionarySource
             [Setting.GetOptionDescLocaleID(nameof(Setting.ProtectEmergencyVehicles))] = Chinese ? "不拦截警车、救护车和消防车，即使选择了对应资产。" : "Never blocks police cars, ambulances, or fire engines, even when their assets are selected.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.LookAheadLanes))] = Chinese ? "前瞻车道数" : "Look-ahead lanes",
             [Setting.GetOptionDescLocaleID(nameof(Setting.LookAheadLanes))] = Chinese ? "检测前方多少段导航车道。" : "Number of upcoming navigation lanes checked for restrictions.",
-            [Setting.GetOptionLabelLocaleID(nameof(Setting.ToggleToolBinding))] = Chinese ? "开关 RouteFilter 工具" : "Toggle RouteFilter tool",
-            [Setting.GetOptionDescLocaleID(nameof(Setting.ToggleToolBinding))] = Chinese ? "也可以点击游戏左上角按钮。" : "You can also use the top-left game UI button.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.ToggleToolBinding))] = Chinese ? "显示或隐藏 RouteFilter 面板" : "Show or hide the RouteFilter panel",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.ToggleToolBinding))] = Chinese ? "默认快捷键为 Ctrl+Shift+N，也可以点击游戏左上角按钮。" : "The default shortcut is Ctrl+Shift+N; you can also use the top-left game UI button.",
             [Setting.GetBindingMapLocaleID()] = "RouteFilter",
-            [Setting.GetBindingKeyLocaleID(Mod.ToggleToolAction)] = Chinese ? "开关 RouteFilter 工具" : "Toggle RouteFilter tool",
+            [Setting.GetBindingKeyLocaleID(Mod.ToggleToolAction)] = Chinese ? "显示或隐藏 RouteFilter 面板" : "Show or hide the RouteFilter panel",
             [Setting.GetBindingKeyLocaleID(Mod.ApplyAction)] = Chinese ? "应用限制" : "Apply restrictions",
             [Setting.GetBindingKeyLocaleID(Mod.ClearAction)] = Chinese ? "清除限制" : "Clear restrictions",
             ["RouteFilter.UI.Title"] = Chinese ? "路线通行筛选" : "RouteFilter",
-            ["RouteFilter.UI.Active"] = Chinese ? "工具已启用" : "Tool active",
-            ["RouteFilter.UI.Inactive"] = Chinese ? "打开工具" : "Open tool",
             ["RouteFilter.UI.Node"] = Chinese ? "节点" : "Node",
             ["RouteFilter.UI.Segment"] = Chinese ? "整段路段" : "Segment",
             ["RouteFilter.UI.Search"] = Chinese ? "搜索车辆资产" : "Search vehicle assets",

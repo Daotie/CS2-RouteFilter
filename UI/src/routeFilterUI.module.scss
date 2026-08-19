@@ -2,9 +2,9 @@
 .toggle:hover { background: #354650; }
 .selected { box-shadow: 0 0 0 3rem rgba(255, 94, 66, .72); }
 .panel {
-  position: fixed; left: 18rem; top: 60rem; z-index: 1000; width: 470rem; height: 660rem;
+  position: fixed; left: 18rem; top: 50rem; bottom: 20rem; z-index: 1000; width: 470rem; height: auto; max-height: 700rem;
   padding: 16rem; border-radius: 12rem; color: var(--textColor); background: rgba(28, 35, 42, .98);
-  box-sizing: border-box; overflow-y: auto; box-shadow: 0 8rem 28rem rgba(0,0,0,.48); display: flex; flex-direction: column; pointer-events: auto;
+  box-sizing: border-box; overflow: hidden; box-shadow: 0 8rem 28rem rgba(0,0,0,.48); display: flex; flex-direction: column; pointer-events: auto;
   header { display: flex; justify-content: space-between; align-items: center; flex: 0 0 auto; }
   header div { display: flex; align-items: center; }
   header small { opacity: .65; font-size: 11rem; margin-left: 10rem; }
@@ -13,10 +13,9 @@
 .warning { flex: 0 0 auto; margin-top: 8rem; padding: 9rem 11rem; border-left: 3rem solid #ff5e42; background: rgba(255,94,66,.12); }
 .warning strong, .warning span { display: block; }
 .warning span { margin-top: 3rem; opacity: .82; font-size: 12rem; }
-.toolButton, .actions button, .modes button, .expand, .pager button, .applyActions button {
+.actions button, .modes button, .expand, .pager button, .applyActions button {
   border: 0; border-radius: 6rem; color: white; background: rgba(255,255,255,.09); cursor: pointer;
 }
-.toolButton { flex: 0 0 auto; width: 100%; padding: 8rem; background: #3b5969; }
 .targetStatus { flex: 0 0 auto; margin-top: 8rem; padding: 7rem 9rem; border: 1rem solid rgba(255,255,255,.16); border-radius: 6rem; }
 .targetStatus strong, .targetStatus span { display: block; }
 .targetStatus span { margin-top: 2rem; opacity: .7; font-size: 11rem; }
@@ -36,7 +35,7 @@
 .actions button { flex: 1 1 auto; padding: 7rem; }
 .actions button + button { margin-left: 7rem; }
 .actions .refresh { flex: 0 0 38rem; }
-.assetList { flex: 1 1 140rem; min-height: 110rem; margin-top: 7rem; overflow-y: auto; overflow-x: hidden; padding-right: 5rem; }
+.assetList { flex: 1 1 140rem; min-height: 90rem; margin-top: 7rem; overflow-y: auto; overflow-x: hidden; padding-right: 5rem; }
 .assetRow { display: flex; width: 100%; min-height: 34rem; margin-bottom: 5rem; align-items: center; border-radius: 6rem; background-color: rgba(255,255,255,.07); }
 .assetRow.child { margin-left: 24rem; width: auto; }
 .assetRow.forbidden { background-color: rgba(190, 58, 40, .78); }

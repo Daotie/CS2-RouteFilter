@@ -2,6 +2,27 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Semantic Versioning prerelease conventions.
 
+## 1.0.0 — 2026-08-19
+
+### Added
+
+- Stable-release branding, public documentation, screenshot integration points, and official Paradox Mods publishing metadata.
+- A viewport-aware panel layout that keeps selection, assets, paging, and application controls on one screen.
+
+### Changed
+
+- Opening or closing the RouteFilter panel now activates or closes the selection tool at the same time; the separate in-panel activation button was removed.
+- Changed the default remappable panel shortcut from `Ctrl+Shift+X` to `Ctrl+Shift+N`.
+- Promoted the verified asset-level V1 save schema and exact-asset enforcement workflow to the first stable release.
+
+### 中文
+
+- 新增正式版品牌素材、公开说明、游戏内截图接入位置及官方 Paradox Mods 发布元数据。
+- 面板根据视口自适应，目标选择、资产列表、分页和应用按钮保持在同一页面。
+- 面板开关与选择工具同步，不再保留面板内单独的工具启用按钮。
+- 默认且可重新绑定的快捷键由 `Ctrl+Shift+X` 改为 `Ctrl+Shift+N`。
+- 将已验证的逐资产 V1 存档结构和准确资产禁行流程发布为首个正式版本。
+
 ## 0.5.0-beta.1 — 2026-08-19
 
 ### Added

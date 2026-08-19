@@ -1,7 +1,7 @@
 {
   "name": "cs2-routefilter-ui",
   "private": true,
-  "version": "0.5.0-beta.1",
+  "version": "1.0.0",
   "scripts": { "build": "webpack" },
   "dependencies": { "classnames": "2.3.2", "react": "18.3.1", "react-dom": "18.3.1" },
   "devDependencies": {
