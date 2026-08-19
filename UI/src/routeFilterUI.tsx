@@ -118,7 +118,7 @@ export const RouteFilterUI = () => {
     <Button src={icon} variant="floating" className={classNames(styles.toggle, { [styles.selected]: active })} onSelect={togglePanel} />
     {open && <Portal><section className={styles.panel} onMouseEnter={() => trigger(mod.id, "setPointerOverUi", true)} onMouseLeave={() => trigger(mod.id, "setPointerOverUi", false)}>
       <header><div><strong>{tr("RouteFilter.UI.Title", "RouteFilter")}</strong><small>v{mod.version}</small></div><button onClick={() => trigger(mod.id, "toggleTool")}>×</button></header>
-      <div className={styles.warning}><strong>{tr("RouteFilter.UI.ForbiddenTitle", "Forbidden assets")}</strong><span>{tr("RouteFilter.UI.ForbiddenHint", "Selected assets will be blocked. Unselected assets remain allowed.")}</span></div>
+      <div className={styles.warning}><strong>{tr("RouteFilter.UI.ForbiddenTitle", "Forbidden assets")}</strong><span>{tr("RouteFilter.UI.ForbiddenHint", "Selected assets will be blocked.")}</span></div>
       <div className={styles.modes}>
         <button className={classNames({ [styles.modeSelected]: targetMode === 0 })} onClick={() => trigger(mod.id, "setTargetMode", 0)}>{tr("RouteFilter.UI.Node", "Node")}</button>
         <button className={classNames({ [styles.modeSelected]: targetMode === 1 })} onClick={() => trigger(mod.id, "setTargetMode", 1)}>{tr("RouteFilter.UI.Segment", "Segment")}</button>

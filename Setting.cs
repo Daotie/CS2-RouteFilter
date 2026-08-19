@@ -78,7 +78,7 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.Search"] = Chinese ? "搜索车辆资产" : "Search vehicle assets",
             ["RouteFilter.UI.Empty"] = Chinese ? "没有匹配的车辆资产" : "No matching vehicle assets",
             ["RouteFilter.UI.ForbiddenTitle"] = Chinese ? "禁行资产" : "Forbidden assets",
-            ["RouteFilter.UI.ForbiddenHint"] = Chinese ? "选中的资产将被禁止通行；未选中的资产保持允许通行。" : "Selected assets will be blocked. Unselected assets remain allowed.",
+            ["RouteFilter.UI.ForbiddenHint"] = Chinese ? "选中的资产将被禁止通行。" : "Selected assets will be blocked.",
             ["RouteFilter.UI.ForbiddenCount"] = Chinese ? "项禁行" : "forbidden",
             ["RouteFilter.UI.RoadAssets"] = Chinese ? "道路车辆" : "Road vehicles",
             ["RouteFilter.UI.RailAssets"] = Chinese ? "轨道车辆" : "Rail vehicles",

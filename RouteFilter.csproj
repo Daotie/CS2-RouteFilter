@@ -3,9 +3,9 @@
     <Configurations>Debug;Release</Configurations>
     <AssemblyName>RouteFilter</AssemblyName>
     <RootNamespace>RouteFilter</RootNamespace>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.1</Version>
+    <AssemblyVersion>1.0.1.0</AssemblyVersion>
+    <FileVersion>1.0.1.0</FileVersion>
     <Authors>Daotie</Authors>
     <Description>Asset-level vehicle access restrictions for road and rail nodes or segments in Cities: Skylines II.</Description>
     <Title>RouteFilter</Title>
