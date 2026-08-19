@@ -11,7 +11,7 @@
 
 Exact vehicle-asset access control for road and rail networks in **Cities: Skylines II**.
 
-![Version](https://img.shields.io/badge/version-1.0.0-2d8b70)
+![Version](https://img.shields.io/badge/version-1.0.1-2d8b70)
 ![Status](https://img.shields.io/badge/status-stable-1976d2)
 ![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)
 
@@ -99,7 +99,7 @@ The shortcut is remappable in the game's settings. Closing the panel also closes
 
 ## Save data and upgrades
 
-RouteFilter `1.0.0` uses the asset-level V1 save schema introduced during the public beta. Each restricted target stores exact prefab entity references. Saves created with `0.4.0-beta.1` or `0.5.0-beta.1` remain on the same schema.
+RouteFilter `1.0.1` uses the asset-level V1 save schema introduced during the public beta. Each restricted target stores exact prefab entity references. Saves created with `0.4.0-beta.1`, `0.5.0-beta.1`, or `1.0.0` remain on the same schema.
 
 Rebuilding, replacing, or deleting a road or track segment creates new game entities and may remove restrictions attached to the original target. Review restrictions after substantial network reconstruction.
 

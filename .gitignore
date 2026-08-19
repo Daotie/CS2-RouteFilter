@@ -3,6 +3,7 @@ obj/
 dist/
 UI/node_modules/
 UI/build/
+Library/
 .vs/
 *.user
 .vs/

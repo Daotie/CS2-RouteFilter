@@ -2,6 +2,20 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Semantic Versioning prerelease conventions.
 
+## 1.0.1 — 2026-08-19
+
+### Fixed
+
+- Prevented the bottom application controls from being clipped by the panel at supported viewport and UI scales.
+- Kept the in-panel version label on one line beside the localized title.
+- Shortened the forbidden-selection notice so it states only that selected assets will be blocked.
+
+### 中文
+
+- 修复受支持视口与 UI 缩放下底部应用操作按钮被面板裁切的问题。
+- 游戏内版本号固定在本地化标题旁单行显示。
+- 精简禁行提示，仅保留“选中的资产将被禁止通行”。
+
 ## 1.0.0 — 2026-08-19
 
 ### Added

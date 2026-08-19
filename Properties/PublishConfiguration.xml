@@ -36,16 +36,13 @@ RouteFilter is an independent GPL-3.0-only community project by Daotie. It is no
   <!-- <Screenshot Value="Properties/Screenshots/04-rerouting-result.png" /> -->
   <Tag Value="Code Mod" />
   <Tag Value="Traffic" />
-  <ModVersion Value="1.0.0" />
+  <ModVersion Value="1.0.1" />
   <GameVersion Value="1.5.*" />
-  <ChangeLog>## RouteFilter 1.0.0
+  <ChangeLog>## RouteFilter 1.0.1
 
-- First stable release.
-- Opens the panel and selection tool together; default shortcut is Ctrl+Shift+N.
-- Keeps the asset list and application controls visible in one viewport-aware panel.
-- Supports exact asset restrictions on road and rail nodes or full segments.
-- Matches complete recognized vehicle consists, fixed-route rail vehicles, and outside traffic.
-- Requests native pathfinding detours and stops matching vehicles when no alternative exists.
-- Preserves the asset-level V1 save schema used by the public beta.</ChangeLog>
+- Prevents the bottom application controls from being clipped by the panel.
+- Keeps the version label on one line beside the localized title.
+- Shortens the forbidden-selection notice to state only that selected assets will be blocked.
+- Retains the asset-level V1 save schema used by RouteFilter 1.0.0 and the public beta.</ChangeLog>
   <ExternalLink Type="github" Url="https://github.com/Daotie/CS2-RouteFilter" />
 </Publish>

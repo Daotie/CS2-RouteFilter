@@ -1,57 +1,33 @@
-# RouteFilter 1.0.0
+# RouteFilter 1.0.1
 
 ## English
 
-RouteFilter 1.0.0 is the first stable release of the exact vehicle-asset access tool for Cities: Skylines II road and rail networks.
+RouteFilter 1.0.1 is a maintenance release focused on keeping the complete restriction workflow visible and unambiguous across supported viewport and UI scales.
 
-### Player-facing changes
+### Fixed
 
-- Opening the RouteFilter panel now activates the selection tool immediately. The redundant in-panel tool activation button has been removed, and closing the panel closes the tool.
-- The default remappable panel shortcut is now `Ctrl+Shift+N`.
-- The panel uses viewport-aware top and bottom boundaries. The target selector, asset list, paging controls, and application buttons remain on one screen; only the asset list scrolls.
-- Maximum speed is displayed in km/h, with acceleration and braking available on asset hover.
-- Each selected node or segment loads its own saved forbidden list. Bulk selection changes remain pending until the player explicitly applies them to that target.
-- Road and rail catalogs are filtered by target compatibility, and recognized engines, carriages, and trailers can be controlled as a group or individually.
+- The panel now reserves enough flexible space for the bottom application controls, preventing **Apply list to selected target**, **Clear target restrictions**, and **Cancel selection** from being clipped.
+- The version label stays on one line beside the localized RouteFilter title.
+- The forbidden-selection notice now states only: “Selected assets will be blocked.”
 
-### Restriction enforcement
+### Compatibility
 
-- Exact prefab matching covers the vehicle controller and all recognized assets in its consist.
-- Detection checks current lanes, upcoming navigation lanes, underlying path elements, and restricted node endpoints.
-- Enforcement runs after road and rail navigation updates but before vehicle movement.
-- Matching vehicles request a new path while the selected target is temporarily presented as unavailable to the native pathfinder.
-- If a fixed transit route or disconnected network offers no valid detour, the matching vehicle is stopped and may retry instead of continuing normally through the restriction.
-- Outside traffic is evaluated through the same exact-asset path.
+This release does not change restriction behavior or save data. Cities and target-specific asset restrictions saved by RouteFilter `1.0.0`, `0.5.0-beta.1`, and `0.4.0-beta.1` remain compatible.
 
-### Save compatibility
-
-Version 1.0.0 retains the asset-level V1 save schema used by `0.4.0-beta.1` and `0.5.0-beta.1`. Existing restrictions created by those RouteFilter versions remain structurally compatible.
-
-Please report reproducible compatibility issues with the game version, active traffic/network mods, reproduction steps, and `Player.log`.
+Please report reproducible UI issues with the game version, display resolution, UI scale, RouteFilter version, and a screenshot.
 
 ## 中文
 
-RouteFilter 1.0.0 是首个正式版本，为《都市：天际线 II》道路与轨道路网提供精确到车辆资产的通行控制。
+RouteFilter 1.0.1 是维护版本，重点确保在受支持的视口与 UI 缩放下，完整禁行操作流程始终可见且语义明确。
 
-### 玩家可见改动
+### 修复
 
-- 打开 RouteFilter 面板时会立即启用选择工具，不再显示重复的“打开工具”按钮；关闭面板时工具也会关闭。
-- 默认且可重新绑定的面板快捷键改为 `Ctrl+Shift+N`。
-- 面板根据视口上下边界自适应，目标选择、资产列表、分页和应用按钮保持在同一页面，只有资产列表内部滚动。
-- 最高速度以 km/h 显示，悬浮资产时同时显示加速度和制动减速度。
-- 每个节点或路段会加载自己保存的禁行清单；批量选择仅修改待应用清单，明确点击应用后才写入目标。
-- 道路与轨道资产会按目标兼容性筛选，已识别车头、车厢和挂车可分组或逐项控制。
+- 面板现在为底部操作区域保留足够的弹性空间，避免“应用到所选目标”“清除目标限制”和“取消选中”按钮被裁切。
+- 版本号固定在本地化 RouteFilter 标题旁单行显示。
+- 禁行提示精简为：“选中的资产将被禁止通行。”
 
-### 禁行执行
+### 兼容性
 
-- 准确预制资产匹配覆盖车辆控制实体及编组内所有已识别资产。
-- 检测覆盖当前车道、前方导航车道、底层路径元素和受限节点端点。
-- 执行顺序位于道路、轨道导航更新之后以及车辆实际移动之前。
-- 命中车辆请求新路径时，目标会短暂以不可用状态提供给原生寻路系统。
-- 固定公共交通线路或断开路网没有有效绕行路线时，匹配车辆会停车并可能重试，而不是继续正常穿过限制。
-- 过境交通使用相同的逐资产检测链路。
+本版本不更改禁行逻辑或存档数据。RouteFilter `1.0.0`、`0.5.0-beta.1` 和 `0.4.0-beta.1` 保存的城市及逐目标资产限制保持兼容。
 
-### 存档兼容
-
-1.0.0 保留 `0.4.0-beta.1` 与 `0.5.0-beta.1` 使用的逐资产 V1 存档结构，这些 RouteFilter 版本创建的限制在结构上保持兼容。
-
-报告可复现的兼容性问题时，请提供游戏版本、当前交通/路网模组、复现步骤和 `Player.log`。
+报告可复现的界面问题时，请附上游戏版本、显示分辨率、UI 缩放比例、RouteFilter 版本和截图。
