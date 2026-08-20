@@ -211,3 +211,34 @@ npm ci
 $env:ROUTEFILTER_OUTPUT_DIR = (Join-Path (Get-Location) "build")
 npm run build
 npm audit --omit=dev
+```
+
+官方 Paradox Mods 元数据和发布配置文件位于 `Properties`。
+
+完整发布检查表请参阅 [RELEASING.md](RELEASING.md)。
+
+## 许可证与版权
+
+Copyright © 2026 Daotie。RouteFilter 原创源代码及其他原创项目材料的版权归其各自版权持有人所有。
+
+RouteFilter 是自由及开源软件，采用 [GNU General Public License version 3 only](LICENSE)（`GPL-3.0-only`）许可。
+
+你可以按照 GNU General Public License version 3 的条款使用、研究、修改和再分发 RouteFilter。对于受该许可证约束的内容，如进行修改并再分发，必须遵守 GPL-3.0 的相关要求，包括相应的源代码提供及许可证要求。
+
+完整许可证条款请参阅仓库中的 [LICENSE](LICENSE) 文件。
+
+除非另有明确说明，由 RouteFilter 项目提供的原创源代码均采用 `GPL-3.0-only` 许可。
+
+第三方库、依赖项、资产、游戏资源、商标以及其他第三方材料不会因包含或引用于 RouteFilter 而被重新许可。这些内容仍分别受其各自许可证、使用条款、版权及其他知识产权约束。
+
+除非另有明确约定或声明，提交至本仓库的贡献内容视为按照本项目适用的 `GPL-3.0-only` 许可证提供。
+
+## 商标与项目归属
+
+《都市：天际线 II》（Cities: Skylines II）、Colossal Order、Paradox Interactive 及相关名称、标志、商标、游戏资产和其他知识产权均属于其各自权利人。
+
+RouteFilter 是由 Daotie 独立开发和维护的社区开源项目。
+
+RouteFilter 与 Colossal Order 或 Paradox Interactive 不存在隶属、赞助、授权、认可、背书或其他官方合作关系。
+
+本项目对《都市：天际线 II》及相关产品名称的引用仅用于说明兼容性及其目标游戏环境。
