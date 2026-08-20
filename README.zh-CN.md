@@ -34,6 +34,11 @@ RouteFilter 可控制具体车辆资产能否通过某个路网节点或整段�
 
 匹配车辆会在穿过受限目标前被拦截；当路网存在可行替代路线时，模组会请求重新寻路。
 
+<!-- RouteFilter 功能简介 -->
+<p align="center">
+  <img src="assets/showcase/P1.png" width="100%" alt="RouteFilter 功能简介与使用效果">
+</p>
+
 ## 主要功能
 
 - 按单个车辆资产限制通行，而非仅按宽泛交通类别处理。
@@ -81,6 +86,11 @@ RouteFilter 可控制具体车辆资产能否通过某个路网节点或整段�
 RouteFilter 会检查当前车道、前方导航车道、底层路径元素、节点端点以及车辆编组内每个已识别预制资产。
 
 命中限制后，模组会短暂将目标标记为寻路不可用并使该车辆当前路径失效；存在替代路线时车辆可绕行，不存在时车辆会被阻止继续正常穿过，并可能稍后重试。
+
+<!-- RouteFilter 如何影响车辆寻路 -->
+<p align="center">
+  <img src="assets/showcase/P2.png" width="100%" alt="RouteFilter 如何影响车辆寻路">
+</p>
 
 <!-- 截图占位：assets/screenshots/04-rerouting-result.png -->
 <!-- ![受限车辆选择替代路线](assets/screenshots/04-rerouting-result.png) -->
