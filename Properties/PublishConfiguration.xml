@@ -1,5 +1,5 @@
 <Publish>
-  <!-- Add <ModId Value="..." /> after the first successful Paradox Mods submission. -->
+  <ModId Value="155839" />
   <DisplayName Value="RouteFilter" />
   <ShortDescription Value="Exact vehicle-asset access restrictions for road and rail nodes or segments" />
   <LongDescription># RouteFilter
@@ -27,15 +27,24 @@ Bulk allow/forbid actions edit only the pending list. They do not change the map
 
 Technical prefab names may not have localized display names. Rebuilding a network segment can replace its game entity and remove restrictions attached to the original. RouteFilter cannot redraw a fixed public-transport line; when no valid detour exists, the affected vehicle stops and may retry.
 
-RouteFilter is an independent GPL-3.0-only community project by Daotie. It is not affiliated with or endorsed by Colossal Order or Paradox Interactive.</LongDescription>
-  <Thumbnail Value="Properties/Thumbnail.png" />
-  <!-- Add screenshots after replacing the documented files under Properties/Screenshots. -->
-  <!-- <Screenshot Value="Properties/Screenshots/01-target-selection.png" /> -->
-  <!-- <Screenshot Value="Properties/Screenshots/02-asset-catalog.png" /> -->
-  <!-- <Screenshot Value="Properties/Screenshots/03-apply-restriction.png" /> -->
-  <!-- <Screenshot Value="Properties/Screenshots/04-rerouting-result.png" /> -->
+RouteFilter is an independent GPL-3.0-only community project by Daotie. It is not affiliated with or endorsed by Colossal Order or Paradox Interactive.
+
+## Support and issue reports
+
+For help, bug reports, and reproducible compatibility issues, please use the GitHub issue tracker:
+https://github.com/Daotie/CS2-RouteFilter/issues
+
+Source code, releases, and documentation:
+https://github.com/Daotie/CS2-RouteFilter</LongDescription>
+  <Thumbnail Value="logo.png" />
+  <Screenshot Value="Properties/Screenshots/01-target-selection.jpg" />
+  <Screenshot Value="Properties/Screenshots/02-segment-selection.jpg" />
+  <Screenshot Value="Properties/Screenshots/03-main-interface.jpg" />
+  <Screenshot Value="Properties/Screenshots/04-applied-restrictions.jpg" />
+  <Screenshot Value="Properties/Screenshots/05-rerouting-result.jpg" />
   <Tag Value="Code Mod" />
-  <Tag Value="Traffic" />
+  <Tag Value="UITransportationRoad" />
+  <Tag Value="UITransportationTrain" />
   <ModVersion Value="1.0.1" />
   <GameVersion Value="1.5.*" />
   <ChangeLog>## RouteFilter 1.0.1

@@ -1,33 +1,39 @@
-# RouteFilter 1.0.1
+# RouteFilter 1.0.3
 
 ## English
 
-RouteFilter 1.0.1 is a maintenance release focused on keeping the complete restriction workflow visible and unambiguous across supported viewport and UI scales.
+RouteFilter 1.0.3 is a performance and reliability release. It removes the per-frame scanning bottleneck behind the reported FPS drops, makes saved restrictions carry the exact forbidden asset lists, and cleans up vehicles that cannot reroute.
 
 ### Fixed
 
-- The panel now reserves enough flexible space for the bottom application controls, preventing **Apply list to selected target**, **Clear target restrictions**, and **Cancel selection** from being clipped.
-- The version label stays on one line beside the localized RouteFilter title.
-- The forbidden-selection notice now states only: “Selected assets will be blocked.”
+- Reworked exact-asset enforcement into inverted lookup indexes: vehicles whose prefabs are not restricted anywhere are skipped with a single set lookup, and lane ownership is resolved from a precomputed map. This eliminates the per-frame O(vehicles × lanes × owner depth × forbidden assets) scan that caused severe CPU load and FPS drops.
+- Save payload upgraded to version 2: forbidden asset lists are stored as stable prefab names and re-applied after loading, so reloading a save restores both the restricted locations and the exact restricted assets.
+- Vehicles that still have to cross a restricted target after rerouting, or that stay stopped past the ~1 second reroute timeout, are removed through the game's built-in cleanup instead of retrying forever.
+- Mod settings and key bindings are now loaded before bindings are registered, so option changes persist across game restarts.
+
+### Added
+
+- While the RouteFilter tool is active, restricted nodes and segments show a flat prohibition tag floating above the target, sized close to the selection highlight.
 
 ### Compatibility
 
-This release does not change restriction behavior or save data. Cities and target-specific asset restrictions saved by RouteFilter `1.0.0`, `0.5.0-beta.1`, and `0.4.0-beta.1` remain compatible.
-
-Please report reproducible UI issues with the game version, display resolution, UI scale, RouteFilter version, and a screenshot.
+The save payload version is now 2. Saves from RouteFilter `1.0.1` and earlier still load and keep their per-entity restriction data; new saves store the forbidden asset lists inside the versioned payload.
 
 ## 中文
 
-RouteFilter 1.0.1 是维护版本，重点确保在受支持的视口与 UI 缩放下，完整禁行操作流程始终可见且语义明确。
+RouteFilter 1.0.3 是性能与可靠性版本：消除导致 FPS 骤降的每帧扫描瓶颈，让存档完整保存被禁行的具体资产，并清理无法绕行的车辆。
 
 ### 修复
 
-- 面板现在为底部操作区域保留足够的弹性空间，避免“应用到所选目标”“清除目标限制”和“取消选中”按钮被裁切。
-- 版本号固定在本地化 RouteFilter 标题旁单行显示。
-- 禁行提示精简为：“选中的资产将被禁止通行。”
+- 将逐资产拦截改为反转索引查询：与任何禁行清单都无关的车辆每帧只需一次集合判断即可跳过，车道归属改为查预计算映射，消除了每帧 O(车辆数 × 车道数 × 层级 × 禁行资产数) 的扫描。
+- 存档数据升级为 v2：禁行资产清单以稳定的 prefab 名称保存并在读档后重新解析，重载后恢复的不只是禁行位置，还有具体禁行资产。
+- 重规划后仍必须经过禁行处、或超过约 1 秒绕行超时仍停驻的车辆，交由游戏自带清理机制移除，不再无限重试。
+- 选项与按键绑定改为先加载后注册，重启游戏后设置不再丢失。
+
+### 新增
+
+- 工具启用时，有禁行的节点与路段上方显示平面禁行标签，大小接近选择高亮框。
 
 ### 兼容性
 
-本版本不更改禁行逻辑或存档数据。RouteFilter `1.0.0`、`0.5.0-beta.1` 和 `0.4.0-beta.1` 保存的城市及逐目标资产限制保持兼容。
-
-报告可复现的界面问题时，请附上游戏版本、显示分辨率、UI 缩放比例、RouteFilter 版本和截图。
+存档数据版本升级为 v2。RouteFilter `1.0.1` 及更早版本的存档仍可正常读取并保留逐实体限制数据；新存档会把禁行资产清单写入版本化数据块。

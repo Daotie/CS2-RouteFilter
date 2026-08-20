@@ -159,6 +159,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         var isNode = EntityManager.HasComponent<Node>(target);
         var isSegment = EntityManager.HasComponent<Edge>(target);
         if (!isNode && !isSegment) return;
+        Mod.RestrictionsDirty = true;
 
         var transportMode = GetTransportMode(target);
         var compatibleAssets = new List<Entity>();
@@ -183,10 +184,24 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
     public void ClearRestriction(Entity target)
     {
+        Mod.RestrictionsDirty = true;
         if (EntityManager.HasComponent<NodeAssetRestrictionV1>(target)) EntityManager.RemoveComponent<NodeAssetRestrictionV1>(target);
         if (EntityManager.HasComponent<SegmentAssetRestrictionV1>(target)) EntityManager.RemoveComponent<SegmentAssetRestrictionV1>(target);
         if (EntityManager.HasBuffer<RestrictedVehicleAssetV1>(target)) EntityManager.RemoveComponent<RestrictedVehicleAssetV1>(target);
         MarkTargetLanesUpdated(target);
+    }
+
+    /// <summary>
+    /// Restores a restriction from the save payload. Writes the marker and asset buffer
+    /// directly; unlike <see cref="SetRestriction"/> it never clears the target when the
+    /// list is empty, so an unresolved restore cannot destroy already-restored data.
+    /// </summary>
+    public void RestoreRestriction(Entity target, bool isNode, IReadOnlyCollection<Entity> vehicleAssets)
+    {
+        if (isNode) SetNodeRestriction(target, vehicleAssets);
+        else SetSegmentRestriction(target, vehicleAssets);
+        MarkTargetLanesUpdated(target);
+        Mod.RestrictionsDirty = true;
     }
 
     private void SetNodeRestriction(Entity target, IReadOnlyCollection<Entity> vehicleAssets)

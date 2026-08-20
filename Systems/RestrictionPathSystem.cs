@@ -21,11 +21,13 @@ public sealed partial class RestrictionPathSystem : GameSystemBase
         m_RestrictedNodes = GetEntityQuery(
             ComponentType.ReadOnly<Node>(),
             ComponentType.ReadOnly<NodeAssetRestrictionV1>(),
-            ComponentType.ReadOnly<SubLane>());
+            ComponentType.ReadOnly<SubLane>(),
+            ComponentType.ReadOnly<AccessDetourBlock>());
         m_RestrictedSegments = GetEntityQuery(
             ComponentType.ReadOnly<Game.Net.Edge>(),
             ComponentType.ReadOnly<SegmentAssetRestrictionV1>(),
-            ComponentType.ReadOnly<SubLane>());
+            ComponentType.ReadOnly<SubLane>(),
+            ComponentType.ReadOnly<AccessDetourBlock>());
     }
 
     protected override void OnUpdate()
@@ -44,8 +46,7 @@ public sealed partial class RestrictionPathSystem : GameSystemBase
 
         for (var i = 0; i < entities.Length; i++)
         {
-            if (!EntityManager.HasComponent<AccessDetourBlock>(entities[i]) ||
-                !EntityManager.TryGetBuffer(entities[i], true, out DynamicBuffer<SubLane> lanes))
+            if (!EntityManager.TryGetBuffer(entities[i], true, out DynamicBuffer<SubLane> lanes))
                 continue;
 
             foreach (var subLane in lanes)

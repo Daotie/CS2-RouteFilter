@@ -24,6 +24,7 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
     private EntityQuery m_Trains;
     private EntityQuery m_RestrictedNodes;
     private EntityQuery m_RestrictedSegments;
+    private RestrictionIndexSystem m_Index = null!;
     private readonly List<Entity> m_PrefabBuffer = new();
     private int m_DetoursSinceReport;
     private int m_ReportTicks;
@@ -39,6 +40,7 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
             ComponentType.ReadOnly<TrainNavigationLane>(), ComponentType.Exclude<Deleted>());
         m_RestrictedNodes = GetEntityQuery(ComponentType.ReadOnly<NodeAssetRestrictionV1>());
         m_RestrictedSegments = GetEntityQuery(ComponentType.ReadOnly<SegmentAssetRestrictionV1>());
+        m_Index = World.GetOrCreateSystemManaged<RestrictionIndexSystem>();
     }
 
     protected override void OnUpdate()
@@ -62,7 +64,8 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
         foreach (var vehicle in vehicles)
         {
             if (IsProtectedEmergency(vehicle) || !LoadVehiclePrefabs(vehicle) ||
-                !TryGetBlockedTarget(vehicle, m_PrefabBuffer, true, out var target)) continue;
+                !ContainsAnyRestrictedPrefab() ||
+                !TryGetBlockedTarget(vehicle, true, out var target)) continue;
             RequestDetour(vehicle, target);
             var navigation = EntityManager.GetComponentData<CarNavigation>(vehicle);
             var moving = EntityManager.GetComponentData<Moving>(vehicle);
@@ -80,7 +83,8 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
         foreach (var vehicle in vehicles)
         {
             if (!LoadVehiclePrefabs(vehicle) ||
-                !TryGetBlockedTarget(vehicle, m_PrefabBuffer, false, out var target)) continue;
+                !ContainsAnyRestrictedPrefab() ||
+                !TryGetBlockedTarget(vehicle, false, out var target)) continue;
             RequestDetour(vehicle, target);
             var navigation = EntityManager.GetComponentData<TrainNavigation>(vehicle);
             var moving = EntityManager.GetComponentData<Moving>(vehicle);
@@ -92,27 +96,34 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
         }
     }
 
-    private bool TryGetBlockedTarget(Entity vehicle, List<Entity> prefabs, bool car, out Entity blockedTarget)
+    private bool ContainsAnyRestrictedPrefab()
+    {
+        foreach (var prefab in m_PrefabBuffer)
+            if (m_Index.ContainsRestrictedPrefab(prefab)) return true;
+        return false;
+    }
+
+    private bool TryGetBlockedTarget(Entity vehicle, bool car, out Entity blockedTarget)
     {
         blockedTarget = Entity.Null;
         var limit = System.Math.Max(1, Mod.Settings.LookAheadLanes);
         if (car)
         {
             if (EntityManager.TryGetComponent(vehicle, out CarCurrentLane current) &&
-                (TryGetBlockingTarget(current.m_Lane, prefabs, out blockedTarget) ||
-                 TryGetBlockingTarget(current.m_ChangeLane, prefabs, out blockedTarget))) return true;
+                (TryGetBlockingTarget(current.m_Lane, out blockedTarget) ||
+                 TryGetBlockingTarget(current.m_ChangeLane, out blockedTarget))) return true;
             var lanes = EntityManager.GetBuffer<CarNavigationLane>(vehicle, true);
             for (var i = 0; i < lanes.Length && i < limit; i++)
-                if (TryGetBlockingTarget(lanes[i].m_Lane, prefabs, out blockedTarget)) return true;
+                if (TryGetBlockingTarget(lanes[i].m_Lane, out blockedTarget)) return true;
         }
         else
         {
             if (EntityManager.TryGetComponent(vehicle, out TrainCurrentLane current) &&
-                (TryGetBlockingTarget(current.m_Front.m_Lane, prefabs, out blockedTarget) ||
-                 TryGetBlockingTarget(current.m_Rear.m_Lane, prefabs, out blockedTarget))) return true;
+                (TryGetBlockingTarget(current.m_Front.m_Lane, out blockedTarget) ||
+                 TryGetBlockingTarget(current.m_Rear.m_Lane, out blockedTarget))) return true;
             var lanes = EntityManager.GetBuffer<TrainNavigationLane>(vehicle, true);
             for (var i = 0; i < lanes.Length && i < limit; i++)
-                if (TryGetBlockingTarget(lanes[i].m_Lane, prefabs, out blockedTarget)) return true;
+                if (TryGetBlockingTarget(lanes[i].m_Lane, out blockedTarget)) return true;
         }
 
         if (EntityManager.TryGetComponent(vehicle, out PathOwner pathOwner) &&
@@ -120,19 +131,30 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
         {
             var start = System.Math.Max(0, pathOwner.m_ElementIndex);
             for (var i = start; i < path.Length && i < start + limit; i++)
-                if (TryGetBlockingTarget(path[i].m_Target, prefabs, out blockedTarget)) return true;
+                if (TryGetBlockingTarget(path[i].m_Target, out blockedTarget)) return true;
         }
         return false;
     }
 
-    private bool TryGetBlockingTarget(Entity lane, IReadOnlyCollection<Entity> prefabs, out Entity blockedTarget)
+    private bool TryGetBlockingTarget(Entity lane, out Entity blockedTarget)
     {
         blockedTarget = Entity.Null;
         if (lane == Entity.Null) return false;
+
+        // Fast path: the lane is directly owned by a restricted target.
+        if (m_Index.TryGetRestrictedTarget(lane, out var directTarget) &&
+            m_Index.TargetRestricts(directTarget, m_PrefabBuffer))
+        {
+            blockedTarget = directTarget;
+            return true;
+        }
+
+        // Fallback that preserves the original Owner-chain semantics (for example
+        // a lane on an unrestricted edge that ends at a restricted node).
         var entity = lane;
         for (var depth = 0; depth < 8 && entity != Entity.Null; depth++)
         {
-            if (IsRestrictedTarget(entity, prefabs))
+            if (m_Index.TargetRestricts(entity, m_PrefabBuffer))
             {
                 blockedTarget = entity;
                 return true;
@@ -140,24 +162,12 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
 
             if (EntityManager.TryGetComponent(entity, out Game.Net.Edge edge))
             {
-                if (IsRestrictedTarget(edge.m_Start, prefabs)) { blockedTarget = edge.m_Start; return true; }
-                if (IsRestrictedTarget(edge.m_End, prefabs)) { blockedTarget = edge.m_End; return true; }
+                if (m_Index.TargetRestricts(edge.m_Start, m_PrefabBuffer)) { blockedTarget = edge.m_Start; return true; }
+                if (m_Index.TargetRestricts(edge.m_End, m_PrefabBuffer)) { blockedTarget = edge.m_End; return true; }
             }
             if (!EntityManager.TryGetComponent(entity, out Owner owner)) break;
             entity = owner.m_Owner;
         }
-        return false;
-    }
-
-    private bool IsRestrictedTarget(Entity target, IReadOnlyCollection<Entity> prefabs)
-    {
-        if (target == Entity.Null ||
-            (!EntityManager.HasComponent<NodeAssetRestrictionV1>(target) &&
-             !EntityManager.HasComponent<SegmentAssetRestrictionV1>(target))) return false;
-        if (!EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets)) return false;
-        foreach (var asset in assets)
-            foreach (var prefab in prefabs)
-                if (prefab == asset.m_Prefab) return true;
         return false;
     }
 

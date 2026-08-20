@@ -14,7 +14,7 @@ namespace RouteFilter;
 public sealed class Mod : IMod
 {
     public const string Id = "RouteFilter";
-    public const string Version = "1.0.1";
+    public const string Version = "1.0.3";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";
@@ -30,14 +30,17 @@ public sealed class Mod : IMod
     public static HashSet<Entity> SelectedVehicleAssets { get; } = new();
     public static RestrictionTargetMode SelectedTargetMode { get; set; } = RestrictionTargetMode.Node;
 
+    /// <summary>Set whenever restriction data changes so cached indexes can be rebuilt.</summary>
+    public static bool RestrictionsDirty { get; set; }
+
     public void OnLoad(UpdateSystem updateSystem)
     {
         Log.Info(nameof(OnLoad));
 
         Settings = new Setting(this);
         Settings.RegisterInOptionsUI();
-        Settings.RegisterKeyBindings();
         AssetDatabase.global.LoadSettings(Id, Settings, new Setting(this));
+        Settings.RegisterKeyBindings();
 
         GameManager.instance.localizationManager.AddSource("en-US", new LocaleEN(Settings));
         GameManager.instance.localizationManager.AddSource("zh-HANS", new LocaleZH(Settings));
@@ -53,6 +56,10 @@ public sealed class Mod : IMod
         updateSystem.UpdateAt<RestrictionShortcutSystem>(SystemUpdatePhase.ToolUpdate);
         updateSystem.UpdateAt<RestrictionToolSystem>(SystemUpdatePhase.ToolUpdate);
         updateSystem.UpdateAfter<RestrictionOverlaySystem, RestrictionToolSystem>(SystemUpdatePhase.ToolUpdate);
+        updateSystem.UpdateAt<RestrictionPersistenceSystem>(SystemUpdatePhase.Serialize);
+        updateSystem.UpdateAt<RestrictionPersistenceSystem>(SystemUpdatePhase.Deserialize);
+        updateSystem.UpdateAt<RestrictionPersistenceSystem>(SystemUpdatePhase.ModificationEnd);
+        updateSystem.UpdateBefore<RestrictionIndexSystem, VehicleAccessSystem>(SystemUpdatePhase.GameSimulation);
         updateSystem.UpdateAt<RouteFilterUISystem>(SystemUpdatePhase.UIUpdate);
         updateSystem.UpdateAfter<RestrictionPathSystem, Game.Pathfind.LanesModifiedSystem>(SystemUpdatePhase.ModificationEnd);
         updateSystem.UpdateAfter<VehicleAccessSystem, Game.Simulation.CarNavigationSystem>(SystemUpdatePhase.GameSimulation);

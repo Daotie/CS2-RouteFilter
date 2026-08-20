@@ -2,6 +2,45 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Semantic Versioning prerelease conventions.
 
+## 1.0.3 — 2026-08-20
+
+### Fixed
+
+- Reworked exact-asset enforcement into inverted lookup indexes: vehicles whose prefabs are not restricted anywhere are skipped with a single set lookup, and lane ownership is resolved from a precomputed map instead of crawling the owner chain and comparing against every saved asset list every frame. This removes the per-frame O(vehicles × lanes × owner depth × forbidden assets) scan that caused severe CPU load and FPS drops.
+- The pathfinding barrier now only processes targets that currently carry an active detour block, so the per-frame rule application does no work while no vehicle is being rerouted.
+- Vehicles that still have to cross a restricted target after rerouting (no alternative route exists) are now handed to the game's built-in cleanup instead of being left to stop and retry forever.
+- Restricted-target badges now render as camera-facing billboards that always face the player while the tool is active.
+- Vehicles that fail to complete a reroute within the ~1 second timeout while standing still are also removed through the game's cleanup.
+- Save payload upgraded to version 2: forbidden asset lists are stored as stable prefab names and re-resolved after loading, so the exact saved assets survive save/reload instead of only the restricted locations.
+- Restricted-target badges are now flat horizontal tags floating above the target, sized close to the selection highlight, and no longer rotate with the camera.
+
+### 中文
+
+- 将逐资产拦截改为反转索引查询：与任何禁行清单都无关的车辆每帧只需一次集合判断即可跳过；车道归属改为查预计算映射，不再每帧沿所有者链逐级比对全部禁行资产。消除了每帧 O(车辆数 × 车道数 × 层级 × 禁行资产数) 的扫描，解决 FPS 骤降的性能问题。
+- 寻路屏障只在存在活跃绕行目标时执行，无车辆绕行时不再做无谓的每帧规则写入。
+- 重规划后仍必须经过禁行处的车辆（不存在可替代路线）改为交给游戏自带清理机制移除，不再原地停车无限重试。
+- 禁行目标悬浮图标改为始终面向玩家摄像机的投影式标牌。
+- 绕行请求约 1 秒内未完成且车辆静止无移动的，同样交由游戏清理机制移除。
+- 存档数据升级为 v2：禁行资产清单以稳定的 prefab 名称保存并在读档后重新解析，重载后能恢复具体禁行资产而不只是禁行位置。
+- 禁行目标标牌改为固定在目标上方的平面圆盘标签，大小接近选择框，不再随镜头旋转。
+
+## 1.0.2 — 2026-08-20
+
+### Fixed
+
+- Added a versioned, save-embedded restriction payload that is written on every save and re-applied to nodes and segments after loading, so applied restrictions no longer disappear on reload.
+- Loaded saved mod settings before registering key bindings so binding and option changes persist across game restarts.
+
+### Added
+
+- When the RouteFilter tool is active, restricted nodes and segments now show a floating prohibition badge; the badge enlarges for the hovered or selected target.
+
+### 中文
+
+- 新增随存档保存的版本化禁行数据：每次存档写入全部禁行节点/路段清单，读档后自动重新挂载，避免重载后设定丢失。
+- 修正设置加载顺序，按键绑定与选项修改在重启后不再丢失。
+- 工具启用时，有禁行的节点和路段显示悬浮禁行图标，悬停或选中的目标会放大提示。
+
 ## 1.0.1 — 2026-08-19
 
 ### Fixed
