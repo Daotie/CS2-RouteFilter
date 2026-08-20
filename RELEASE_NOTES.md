@@ -6,7 +6,7 @@ RouteFilter 1.0.4 fixes the occasionally incomplete vehicle catalog, enlarges th
 
 ### Fixed
 
-- The vehicle catalog was built only once, so modded assets that finished loading afterwards (for example CR400AF trains) were permanently missing. The catalog now rebuilds once after each save finishes loading and whenever vehicle prefabs or content availability actually change; opening the panel never triggers a rebuild.
+- The vehicle catalog was built only once, so modded assets that finished loading afterwards were permanently missing. The catalog now rebuilds once after each save finishes loading and whenever vehicle prefabs or content availability actually change; opening the panel never triggers a rebuild.
 - The manual refresh button used the "↻" character, which is missing from the game UI font and rendered as a box; it now uses a proper icon.
 - The panel is taller and adapts to the screen size and UI scale, showing more asset rows while reserving the game's top bar and bottom toolbar so the panel edge never covers them.
 - The tool system no longer runs a net raycast every frame while the tool is inactive, and no longer overwrites the vanilla tool selection while it should not run.
@@ -28,7 +28,7 @@ RouteFilter 1.0.4 修复了偶发的车辆目录不完整问题，扩大了资�
 
 ### 修复
 
-- 车辆目录原先只构建一次，之后才加载完成的模组资产（如 CR400AF 系列）会永久缺失。现在每次存档加载完成后自动重建一次，并在车辆预制件或内容集实际变化时重建；打开面板不会触发任何重建。
+- 车辆目录原先只构建一次，之后才加载完成的模组资产会永久缺失。现在每次存档加载完成后自动重建一次，并在车辆预制件或内容集实际变化时重建；打开面板不会触发任何重建。
 - 手动刷新按钮原使用游戏字体缺失的“↻”字符而显示为方框，现改用正规图标。
 - 面板更高，随屏幕尺寸与 UI 缩放自适应，能显示更多资产行，同时预留游戏顶栏与底部工具栏区域，面板边缘不再遮挡它们。
 - 工具未激活时不再每帧进行射线检测，也不再覆盖原版工具的选中状态。

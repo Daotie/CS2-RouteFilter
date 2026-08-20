@@ -6,7 +6,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Fixed
 
-- The vehicle catalog is no longer built only once: it now rebuilds after each save finishes loading and whenever vehicle prefabs or content availability actually change, so late-loading modded assets (for example CR400AF trains) are no longer missing from the list. Opening the panel never triggers a rebuild.
+- The vehicle catalog is no longer built only once: it now rebuilds after each save finishes loading and whenever vehicle prefabs or content availability actually change, so late-loading modded assets are no longer missing from the list. Opening the panel never triggers a rebuild.
 - The manual refresh button used the "↻" character, which is missing from the game UI font and rendered as a box; it now draws an inline SVG icon.
 - The panel now reserves the game's top bar and bottom toolbar areas and grows with the available viewport height, showing noticeably more asset rows without covering the toolbar at any supported screen size or UI scale.
 - The tool system now skips its per-frame net raycast while the tool is inactive, and no longer overwrites the vanilla tool selection when it should not run.
@@ -21,7 +21,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### 中文
 
-- 车辆目录不再只构建一次：现在每次存档加载完成后自动重建，且当车辆预制件或内容集实际发生变化时也会重建，晚加载的模组资产（如 CR400AF 系列）不再从列表中缺失；打开面板不会触发任何重建。
+- 车辆目录不再只构建一次：现在每次存档加载完成后自动重建，且当车辆预制件或内容集实际发生变化时也会重建，晚加载的模组资产不再从列表中缺失；打开面板不会触发任何重建。
 - 手动刷新按钮原使用游戏字体缺失的“↻”字符而显示为方框，现改为内联 SVG 图标。
 - 面板预留了游戏顶栏与底部工具栏区域，高度随可用视口增长，可显示更多资产行，且在任何受支持的屏幕尺寸与 UI 缩放下都不会遮挡工具栏。
 - 工具未激活时不再每帧进行路网射线检测，也不再干扰原版工具的选中状态。

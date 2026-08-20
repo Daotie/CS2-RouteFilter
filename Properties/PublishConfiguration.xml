@@ -125,7 +125,7 @@ RouteFilter 无法重新绘制固定的公共交通线路；当不存在有效�
   <GameVersion Value="1.6.*" />
   <ChangeLog>## RouteFilter 1.0.4
 
-- Fixed the occasionally incomplete vehicle catalog: it now rebuilds once after each save finishes loading and whenever vehicle prefabs or content actually change, so late-loading modded assets (for example CR400AF trains) are no longer missing. Opening the panel never triggers a rebuild.
+- Fixed the occasionally incomplete vehicle catalog: it now rebuilds once after each save finishes loading and whenever vehicle prefabs or content actually change, so late-loading modded assets are no longer missing. Opening the panel never triggers a rebuild.
 - The manual refresh button now uses a proper icon instead of a font glyph that rendered as a box.
 - The panel is taller and adapts to the screen size and UI scale, showing more asset rows while staying clear of the game toolbar.
 - The tool no longer raycasts or touches the vanilla tool selection while inactive.
