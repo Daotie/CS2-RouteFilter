@@ -211,3 +211,34 @@ npm ci
 $env:ROUTEFILTER_OUTPUT_DIR = (Join-Path (Get-Location) "build")
 npm run build
 npm audit --omit=dev
+```
+
+The official Paradox Mods metadata and publish profiles are stored under `Properties`.
+
+See [RELEASING.md](RELEASING.md) for the complete release checklist.
+
+## License and copyright
+
+Copyright © 2026 Daotie. All copyright in the original RouteFilter source code and other original project materials remains with their respective copyright holders.
+
+RouteFilter is free and open-source software licensed under the [GNU General Public License version 3 only](LICENSE) (`GPL-3.0-only`).
+
+You may use, study, modify, and redistribute RouteFilter under the terms of the GNU General Public License version 3. If you modify and redistribute covered material, you must comply with the applicable GPL-3.0 requirements, including the corresponding source code and licensing requirements.
+
+The complete license terms are available in the repository's [LICENSE](LICENSE) file.
+
+Unless explicitly stated otherwise, original source code provided by the RouteFilter project is licensed under `GPL-3.0-only`.
+
+Third-party libraries, dependencies, assets, game resources, trademarks, and other third-party materials are not relicensed by RouteFilter. They remain subject to their respective licenses, terms, copyright, and other intellectual-property rights.
+
+Contributions submitted to this repository are understood to be provided under the project's applicable `GPL-3.0-only` license unless otherwise explicitly agreed or stated.
+
+## Trademarks and project affiliation
+
+Cities: Skylines II, Colossal Order, Paradox Interactive, and related names, logos, trademarks, game assets, and other intellectual property belong to their respective owners.
+
+RouteFilter is an independent community-developed open-source project by Daotie.
+
+RouteFilter is not affiliated with, sponsored by, authorized by, endorsed by, or otherwise officially associated with Colossal Order or Paradox Interactive.
+
+References to Cities: Skylines II and related products are used solely to identify compatibility and the intended game environment.
