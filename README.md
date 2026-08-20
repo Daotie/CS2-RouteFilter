@@ -3,19 +3,36 @@
 </p>
 
 <p align="center">
-  <!-- Replaceable release logo slot: assets/branding/routefilter-logo.png -->
   <img src="assets/branding/routefilter-logo.png" width="240" alt="RouteFilter logo">
 </p>
 
-# RouteFilter
+<h1 align="center">RouteFilter</h1>
 
-Exact vehicle-asset access control for road and rail networks in **Cities: Skylines II**.
+<p align="center">
+  Exact vehicle-asset access control for road and rail networks in <strong>Cities: Skylines II</strong>.
+</p>
 
-![Version](https://img.shields.io/badge/version-1.0.3-2d8b70)
-![Status](https://img.shields.io/badge/status-stable-1976d2)
-![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.3-2d8b70" alt="Version">
+  <img src="https://img.shields.io/badge/status-stable-1976d2" alt="Status">
+  <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="License">
+</p>
 
-RouteFilter lets you decide which exact vehicle assets may pass through one network node or an entire road, tram, train, or subway segment. A matching vehicle is stopped before crossing the restricted target and is asked to find another route when the network provides one.
+<p align="center">
+  <a href="https://mods.paradoxplaza.com/mods/155839/Windows">Paradox Mods</a>
+  ·
+  <a href="https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/">Paradox Forum</a>
+  ·
+  <a href="https://github.com/Daotie/CS2-RouteFilter/issues">Issues</a>
+  ·
+  <a href="https://discord.gg/Y9UXFCkqmD">Discord</a>
+</p>
+
+---
+
+RouteFilter lets you decide which exact vehicle assets may pass through one network node or an entire road, tram, train, or subway segment.
+
+A matching vehicle is stopped before crossing the restricted target and is asked to find another route when the network provides one.
 
 ## Highlights
 
@@ -36,28 +53,36 @@ RouteFilter lets you decide which exact vehicle assets may pass through one netw
 
 ### 1. Select a precise network target
 
-Choose **Node** or **Segment**, then left-click the highlighted target. Right-click cancels the selection. The panel opens together with the tool—there is no separate activation step.
+Choose **Node** or **Segment**, then left-click the highlighted target. Right-click cancels the selection.
+
+The panel opens together with the tool—there is no separate activation step.
 
 <!-- Screenshot placeholder: assets/screenshots/01-target-selection.png -->
 <!-- ![Selecting a highlighted road or rail target](assets/screenshots/01-target-selection.png) -->
 
 ### 2. Choose exact vehicle assets
 
-Selected entries are the assets that will be **forbidden**. Road targets show road vehicles; rail targets show compatible rail assets. Hover an entry to inspect its base parameters. Expanding a recognized consist enables separate engine, carriage, or trailer choices.
+Selected entries are the assets that will be **forbidden**.
+
+Road targets show road vehicles; rail targets show compatible rail assets. Hover an entry to inspect its base parameters. Expanding a recognized consist enables separate engine, carriage, or trailer choices.
 
 <!-- Screenshot placeholder: assets/screenshots/02-asset-catalog.png -->
 <!-- ![Filtering and selecting exact vehicle assets](assets/screenshots/02-asset-catalog.png) -->
 
 ### 3. Review and apply
 
-**Forbid all assets** and **Allow all assets** only edit the pending list. Nothing is written to the map until **Apply list to selected target** is pressed. Selecting another target loads that target's own saved list. **Clear target restrictions** removes RouteFilter data from the selected target.
+**Forbid all assets** and **Allow all assets** only edit the pending list. Nothing is written to the map until **Apply list to selected target** is pressed.
+
+Selecting another target loads that target's own saved list. **Clear target restrictions** removes RouteFilter data from the selected target.
 
 <!-- Screenshot placeholder: assets/screenshots/03-apply-restriction.png -->
 <!-- ![Applying a forbidden list to one selected target](assets/screenshots/03-apply-restriction.png) -->
 
 ### 4. Vehicle enforcement and rerouting
 
-RouteFilter checks current lanes, upcoming navigation lanes, path elements, node endpoints, and every recognized prefab in a vehicle consist. For a matching vehicle, it briefly marks the target unavailable to the pathfinder and invalidates that vehicle's current path. If a valid alternative exists, the vehicle can reroute; otherwise it is prevented from continuing normally through the restricted target and may retry.
+RouteFilter checks current lanes, upcoming navigation lanes, path elements, node endpoints, and every recognized prefab in a vehicle consist.
+
+For a matching vehicle, it briefly marks the target unavailable to the pathfinder and invalidates that vehicle's current path. If a valid alternative exists, the vehicle can reroute; otherwise it is prevented from continuing normally through the restricted target and may retry.
 
 <!-- Screenshot placeholder: assets/screenshots/04-rerouting-result.png -->
 <!-- ![A restricted vehicle taking an alternate route](assets/screenshots/04-rerouting-result.png) -->
@@ -66,7 +91,9 @@ RouteFilter checks current lanes, upcoming navigation lanes, path elements, node
 
 ### Paradox Mods
 
-Subscribe to **RouteFilter** on [Paradox Mods](https://mods.paradoxplaza.com/mods/155839/Windows) and add it to the active playset. Restart the game if the playset requests it.
+Subscribe to **RouteFilter** on [Paradox Mods](https://mods.paradoxplaza.com/mods/155839/Windows) and add it to the active playset.
+
+Restart the game if the playset requests it.
 
 ### Manual installation
 
@@ -75,7 +102,8 @@ Subscribe to **RouteFilter** on [Paradox Mods](https://mods.paradoxplaza.com/mod
 3. Enable **RouteFilter** in the active playset.
 4. Restart the game before replacing an older DLL.
 
-Back up important cities before changing any code-mod setup.
+> [!IMPORTANT]
+> Back up important cities before changing any code-mod setup.
 
 ## Quick start
 
@@ -99,7 +127,9 @@ The shortcut is remappable in the game's settings. Closing the panel also closes
 
 ## Save data and upgrades
 
-RouteFilter `1.0.3` stores each restricted target's forbidden asset list in the save's versioned payload using stable prefab names, and re-applies it after loading. Saves from `1.0.1` and earlier remain readable; their per-entity restriction data is preserved.
+RouteFilter `1.0.3` stores each restricted target's forbidden asset list in the save's versioned payload using stable prefab names and re-applies it after loading.
+
+Saves from `1.0.1` and earlier remain readable; their per-entity restriction data is preserved.
 
 Rebuilding, replacing, or deleting a road or track segment creates new game entities and may remove restrictions attached to the original target. Review restrictions after substantial network reconstruction.
 
@@ -111,32 +141,73 @@ Rebuilding, replacing, or deleting a road or track segment creates new game enti
 - During the short pathfinding barrier window, another vehicle requesting a route may also avoid the selected target.
 - Compatibility with mods that replace vehicle navigation, pathfinding, or network entities cannot be guaranteed. Report conflicts with a minimal playset and logs.
 
+## Community
+
+Join the RouteFilter community to ask questions, share how you use the mod, follow development, participate in testing, and discuss new ideas.
+
+- **[Discord](https://discord.gg/Y9UXFCkqmD)** — General chat, support, showcases, suggestions, and testing.
+- **[Paradox Forum](https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/)** — Long-form discussion and community support.
+- **[GitHub Issues](https://github.com/Daotie/CS2-RouteFilter/issues)** — Formal bug reports, performance issues, compatibility reports, and feature tracking.
+- **[Paradox Mods](https://mods.paradoxplaza.com/mods/155839/Windows)** — Official download and updates.
+
+**English and Chinese are both welcome.**
+
+### Which channel should I use?
+
+| Channel | Best for |
+| --- | --- |
+| Discord | Quick questions, general discussion, community support, showcases, suggestions, and testing feedback |
+| Paradox Forum | Long-form discussion, general feedback, and community support |
+| GitHub Issues | Reproducible bugs, performance problems, compatibility issues, and feature requests that need formal tracking |
+| Paradox Mods | Installing, subscribing to, and updating RouteFilter |
+
 ## Compatibility and support
 
-RouteFilter uses the official Cities: Skylines II code-mod toolchain and does not require a separate framework mod. For problems, first reproduce with the latest release and the smallest practical playset, then include the game version, RouteFilter version, reproduction steps, active traffic/network mods, and `Player.log`.
+RouteFilter uses the official Cities: Skylines II code-mod toolchain and does not require a separate framework mod.
 
-- Help and bug reports: [SUPPORT.md](SUPPORT.md)
+For problems, first reproduce the issue with the latest RouteFilter release and the smallest practical playset.
+
+When reporting a technical problem, please include when applicable:
+
+- Game version
+- RouteFilter version
+- Description of the problem
+- Expected behavior
+- Reproduction steps
+- Active traffic or network mods
+- `Player.log`
+- Playset information
+- Relevant screenshots or videos
+
+General questions and informal feedback are welcome on Discord or the Paradox Forum.
+
+For reproducible bugs, performance issues, compatibility problems, and feature requests that need to be tracked, please use [GitHub Issues](https://github.com/Daotie/CS2-RouteFilter/issues) whenever possible.
+
+### Project documentation
+
+- Help and bug reporting: [SUPPORT.md](SUPPORT.md)
 - Security disclosures: [SECURITY.md](SECURITY.md)
 - Release history: [CHANGELOG.md](CHANGELOG.md)
 - Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Development
 
-Requirements: Cities: Skylines II with the official modding toolchain, .NET SDK, and Node.js 18 or later.
+RouteFilter is open source and contributions are welcome.
+
+### Requirements
+
+- Cities: Skylines II with the official modding toolchain
+- .NET SDK
+- Node.js 18 or later
+
+### Build
 
 ```powershell
 dotnet build RouteFilter.csproj -c Release
+
 cd UI
 npm ci
+
 $env:ROUTEFILTER_OUTPUT_DIR = (Join-Path (Get-Location) "build")
 npm run build
 npm audit --omit=dev
-```
-
-The official Paradox Mods metadata and publish profiles are stored under `Properties`. See [RELEASING.md](RELEASING.md) for the complete release checklist.
-
-## License and attribution
-
-Copyright © 2026 Daotie. RouteFilter is licensed under the [GNU General Public License v3.0 only](LICENSE).
-
-Cities: Skylines II and related names are trademarks of their respective owners. RouteFilter is an independent community project and is not affiliated with or endorsed by Colossal Order or Paradox Interactive.
