@@ -121,15 +121,27 @@ RouteFilter 无法重新绘制固定的公共交通线路；当不存在有效�
   <Tag Value="UITransportationTrain" />
   <Tag Value="UIRoads" />
   <Tag Value="UITransportation" />
-  <ModVersion Value="1.0.4" />
+  <ModVersion Value="1.0.5" />
   <GameVersion Value="1.6.*" />
-  <ChangeLog>## RouteFilter 1.0.4
+  <ChangeLog>## RouteFilter 1.0.5
 
-- Fixed the occasionally incomplete vehicle catalog: it now rebuilds once after each save finishes loading and whenever vehicle prefabs or content actually change, so late-loading modded assets are no longer missing. Opening the panel never triggers a rebuild.
-- The manual refresh button now uses a proper icon instead of a font glyph that rendered as a box.
-- The panel is taller and adapts to the screen size and UI scale, showing more asset rows while staying clear of the game toolbar.
-- The tool no longer raycasts or touches the vanilla tool selection while inactive.
-- Enforcement scanning moved to a parallel Burst job, the pathfinding pipeline is skipped while no detour is active, restriction badges are drawn by one batched job, and index rebuilds reuse their allocations.</ChangeLog>
+### English
+
+RouteFilter 1.0.5 keeps the mod running on game 1.6.0f1, where mods are initialized on a background thread and the Input System throws inside key binding registration.
+
+- On game 1.6.0f1, mod OnLoad can run on a thread-pool continuation. The Input System's Temp allocator fails there, so resolving the shortcut key binding inside InputBindingResolver.AddActionMap threw ArgumentNullException and aborted the whole mod (the same failure also breaks other key-binding mods). Key binding registration is now retried on the main thread, where the same registration succeeds.
+- Even when every registration attempt fails, the mod still starts: the shortcut key is skipped gracefully and the top-left panel button remains the way to open the panel.
+- Systems that poll the shortcut actions tolerate a missing action map instead of throwing every frame.
+- Save payload version stays 2. Saves from RouteFilter 1.0.1 and earlier still load and keep their per-entity restriction data.
+
+### 中文
+
+RouteFilter 1.0.5 保证在游戏 1.6.0f1 上正常运行。该版本会在后台线程初始化 mod，输入系统在按键绑定注册时会抛异常，此前会导致整个 mod 启动失败。
+
+- 游戏 1.6.0f1 中，mod 的 OnLoad 可能在后台线程执行；输入系统的 Temp 分配器在该线程必然失败，解析快捷键绑定时在 InputBindingResolver.AddActionMap 内抛出 ArgumentNullException，导致整个 mod 初始化中止（其他注册快捷键的 mod 也以同样方式失败）。现在按键绑定注册会在主线程重试，同一注册在主线程可以成功。
+- 即使所有注册尝试都失败，mod 仍会正常启动：快捷键被优雅跳过，左上角面板按钮始终可用。
+- 轮询快捷键的系统在动作映射缺失时不再每帧抛异常。
+- 存档数据版本仍为 v2。RouteFilter 1.0.1 及更早版本的存档仍可正常读取并保留逐实体限制数据。</ChangeLog>
   <ExternalLink Type="github" Url="https://github.com/Daotie/CS2-RouteFilter" />
   <ExternalLink Type="discord" Url="https://discord.gg/Y9UXFCkqmD" />
   <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/" />

@@ -14,7 +14,9 @@ public sealed partial class RestrictionShortcutSystem : GameSystemBase
 
     protected override void OnUpdate()
     {
-        if (!Mod.ToggleTool.WasPressedThisFrame())
+        // The action stays null when key binding registration failed on every attempt;
+        // the panel button remains the fallback in that case.
+        if (Mod.ToggleTool == null || !Mod.ToggleTool.WasPressedThisFrame())
             return;
 
         m_RestrictionToolSystem.Toggle();

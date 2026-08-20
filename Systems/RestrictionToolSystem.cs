@@ -74,7 +74,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
             m_ToolSystem.selected = SelectedTarget;
-            if (Mod.Clear.WasPressedThisFrame()) ClearSelection();
+            if (Mod.Clear != null && Mod.Clear.WasPressedThisFrame()) ClearSelection();
             return inputDeps;
         }
 
@@ -82,12 +82,12 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         HoveredTarget = target;
         HoveredTransportMode = GetTransportMode(target);
         m_ToolSystem.selected = SelectedTarget != Entity.Null ? SelectedTarget : target;
-        if (Mod.Clear.WasPressedThisFrame())
+        if (Mod.Clear != null && Mod.Clear.WasPressedThisFrame())
         {
             ClearSelection();
             return inputDeps;
         }
-        if (target != Entity.Null && Mod.Apply.WasPressedThisFrame()) SelectTarget(target);
+        if (target != Entity.Null && Mod.Apply != null && Mod.Apply.WasPressedThisFrame()) SelectTarget(target);
 
         return inputDeps;
     }

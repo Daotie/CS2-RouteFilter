@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-1.0.4-2d8b70" alt="版本">
+  <img src="https://img.shields.io/badge/版本-1.0.5-2d8b70" alt="版本">
   <img src="https://img.shields.io/badge/状态-正式版-1976d2" alt="状态">
   <img src="https://img.shields.io/badge/许可证-GPL--3.0--only-blue" alt="许可证">
 </p>
@@ -135,7 +135,7 @@ RouteFilter 会检查当前车道、前方导航车道、底层路径元素、�
 
 ## 存档数据与升级
 
-RouteFilter `1.0.4` 使用带版本号的存档数据块保存每个受限目标的禁行资产清单，以稳定的 prefab 名称存储，并在读档后自动重新应用。
+RouteFilter `1.0.5` 使用带版本号的存档数据块保存每个受限目标的禁行资产清单，以稳定的 prefab 名称存储，并在读档后自动重新应用。
 
 `1.0.1` 及更早版本的存档仍可正常读取，并保留原有的逐实体限制数据。
 

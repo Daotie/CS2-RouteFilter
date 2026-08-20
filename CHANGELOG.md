@@ -2,6 +2,18 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Semantic Versioning prerelease conventions.
 
+## 1.0.5 — 2026-08-21
+
+### Fixed
+
+- Game 1.6.0f1 initializes mods on a background thread, where the Input System's Temp allocator fails inside key binding resolution (`ArgumentNullException: destination` in `InputBindingResolver.AddActionMap`), which aborted the entire mod during `OnLoad`. Key binding registration is now retried on the main thread, and the mod always continues to start: the top-left panel button remains available even when the shortcut key cannot be registered at all.
+- Systems that poll the shortcut actions now tolerate a missing action map instead of throwing every frame.
+
+### 中文
+
+- 游戏 1.6.0f1 会在后台线程初始化 mod，输入系统的 Temp 分配器在该线程的按键绑定解析中必然失败（`InputBindingResolver.AddActionMap` 抛出 `ArgumentNullException: destination`），导致整个 mod 在 `OnLoad` 阶段中止。现在按键绑定注册会在主线程重试，且无论注册是否成功，mod 都会继续启动：即使快捷键完全不可用，左上角面板按钮仍然可用。
+- 轮询快捷键的系统现在能容忍动作映射缺失，不再每帧抛异常。
+
 ## 1.0.4 — 2026-08-20
 
 ### Fixed

@@ -100,6 +100,11 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     protected override void OnUpdate()
     {
+        // Game 1.6.0f1 can run mod OnLoad on a thread-pool continuation where the Input
+        // System's Temp allocator fails; retry the key binding registration here on the
+        // main thread once so the shortcut key still works in that scenario.
+        Mod.RetryKeyBindings();
+
         // Rebuild the catalog once after a save finishes loading, and additionally whenever vehicle
         // prefabs or their CarData/TrainData actually change (for example asset packs that finish
         // loading after the load-complete event). The version checks are O(1) per frame and never
