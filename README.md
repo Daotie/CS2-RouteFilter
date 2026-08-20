@@ -55,8 +55,6 @@ A matching vehicle is stopped before crossing the restricted target and is asked
 
 Choose **Node** or **Segment**, then left-click the highlighted target. Right-click cancels the selection.
 
-The panel opens together with the tool—there is no separate activation step.
-
 <!-- Screenshot placeholder: assets/screenshots/01-target-selection.png -->
 <!-- ![Selecting a highlighted road or rail target](assets/screenshots/01-target-selection.png) -->
 
