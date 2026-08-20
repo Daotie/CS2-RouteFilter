@@ -131,6 +131,6 @@ RouteFilter 无法重新绘制固定的公共交通线路；当不存在有效�
 - The tool no longer raycasts or touches the vanilla tool selection while inactive.
 - Enforcement scanning moved to a parallel Burst job, the pathfinding pipeline is skipped while no detour is active, restriction badges are drawn by one batched job, and index rebuilds reuse their allocations.</ChangeLog>
   <ExternalLink Type="github" Url="https://github.com/Daotie/CS2-RouteFilter" />
-  <ExternalLink Type="forum" Url="https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/" />
   <ExternalLink Type="discord" Url="https://discord.gg/Y9UXFCkqmD" />
+  <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/" />
 </Publish>
