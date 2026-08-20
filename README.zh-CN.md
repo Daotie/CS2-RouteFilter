@@ -3,19 +3,36 @@
 </p>
 
 <p align="center">
-  <!-- 可替换发布 Logo 位置：assets/branding/routefilter-logo.png -->
   <img src="assets/branding/routefilter-logo.png" width="240" alt="RouteFilter 标志">
 </p>
 
-# RouteFilter 路线通行筛选
+<h1 align="center">RouteFilter 路线通行筛选</h1>
 
-为 **《都市：天际线 II》** 道路与轨道路网提供精确到车辆资产的通行控制。
+<p align="center">
+  为 <strong>《都市：天际线 II》</strong> 道路与轨道路网提供精确到车辆资产的通行控制。
+</p>
 
-![版本](https://img.shields.io/badge/版本-1.0.3-2d8b70)
-![状态](https://img.shields.io/badge/状态-正式版-1976d2)
-![许可证](https://img.shields.io/badge/许可证-GPL--3.0--only-blue)
+<p align="center">
+  <img src="https://img.shields.io/badge/版本-1.0.3-2d8b70" alt="版本">
+  <img src="https://img.shields.io/badge/状态-正式版-1976d2" alt="状态">
+  <img src="https://img.shields.io/badge/许可证-GPL--3.0--only-blue" alt="许可证">
+</p>
 
-RouteFilter 可控制具体车辆资产能否通过某个路网节点或整段道路、有轨电车轨道、铁路、地铁线路。匹配车辆会在穿过受限目标前被拦截；当路网存在可行替代路线时，模组会请求重新寻路。
+<p align="center">
+  <a href="https://mods.paradoxplaza.com/mods/155839/Windows">Paradox Mods</a>
+  ·
+  <a href="https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/">Paradox Forum</a>
+  ·
+  <a href="https://github.com/Daotie/CS2-RouteFilter/issues">Issues</a>
+  ·
+  <a href="https://discord.gg/Y9UXFCkqmD">Discord</a>
+</p>
+
+---
+
+RouteFilter 可控制具体车辆资产能否通过某个路网节点或整段道路、有轨电车轨道、铁路、地铁线路。
+
+匹配车辆会在穿过受限目标前被拦截；当路网存在可行替代路线时，模组会请求重新寻路。
 
 ## 主要功能
 
@@ -36,28 +53,36 @@ RouteFilter 可控制具体车辆资产能否通过某个路网节点或整段�
 
 ### 1. 精确选择路网目标
 
-选择“节点”或“整段路段”，然后左键单击高亮目标；右键可取消选择。打开面板时选择工具会同步启用，不再需要额外点击“打开工具”。
+选择“节点”或“整段路段”，然后左键单击高亮目标；右键可取消选择。
+
+打开面板时选择工具会同步启用，不再需要额外点击“打开工具”。
 
 <!-- 截图占位：assets/screenshots/01-target-selection.png -->
 <!-- ![选择高亮的道路或轨道目标](assets/screenshots/01-target-selection.png) -->
 
 ### 2. 选择具体车辆资产
 
-选中的条目就是将被**禁止通行**的资产。道路目标只显示道路车辆，轨道目标只显示兼容轨道资产。悬浮条目可查看基础参数；展开已识别编组后，可分别选择车头、车厢或挂车。
+选中的条目就是将被**禁止通行**的资产。
+
+道路目标只显示道路车辆，轨道目标只显示兼容轨道资产。悬浮条目可查看基础参数；展开已识别编组后，可分别选择车头、车厢或挂车。
 
 <!-- 截图占位：assets/screenshots/02-asset-catalog.png -->
 <!-- ![筛选并选择具体车辆资产](assets/screenshots/02-asset-catalog.png) -->
 
 ### 3. 检查并应用
 
-“全部资产禁行”和“全部资产放行”只修改待应用清单。只有点击“应用到所选目标”后才会写入地图。切换目标时会加载该目标自己保存的清单；“清除目标限制”会移除所选目标上的 RouteFilter 数据。
+“全部资产禁行”和“全部资产放行”只修改待应用清单。只有点击“应用到所选目标”后才会写入地图。
+
+切换目标时会加载该目标自己保存的清单；“清除目标限制”会移除所选目标上的 RouteFilter 数据。
 
 <!-- 截图占位：assets/screenshots/03-apply-restriction.png -->
 <!-- ![将禁行清单应用到一个指定目标](assets/screenshots/03-apply-restriction.png) -->
 
 ### 4. 车辆拦截与绕行
 
-RouteFilter 会检查当前车道、前方导航车道、底层路径元素、节点端点以及车辆编组内每个已识别预制资产。命中限制后，模组会短暂将目标标记为寻路不可用并使该车辆当前路径失效；存在替代路线时车辆可绕行，不存在时车辆会被阻止继续正常穿过，并可能稍后重试。
+RouteFilter 会检查当前车道、前方导航车道、底层路径元素、节点端点以及车辆编组内每个已识别预制资产。
+
+命中限制后，模组会短暂将目标标记为寻路不可用并使该车辆当前路径失效；存在替代路线时车辆可绕行，不存在时车辆会被阻止继续正常穿过，并可能稍后重试。
 
 <!-- 截图占位：assets/screenshots/04-rerouting-result.png -->
 <!-- ![受限车辆选择替代路线](assets/screenshots/04-rerouting-result.png) -->
@@ -66,16 +91,19 @@ RouteFilter 会检查当前车道、前方导航车道、底层路径元素、�
 
 ### Paradox Mods
 
-[Paradox Mods 页面](https://mods.paradoxplaza.com/mods/155839/Windows)订阅 **RouteFilter** 并将其加入当前播放集；如果播放集提示重启，请重启游戏。
+在 [Paradox Mods](https://mods.paradoxplaza.com/mods/155839/Windows) 上订阅 **RouteFilter** 并将其加入当前播放集。
+
+如果播放集提示需要重启，请重启游戏。
 
 ### 手动安装
 
 1. 从 [GitHub Releases](https://github.com/Daotie/CS2-RouteFilter/releases) 下载最新压缩包。
 2. 解压到《都市：天际线 II》本地模组目录。
-3. 在当前播放集启用 **RouteFilter**。
+3. 在当前播放集中启用 **RouteFilter**。
 4. 替换旧 DLL 后请重启游戏。
 
-更改代码模组组合前，建议备份重要城市存档。
+> [!IMPORTANT]
+> 更改代码模组组合前，请备份重要城市存档。
 
 ## 快速使用
 
@@ -99,7 +127,9 @@ RouteFilter 会检查当前车道、前方导航车道、底层路径元素、�
 
 ## 存档数据与升级
 
-RouteFilter `1.0.3` 使用带版本号的存档数据块保存每个受限目标的禁行资产清单（以稳定的 prefab 名称存储），读档后自动重新应用。`1.0.1` 及更早版本的存档仍可正常读取并保留逐实体限制数据。
+RouteFilter `1.0.3` 使用带版本号的存档数据块保存每个受限目标的禁行资产清单，以稳定的 prefab 名称存储，并在读档后自动重新应用。
+
+`1.0.1` 及更早版本的存档仍可正常读取，并保留原有的逐实体限制数据。
 
 重建、替换或删除道路、轨道路段会使游戏创建新实体，与原目标关联的限制可能因此丢失。大规模改造路网后请重新检查限制。
 
@@ -111,32 +141,73 @@ RouteFilter `1.0.3` 使用带版本号的存档数据块保存每个受限目标
 - 在寻路屏障生效的短暂窗口内，其他同时请求路径的车辆也可能避开所选目标。
 - 无法保证兼容所有替换车辆导航、寻路或路网实体的模组。报告冲突时请使用最小播放集并附上日志。
 
+## 社区
+
+欢迎加入 RouteFilter 社区，提出问题、分享模组使用方式、关注开发进展、参与测试并讨论新的功能想法。
+
+- **[Discord](https://discord.gg/Y9UXFCkqmD)** — 快速交流、使用帮助、案例展示、功能建议与测试反馈。
+- **[Paradox Forum](https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/)** — 长期讨论、一般反馈与社区支持。
+- **[GitHub Issues](https://github.com/Daotie/CS2-RouteFilter/issues)** — 正式 Bug 报告、性能问题、兼容性问题与功能追踪。
+- **[Paradox Mods](https://mods.paradoxplaza.com/mods/155839/Windows)** — 官方下载与更新渠道。
+
+**欢迎使用中文或英文交流。**
+
+### 应该使用哪个渠道？
+
+| 渠道 | 适合的内容 |
+| --- | --- |
+| Discord | 快速提问、一般讨论、社区支持、案例展示、功能建议与测试反馈 |
+| Paradox Forum | 长期讨论、一般反馈与社区支持 |
+| GitHub Issues | 需要正式跟踪的可复现 Bug、性能问题、兼容性问题和功能建议 |
+| Paradox Mods | 安装、订阅及更新 RouteFilter |
+
 ## 兼容性与支持
 
-RouteFilter 使用《都市：天际线 II》官方代码模组工具链，无需额外框架模组。遇到问题时，请先使用最新版本及尽可能精简的播放集复现，并提供游戏版本、RouteFilter 版本、复现步骤、当前交通/路网模组和 `Player.log`。
+RouteFilter 使用《都市：天际线 II》官方代码模组工具链，无需额外的框架模组。
 
-- 使用帮助与问题报告：[SUPPORT.md](SUPPORT.md)
+遇到问题时，请先使用最新版本的 RouteFilter，并在尽可能精简的播放集下尝试复现。
+
+报告技术问题时，请根据实际情况尽可能提供：
+
+- 游戏版本
+- RouteFilter 版本
+- 问题描述
+- 预期行为
+- 复现步骤
+- 当前启用的交通或路网相关模组
+- `Player.log`
+- 播放集信息
+- 相关截图或视频
+
+一般使用问题和非正式反馈可以直接在 Discord 或 Paradox Forum 中交流。
+
+对于能够稳定复现的 Bug、性能问题、兼容性问题，以及需要持续跟踪的功能建议，请尽可能使用 [GitHub Issues](https://github.com/Daotie/CS2-RouteFilter/issues)。
+
+### 项目文档
+
+- 使用帮助与 Bug 报告：[SUPPORT.md](SUPPORT.md)
 - 安全问题披露：[SECURITY.md](SECURITY.md)
 - 版本历史：[CHANGELOG.md](CHANGELOG.md)
 - 贡献规范：[CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## 开发
 
-需要《都市：天际线 II》官方模组工具链、.NET SDK，以及 Node.js 18 或更高版本。
+RouteFilter 是开源项目，欢迎参与贡献。
+
+### 开发环境要求
+
+- 《都市：天际线 II》及官方模组工具链
+- .NET SDK
+- Node.js 18 或更高版本
+
+### 构建
 
 ```powershell
 dotnet build RouteFilter.csproj -c Release
+
 cd UI
 npm ci
+
 $env:ROUTEFILTER_OUTPUT_DIR = (Join-Path (Get-Location) "build")
 npm run build
 npm audit --omit=dev
-```
-
-官方 Paradox Mods 元数据和发布配置档位于 `Properties`。完整发布检查表见 [RELEASING.md](RELEASING.md)。
-
-## 许可证与归属说明
-
-版权所有 © 2026 Daotie。RouteFilter 采用 [GNU General Public License v3.0 only](LICENSE) 许可。
-
-《都市：天际线 II》及相关名称是其各自权利人的商标。RouteFilter 是独立社区项目，与 Colossal Order 或 Paradox Interactive 不存在隶属、认可或官方合作关系。
