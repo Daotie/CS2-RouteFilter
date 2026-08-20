@@ -55,8 +55,6 @@ RouteFilter 可控制具体车辆资产能否通过某个路网节点或整段�
 
 选择“节点”或“整段路段”，然后左键单击高亮目标；右键可取消选择。
 
-打开面板时选择工具会同步启用，不再需要额外点击“打开工具”。
-
 <!-- 截图占位：assets/screenshots/01-target-selection.png -->
 <!-- ![选择高亮的道路或轨道目标](assets/screenshots/01-target-selection.png) -->
 
