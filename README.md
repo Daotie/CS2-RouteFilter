@@ -34,6 +34,11 @@ RouteFilter lets you decide which exact vehicle assets may pass through one netw
 
 A matching vehicle is stopped before crossing the restricted target and is asked to find another route when the network provides one.
 
+<!-- RouteFilter overview -->
+<p align="center">
+  <img src="assets/showcase/P1.png" width="100%" alt="RouteFilter overview and usage demonstration">
+</p>
+
 ## Highlights
 
 - Restrict individual vehicle assets instead of broad traffic categories.
@@ -81,6 +86,11 @@ Selecting another target loads that target's own saved list. **Clear target rest
 RouteFilter checks current lanes, upcoming navigation lanes, path elements, node endpoints, and every recognized prefab in a vehicle consist.
 
 For a matching vehicle, it briefly marks the target unavailable to the pathfinder and invalidates that vehicle's current path. If a valid alternative exists, the vehicle can reroute; otherwise it is prevented from continuing normally through the restricted target and may retry.
+
+<!-- How RouteFilter affects vehicle routing -->
+<p align="center">
+  <img src="assets/showcase/P2.png" width="100%" alt="How RouteFilter affects vehicle routing">
+</p>
 
 <!-- Screenshot placeholder: assets/screenshots/04-rerouting-result.png -->
 <!-- ![A restricted vehicle taking an alternate route](assets/screenshots/04-rerouting-result.png) -->
