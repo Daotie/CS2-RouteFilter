@@ -25,8 +25,16 @@ public sealed partial class RestrictionIndexSystem : GameSystemBase
     private readonly HashSet<Entity> m_RestrictedPrefabs = new();
     private readonly Dictionary<Entity, HashSet<Entity>> m_TargetPrefabs = new();
     private readonly Dictionary<Entity, Entity> m_LaneTargets = new();
+    private readonly HashSet<Entity> m_SeenTargets = new();
+    private readonly List<Entity> m_StaleTargets = new();
     // Start past the threshold so the index is built on the first update after load.
     private int m_RefreshTicks = kPeriodicRefreshTicks;
+
+    /// <summary>Increments on every rebuild; consumers can re-sync their caches on change.</summary>
+    public int Version { get; private set; }
+
+    /// <summary>Every vehicle prefab restricted by at least one target.</summary>
+    public IReadOnlyCollection<Entity> RestrictedPrefabs => m_RestrictedPrefabs;
 
     public bool ContainsRestrictedPrefab(Entity prefab) => m_RestrictedPrefabs.Contains(prefab);
 
@@ -63,15 +71,23 @@ public sealed partial class RestrictionIndexSystem : GameSystemBase
 
     private void Rebuild()
     {
+        Version++;
         m_RestrictedPrefabs.Clear();
-        m_TargetPrefabs.Clear();
         m_LaneTargets.Clear();
+        m_SeenTargets.Clear();
 
         using var nodes = m_RestrictedNodes.ToEntityArray(Allocator.Temp);
         foreach (var node in nodes) AddTarget(node);
 
         using var segments = m_RestrictedSegments.ToEntityArray(Allocator.Temp);
         foreach (var segment in segments) AddTarget(segment);
+
+        // Drop targets that disappeared since the previous rebuild (the periodic safety net
+        // rebuilds even without a dirty flag, so stale entries must be pruned here).
+        m_StaleTargets.Clear();
+        foreach (var target in m_TargetPrefabs.Keys)
+            if (!m_SeenTargets.Contains(target)) m_StaleTargets.Add(target);
+        foreach (var target in m_StaleTargets) m_TargetPrefabs.Remove(target);
     }
 
     private void AddTarget(Entity target)
@@ -79,13 +95,24 @@ public sealed partial class RestrictionIndexSystem : GameSystemBase
         if (!EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets) ||
             assets.Length == 0) return;
 
-        var set = new HashSet<Entity>();
+        m_SeenTargets.Add(target);
+
+        // Reuse the per-target set across rebuilds; steady-state rebuilds stay allocation free.
+        if (!m_TargetPrefabs.TryGetValue(target, out var set))
+        {
+            set = new HashSet<Entity>();
+            m_TargetPrefabs[target] = set;
+        }
+        else
+        {
+            set.Clear();
+        }
+
         foreach (var asset in assets)
         {
             if (asset.m_Prefab == Entity.Null || !set.Add(asset.m_Prefab)) continue;
             m_RestrictedPrefabs.Add(asset.m_Prefab);
         }
-        m_TargetPrefabs[target] = set;
 
         if (!EntityManager.TryGetBuffer(target, true, out DynamicBuffer<SubLane> lanes)) return;
         foreach (var subLane in lanes)

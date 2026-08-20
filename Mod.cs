@@ -14,7 +14,7 @@ namespace RouteFilter;
 public sealed class Mod : IMod
 {
     public const string Id = "RouteFilter";
-    public const string Version = "1.0.3";
+    public const string Version = "1.0.4";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";

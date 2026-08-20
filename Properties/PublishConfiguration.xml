@@ -1,57 +1,136 @@
 <Publish>
   <ModId Value="155839" />
   <DisplayName Value="RouteFilter" />
-  <ShortDescription Value="Exact vehicle-asset access restrictions for road and rail nodes or segments" />
-  <LongDescription># RouteFilter
+  <ShortDescription Value="Exact vehicle-asset access restrictions for road and rail nodes or segments|道路和铁路节点或路段的具体车辆资产通行限制" />
+  <LongDescription># English
+
+# RouteFilter
 
 RouteFilter gives Cities: Skylines II players precise control over which vehicle assets may use a selected road or rail node or an entire network segment.
 
 ## Main features
 
-- Restrict exact road, tram, train, subway, carriage, trailer, and outside-traffic assets.
-- Keep an independent forbidden list on every selected node or segment.
-- Filter the catalog automatically for the selected road or rail target.
-- Search assets and inspect maximum speed, acceleration, and braking.
-- Group recognized engines and trailers while retaining individual control.
-- Request a new route through the native pathfinder when a matching vehicle approaches.
-- Stop matching vehicles when a fixed route has no valid alternative.
-- Save restrictions with the city and switch automatically between English and Simplified Chinese.
+*   Restrict exact road, tram, train, subway, carriage, trailer, and outside-traffic assets.
+*   Keep an independent forbidden list on every selected node or segment.
+*   Filter the catalog automatically for the selected road or rail target.
+*   Search assets and inspect maximum speed, acceleration, and braking.
+*   Group recognized engines and trailers while retaining individual control.
+*   Request a new route through the native pathfinder when a matching vehicle approaches.
+*   Stop matching vehicles when a fixed route has no valid alternative.
+*   Save restrictions with the city and switch automatically between English and Simplified Chinese.
 
 ## Basic use
 
-Open the RouteFilter panel from the top-left toolbar or press Ctrl+Shift+N. Select Node or Segment, left-click a network target, choose the assets that should be forbidden, then apply the list to the selected target. Right-click cancels target selection.
+Open the RouteFilter panel from the top-left toolbar or press Ctrl+Shift+N.
 
-Bulk allow/forbid actions edit only the pending list. They do not change the map until the explicit apply button is pressed.
+Select **Node** or **Segment**, left-click a network target, choose the assets that should be forbidden, then apply the list to the selected target. Right-click cancels target selection.
+
+Bulk allow/forbid actions edit only the pending list. They do not change the map until the explicit **Apply** button is pressed.
 
 ## Important notes
 
-Technical prefab names may not have localized display names. Rebuilding a network segment can replace its game entity and remove restrictions attached to the original. RouteFilter cannot redraw a fixed public-transport line; when no valid detour exists, the affected vehicle stops and may retry.
+Technical prefab names may not have localized display names.
 
-RouteFilter is an independent GPL-3.0-only community project by Daotie. It is not affiliated with or endorsed by Colossal Order or Paradox Interactive.
+Rebuilding a network segment can replace its game entity and remove restrictions attached to the original.
 
-## Support and issue reports
+RouteFilter cannot redraw a fixed public-transport line; when no valid detour exists, the affected vehicle stops and may retry.
 
-For help, bug reports, and reproducible compatibility issues, please use the GitHub issue tracker:
-https://github.com/Daotie/CS2-RouteFilter/issues
+## Support, discussion, and issue reports
 
-Source code, releases, and documentation:
-https://github.com/Daotie/CS2-RouteFilter</LongDescription>
+For general discussion, usage questions, feedback, and community support, you can use the following channels:
+
+*   **Paradox Forum:**  
+    [https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/](https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/)
+    
+*   **Discord:**  
+    [https://discord.gg/Y9UXFCkqmD](https://discord.gg/Y9UXFCkqmD)
+    
+
+For reproducible bugs, performance issues, compatibility problems, and feature requests, please use the GitHub issue tracker whenever possible:
+
+*   **GitHub Issues:**  
+    [https://github.com/Daotie/CS2-RouteFilter/issues](https://github.com/Daotie/CS2-RouteFilter/issues)
+
+Source code, releases, and documentation are available on GitHub:
+
+*   **GitHub Repository:**  
+    [https://github.com/Daotie/CS2-RouteFilter](https://github.com/Daotie/CS2-RouteFilter)
+
+General questions and informal feedback are welcome on the Paradox Forum or Discord. GitHub Issues are preferred for problems that need to be tracked, reproduced, or fixed.
+
+# 中文
+
+# RouteFilter
+
+RouteFilter 为《都市天际线 II》玩家提供了精细控制能力，可指定哪些车辆资产允许使用选定的道路或铁路节点，或者整个路段。
+
+## 主要功能
+
+*   精确限制特定的道路、有轨电车、火车、地铁、客运车厢、拖车以及外部交通资产。
+*   在每个选定的节点或路段上维护独立的禁止列表。
+*   根据所选道路或铁路目标，自动筛选资产目录。
+*   搜索资产并查看其最高速度、加速度和制动性能。
+*   将识别的发动机与拖车分组，同时保留对单个车辆的独立控制。
+*   当匹配的车辆接近时，通过游戏原生路径查找器请求新路线。
+*   当固定路线无有效替代路径时，令匹配车辆停止行驶。
+*   限制规则随城市存档保存，并支持英文和简体中文自动切换。
+
+## 基本使用方法
+
+从左上角工具栏打开 RouteFilter 面板，或按快捷键 Ctrl+Shift+N。
+
+选择 **“节点”** 或 **“路段”**，左键单击道路/铁路目标，然后勾选需要禁止的资产，最后点击 **“应用”** 按钮将列表生效于所选目标。右键单击可取消目标选择。
+
+批量允许/禁止操作仅修改待处理的列表；在显式点击 **“应用”** 按钮之前，不会对地图造成任何更改。
+
+## 重要说明
+
+技术性预制件名称可能没有本地化显示名称。
+
+重建某一路段可能会替换其游戏实体，从而导致附加到原始路段上的限制被移除。
+
+RouteFilter 无法重新绘制固定的公共交通线路；当不存在有效绕行路线时，受影响的车辆会停止并可能反复尝试。
+
+## 支持、讨论与问题反馈
+
+对于一般讨论、使用问题、体验反馈以及社区交流，可以使用以下渠道：
+
+*   **Paradox Forum：**
+    [https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/](https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/)
+    
+*   **Discord：**  
+    [https://discord.gg/Y9UXFCkqmD](https://discord.gg/Y9UXFCkqmD)
+    
+
+对于能够稳定复现的 Bug、性能问题、兼容性问题以及功能建议，建议优先使用 GitHub Issue 追踪器：
+
+*   **GitHub Issues：**  
+    [https://github.com/Daotie/CS2-RouteFilter/issues](https://github.com/Daotie/CS2-RouteFilter/issues)
+
+源代码、发布版本及文档可在 GitHub 查看：
+
+*   **GitHub 仓库：**  
+    [https://github.com/Daotie/CS2-RouteFilter](https://github.com/Daotie/CS2-RouteFilter)
+
+一般问题和非正式反馈可以直接在 Paradox Forum 或 Discord 中交流；对于需要持续跟踪、复现和修复的问题，建议使用 GitHub Issues。</LongDescription>
   <Thumbnail Value="logo.png" />
-  <Screenshot Value="Properties/Screenshots/01-target-selection.jpg" />
-  <Screenshot Value="Properties/Screenshots/02-segment-selection.jpg" />
-  <Screenshot Value="Properties/Screenshots/03-main-interface.jpg" />
-  <Screenshot Value="Properties/Screenshots/04-applied-restrictions.jpg" />
-  <Screenshot Value="Properties/Screenshots/05-rerouting-result.jpg" />
+  <Screenshot Value="P1_compressed.png" />
+  <Screenshot Value="P2_compressed.png" />
   <Tag Value="Code Mod" />
   <Tag Value="UITransportationRoad" />
   <Tag Value="UITransportationTrain" />
-  <ModVersion Value="1.0.1" />
-  <GameVersion Value="1.5.*" />
-  <ChangeLog>## RouteFilter 1.0.1
+  <Tag Value="UIRoads" />
+  <Tag Value="UITransportation" />
+  <ModVersion Value="1.0.4" />
+  <GameVersion Value="1.6.*" />
+  <ChangeLog>## RouteFilter 1.0.4
 
-- Prevents the bottom application controls from being clipped by the panel.
-- Keeps the version label on one line beside the localized title.
-- Shortens the forbidden-selection notice to state only that selected assets will be blocked.
-- Retains the asset-level V1 save schema used by RouteFilter 1.0.0 and the public beta.</ChangeLog>
+- Fixed the occasionally incomplete vehicle catalog: it now rebuilds once after each save finishes loading and whenever vehicle prefabs or content actually change, so late-loading modded assets (for example CR400AF trains) are no longer missing. Opening the panel never triggers a rebuild.
+- The manual refresh button now uses a proper icon instead of a font glyph that rendered as a box.
+- The panel is taller and adapts to the screen size and UI scale, showing more asset rows while staying clear of the game toolbar.
+- The tool no longer raycasts or touches the vanilla tool selection while inactive.
+- Enforcement scanning moved to a parallel Burst job, the pathfinding pipeline is skipped while no detour is active, restriction badges are drawn by one batched job, and index rebuilds reuse their allocations.</ChangeLog>
   <ExternalLink Type="github" Url="https://github.com/Daotie/CS2-RouteFilter" />
+  <ExternalLink Type="forum" Url="https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/" />
+  <ExternalLink Type="discord" Url="https://discord.gg/Y9UXFCkqmD" />
 </Publish>

@@ -54,6 +54,11 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
     protected override JobHandle OnUpdate(JobHandle inputDeps)
     {
+        // The base tool gate is bypassed by this override, so guard explicitly: outside of an
+        // active session every frame would otherwise schedule a net raycast and write
+        // m_ToolSystem.selected, fighting the active vanilla tool.
+        if (m_ToolSystem.activeTool != this) return inputDeps;
+
         if (SelectedTarget != Entity.Null && !EntityManager.Exists(SelectedTarget)) ClearSelection();
 
         if (PointerOverUi)

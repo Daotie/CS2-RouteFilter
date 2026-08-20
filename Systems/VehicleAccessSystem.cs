@@ -8,8 +8,11 @@ using Game.Prefabs;
 using Game.Vehicles;
 using RouteFilter.Components;
 using System.Collections.Generic;
+using Unity.Burst;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using NetSubLane = Game.Net.SubLane;
 
 namespace RouteFilter.Systems;
@@ -17,15 +20,87 @@ namespace RouteFilter.Systems;
 /// <summary>
 /// Asset-level enforcement layer. The vehicle's exact PrefabRef is compared with
 /// the saved asset list before an alternate path is requested.
+///
+/// Finding the affected vehicles is the hot path: cities hold tens of thousands of moving
+/// vehicles, but only the few whose prefab (or any layout part / controller prefab) is
+/// restricted need main-thread work. A parallel Burst chunk job scans every moving vehicle
+/// and returns only matches, so the per-frame main-thread cost no longer scales with the
+/// whole city.
 /// </summary>
 public sealed partial class VehicleAccessSystem : GameSystemBase
 {
+    /// <summary>
+    /// Scans one vehicle query in parallel and appends every vehicle that involves a
+    /// restricted prefab (own PrefabRef, any layout part, or its controller's prefabs).
+    /// </summary>
+    [BurstCompile]
+    private struct GatherRestrictedVehiclesJob : IJobChunk
+    {
+        [ReadOnly] public EntityTypeHandle EntityType;
+        [ReadOnly] public ComponentTypeHandle<PrefabRef> PrefabRefType;
+        [ReadOnly] public ComponentTypeHandle<Controller> ControllerType;
+        [ReadOnly] public BufferTypeHandle<LayoutElement> LayoutElementType;
+        [ReadOnly] public ComponentLookup<PrefabRef> PrefabRefs;
+        [ReadOnly] public BufferLookup<LayoutElement> Layouts;
+        [ReadOnly] public NativeHashSet<Entity> RestrictedPrefabs;
+        public NativeList<Entity>.ParallelWriter Matches;
+
+        public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
+        {
+            var entities = chunk.GetNativeArray(EntityType);
+            var prefabRefs = chunk.GetNativeArray(ref PrefabRefType);
+            var controllers = chunk.GetNativeArray(ref ControllerType);
+            var layouts = chunk.GetBufferAccessor(ref LayoutElementType);
+
+            for (var i = 0; i < chunk.Count; i++)
+            {
+                var vehicle = entities[i];
+                var restricted = prefabRefs.Length > 0 && IsRestricted(prefabRefs[i].m_Prefab);
+
+                if (!restricted && layouts.Length > 0)
+                {
+                    var layout = layouts[i];
+                    for (var j = 0; j < layout.Length && !restricted; j++)
+                    {
+                        var part = layout[j].m_Vehicle;
+                        restricted = part != Entity.Null && PrefabRefs.HasComponent(part) && IsRestricted(PrefabRefs[part].m_Prefab);
+                    }
+                }
+
+                if (!restricted && controllers.Length > 0)
+                {
+                    var controller = controllers[i].m_Controller;
+                    if (controller != Entity.Null && controller != vehicle)
+                    {
+                        restricted = PrefabRefs.HasComponent(controller) && IsRestricted(PrefabRefs[controller].m_Prefab);
+                        if (!restricted && Layouts.HasBuffer(controller))
+                        {
+                            var layout = Layouts[controller];
+                            for (var j = 0; j < layout.Length && !restricted; j++)
+                            {
+                                var part = layout[j].m_Vehicle;
+                                restricted = part != Entity.Null && PrefabRefs.HasComponent(part) && IsRestricted(PrefabRefs[part].m_Prefab);
+                            }
+                        }
+                    }
+                }
+
+                if (restricted) Matches.AddNoResize(vehicle);
+            }
+        }
+
+        private bool IsRestricted(Entity prefab) => prefab != Entity.Null && RestrictedPrefabs.Contains(prefab);
+    }
+
     private EntityQuery m_Cars;
     private EntityQuery m_Trains;
     private EntityQuery m_RestrictedNodes;
     private EntityQuery m_RestrictedSegments;
     private RestrictionIndexSystem m_Index = null!;
     private readonly List<Entity> m_PrefabBuffer = new();
+    private NativeHashSet<Entity> m_NativeRestrictedPrefabs;
+    private NativeList<Entity> m_Matches;
+    private int m_LastIndexVersion = -1;
     private int m_DetoursSinceReport;
     private int m_ReportTicks;
 
@@ -41,14 +116,54 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
         m_RestrictedNodes = GetEntityQuery(ComponentType.ReadOnly<NodeAssetRestrictionV1>());
         m_RestrictedSegments = GetEntityQuery(ComponentType.ReadOnly<SegmentAssetRestrictionV1>());
         m_Index = World.GetOrCreateSystemManaged<RestrictionIndexSystem>();
+        m_NativeRestrictedPrefabs = new NativeHashSet<Entity>(64, Allocator.Persistent);
+        m_Matches = new NativeList<Entity>(64, Allocator.Persistent);
+    }
+
+    protected override void OnDestroy()
+    {
+        m_NativeRestrictedPrefabs.Dispose();
+        m_Matches.Dispose();
+        base.OnDestroy();
     }
 
     protected override void OnUpdate()
     {
         if (!Mod.Settings.EnableExactRestrictions ||
             (m_RestrictedNodes.IsEmptyIgnoreFilter && m_RestrictedSegments.IsEmptyIgnoreFilter)) return;
-        ProcessCars();
-        ProcessTrains();
+
+        if (m_LastIndexVersion != m_Index.Version)
+        {
+            // Restrictions changed: rebuild the native prefab set. Complete our previous job
+            // first so no worker still reads the set while it is modified.
+            Dependency.Complete();
+            RebuildNativePrefabSet();
+            m_LastIndexVersion = m_Index.Version;
+        }
+
+        if (m_NativeRestrictedPrefabs.IsEmpty) return;
+
+        // Every vehicle can be a match at most once, so pre-size the reused list to the total
+        // vehicle count; the parallel writer then appends without resizing.
+        m_Matches.SetCapacity(m_Cars.CalculateEntityCount() + m_Trains.CalculateEntityCount());
+        m_Matches.Clear();
+        var job = new GatherRestrictedVehiclesJob
+        {
+            EntityType = GetEntityTypeHandle(),
+            PrefabRefType = GetComponentTypeHandle<PrefabRef>(true),
+            ControllerType = GetComponentTypeHandle<Controller>(true),
+            LayoutElementType = GetBufferTypeHandle<LayoutElement>(true),
+            PrefabRefs = GetComponentLookup<PrefabRef>(true),
+            Layouts = GetBufferLookup<LayoutElement>(true),
+            RestrictedPrefabs = m_NativeRestrictedPrefabs,
+            Matches = m_Matches.AsParallelWriter()
+        };
+        var jobHandle = job.ScheduleParallel(m_Cars, Dependency);
+        jobHandle = job.ScheduleParallel(m_Trains, jobHandle);
+        jobHandle.Complete();
+        Dependency = default(JobHandle);
+
+        ProcessMatches();
         if (++m_ReportTicks >= 256)
         {
             if (m_DetoursSinceReport != 0)
@@ -58,41 +173,47 @@ public sealed partial class VehicleAccessSystem : GameSystemBase
         }
     }
 
-    private void ProcessCars()
+    private void RebuildNativePrefabSet()
     {
-        using var vehicles = m_Cars.ToEntityArray(Allocator.Temp);
-        foreach (var vehicle in vehicles)
-        {
-            if (IsProtectedEmergency(vehicle) || !LoadVehiclePrefabs(vehicle) ||
-                !ContainsAnyRestrictedPrefab() ||
-                !TryGetBlockedTarget(vehicle, true, out var target)) continue;
-            RequestDetour(vehicle, target);
-            var navigation = EntityManager.GetComponentData<CarNavigation>(vehicle);
-            var moving = EntityManager.GetComponentData<Moving>(vehicle);
-            navigation.m_MaxSpeed = 0f;
-            moving.m_Velocity = default;
-            moving.m_AngularVelocity = default;
-            EntityManager.SetComponentData(vehicle, navigation);
-            EntityManager.SetComponentData(vehicle, moving);
-        }
+        m_NativeRestrictedPrefabs.Clear();
+        foreach (var prefab in m_Index.RestrictedPrefabs)
+            if (prefab != Entity.Null) m_NativeRestrictedPrefabs.Add(prefab);
     }
 
-    private void ProcessTrains()
+    private void ProcessMatches()
     {
-        using var vehicles = m_Trains.ToEntityArray(Allocator.Temp);
-        foreach (var vehicle in vehicles)
+        foreach (var vehicle in m_Matches)
         {
-            if (!LoadVehiclePrefabs(vehicle) ||
-                !ContainsAnyRestrictedPrefab() ||
-                !TryGetBlockedTarget(vehicle, false, out var target)) continue;
-            RequestDetour(vehicle, target);
-            var navigation = EntityManager.GetComponentData<TrainNavigation>(vehicle);
-            var moving = EntityManager.GetComponentData<Moving>(vehicle);
-            navigation.m_Speed = 0f;
-            moving.m_Velocity = default;
-            moving.m_AngularVelocity = default;
-            EntityManager.SetComponentData(vehicle, navigation);
-            EntityManager.SetComponentData(vehicle, moving);
+            if (!EntityManager.Exists(vehicle)) continue;
+
+            if (EntityManager.HasComponent<CarNavigation>(vehicle))
+            {
+                if (IsProtectedEmergency(vehicle) || !LoadVehiclePrefabs(vehicle) ||
+                    !ContainsAnyRestrictedPrefab() ||
+                    !TryGetBlockedTarget(vehicle, true, out var target)) continue;
+                RequestDetour(vehicle, target);
+                var navigation = EntityManager.GetComponentData<CarNavigation>(vehicle);
+                var moving = EntityManager.GetComponentData<Moving>(vehicle);
+                navigation.m_MaxSpeed = 0f;
+                moving.m_Velocity = default;
+                moving.m_AngularVelocity = default;
+                EntityManager.SetComponentData(vehicle, navigation);
+                EntityManager.SetComponentData(vehicle, moving);
+            }
+            else if (EntityManager.HasComponent<TrainNavigation>(vehicle))
+            {
+                if (!LoadVehiclePrefabs(vehicle) ||
+                    !ContainsAnyRestrictedPrefab() ||
+                    !TryGetBlockedTarget(vehicle, false, out var target)) continue;
+                RequestDetour(vehicle, target);
+                var navigation = EntityManager.GetComponentData<TrainNavigation>(vehicle);
+                var moving = EntityManager.GetComponentData<Moving>(vehicle);
+                navigation.m_Speed = 0f;
+                moving.m_Velocity = default;
+                moving.m_AngularVelocity = default;
+                EntityManager.SetComponentData(vehicle, navigation);
+                EntityManager.SetComponentData(vehicle, moving);
+            }
         }
     }
 

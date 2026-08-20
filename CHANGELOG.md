@@ -2,6 +2,35 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Semantic Versioning prerelease conventions.
 
+## 1.0.4 — 2026-08-20
+
+### Fixed
+
+- The vehicle catalog is no longer built only once: it now rebuilds after each save finishes loading and whenever vehicle prefabs or content availability actually change, so late-loading modded assets (for example CR400AF trains) are no longer missing from the list. Opening the panel never triggers a rebuild.
+- The manual refresh button used the "↻" character, which is missing from the game UI font and rendered as a box; it now draws an inline SVG icon.
+- The panel now reserves the game's top bar and bottom toolbar areas and grows with the available viewport height, showing noticeably more asset rows without covering the toolbar at any supported screen size or UI scale.
+- The tool system now skips its per-frame net raycast while the tool is inactive, and no longer overwrites the vanilla tool selection when it should not run.
+- Project builds are no longer broken by the toolchain's Entities source generators, which mis-handle file-scoped namespaces under current compilers (CS0311 on every `UpdateAt<TSystem>` call).
+
+### Changed
+
+- Enforcement scanning now runs in a parallel Burst chunk job that returns only matching vehicles; the main thread processes the rare matches instead of walking every moving vehicle in the city each frame.
+- The pathfinding system now skips the pathfind data container entirely while no detour barrier is active.
+- Restriction badges are drawn by a single batched parallel job instead of one job per restricted target.
+- The restriction index rebuild reuses its per-target sets, so steady-state rebuilds are allocation free.
+
+### 中文
+
+- 车辆目录不再只构建一次：现在每次存档加载完成后自动重建，且当车辆预制件或内容集实际发生变化时也会重建，晚加载的模组资产（如 CR400AF 系列）不再从列表中缺失；打开面板不会触发任何重建。
+- 手动刷新按钮原使用游戏字体缺失的“↻”字符而显示为方框，现改为内联 SVG 图标。
+- 面板预留了游戏顶栏与底部工具栏区域，高度随可用视口增长，可显示更多资产行，且在任何受支持的屏幕尺寸与 UI 缩放下都不会遮挡工具栏。
+- 工具未激活时不再每帧进行路网射线检测，也不再干扰原版工具的选中状态。
+- 修复工具链 Entities 源码生成器与当前编译器不兼容导致的构建失败（CS0311）。
+- 执法扫描改为并行 Burst 分块任务，主线程只处理命中的少量车辆，不再每帧遍历全城行驶车辆。
+- 无绕行屏障时寻路系统完全跳过 pathfind 数据管道。
+- 禁行标牌改为单个批量并行任务绘制，不再按目标逐个调度任务。
+- 限制索引重建复用集合，稳态重建零分配。
+
 ## 1.0.3 — 2026-08-20
 
 ### Fixed

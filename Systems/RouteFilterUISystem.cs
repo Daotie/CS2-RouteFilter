@@ -1,7 +1,9 @@
 using Colossal.UI.Binding;
 using Colossal.Entities;
+using Colossal.Serialization.Entities;
 using Game;
 using Game.Prefabs;
+using Game.SceneFlow;
 using Game.Tools;
 using Game.UI;
 using System;
@@ -42,6 +44,12 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private ValueBinding<string> m_AssetCatalogBinding = null!;
     private ValueBinding<string> m_SelectedAssetsBinding = null!;
     private Entity m_LastSelectedTarget = Entity.Null;
+    private int m_LastQueryOrderVersion = int.MinValue;
+    private int m_LastVehicleOrderVersion = int.MinValue;
+    private int m_LastCarOrderVersion = int.MinValue;
+    private int m_LastTrainOrderVersion = int.MinValue;
+    private bool m_ContentAvailabilityDirty;
+    private bool m_PendingLoadRefresh;
 
     public override GameMode gameMode => GameMode.GameOrEditor;
 
@@ -71,11 +79,53 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         AddBinding(new TriggerBinding(Mod.Id, "clearSelectedRestriction", m_RestrictionTool.ClearSelectedRestriction));
         AddBinding(new TriggerBinding(Mod.Id, "cancelSelection", m_RestrictionTool.ClearSelection));
         AddBinding(new TriggerBinding<bool>(Mod.Id, "setPointerOverUi", m_RestrictionTool.SetPointerOverUi));
+
+        // Rebuild the catalog whenever the game announces that content (asset packs, mods) became available or was removed,
+        // and once after each save finishes loading, so late-loading modded assets (for example CR400AF trains) are not missed.
+        m_PrefabSystem.onContentAvailabilityChanged += OnContentAvailabilityChanged;
+        GameManager.instance.onGameLoadingComplete += HandleGameLoadingComplete;
     }
+
+    protected override void OnDestroy()
+    {
+        m_PrefabSystem.onContentAvailabilityChanged -= OnContentAvailabilityChanged;
+        var gameManager = GameManager.instance;
+        if (gameManager != null) gameManager.onGameLoadingComplete -= HandleGameLoadingComplete;
+        base.OnDestroy();
+    }
+
+    private void OnContentAvailabilityChanged() => m_ContentAvailabilityDirty = true;
+
+    private void HandleGameLoadingComplete(Purpose purpose, GameMode mode) => m_PendingLoadRefresh = true;
 
     protected override void OnUpdate()
     {
-        if (m_AssetsById.Count == 0 && !m_VehiclePrefabQuery.IsEmptyIgnoreFilter) RefreshAssetCatalog();
+        // Rebuild the catalog once after a save finishes loading, and additionally whenever vehicle
+        // prefabs or their CarData/TrainData actually change (for example asset packs that finish
+        // loading after the load-complete event). The version checks are O(1) per frame and never
+        // rebuild anything while the prefab world is unchanged; the panel itself never triggers
+        // a rebuild when it opens.
+        if (!m_VehiclePrefabQuery.IsEmptyIgnoreFilter)
+        {
+            var queryVersion = m_VehiclePrefabQuery.GetCombinedComponentOrderVersion(true);
+            var vehicleVersion = EntityManager.GetComponentOrderVersion<VehicleData>();
+            var carVersion = EntityManager.GetComponentOrderVersion<CarData>();
+            var trainVersion = EntityManager.GetComponentOrderVersion<TrainData>();
+            if (m_AssetsById.Count == 0 || m_PendingLoadRefresh || m_ContentAvailabilityDirty ||
+                queryVersion != m_LastQueryOrderVersion || vehicleVersion != m_LastVehicleOrderVersion ||
+                carVersion != m_LastCarOrderVersion || trainVersion != m_LastTrainOrderVersion)
+            {
+                RefreshAssetCatalog();
+            }
+        }
+        else
+        {
+            // Prefabs are not available (for example while loading); force a refresh once they appear.
+            m_LastQueryOrderVersion = int.MinValue;
+            m_LastVehicleOrderVersion = int.MinValue;
+            m_LastCarOrderVersion = int.MinValue;
+            m_LastTrainOrderVersion = int.MinValue;
+        }
         m_ToolActiveBinding.Update(m_ToolSystem.activeTool == m_RestrictionTool);
         m_TargetModeBinding.Update((int)Mod.SelectedTargetMode);
         m_TargetTransportBinding.Update(m_RestrictionTool.SelectedTarget != Entity.Null
@@ -100,7 +150,6 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     private void ToggleTool()
     {
-        if (m_AssetsById.Count == 0) RefreshAssetCatalog();
         m_RestrictionTool.Toggle();
     }
 
@@ -113,6 +162,10 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     private void RefreshAssetCatalog()
     {
+        // Keep the current catalog when no vehicle prefabs are available yet so an early call
+        // (for example while the world is still loading) cannot wipe a previously built list.
+        if (m_VehiclePrefabQuery.IsEmptyIgnoreFilter) return;
+
         m_AssetsById.Clear();
         m_IdsByAsset.Clear();
         m_ModeByAsset.Clear();
@@ -201,7 +254,16 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         Mod.SelectedVehicleAssets.RemoveWhere(entity => !m_IdsByAsset.ContainsKey(entity));
         m_AssetCatalogBinding.Update(string.Join("\n", lines));
         UpdateSelectedBinding();
-        Mod.Log.Info($"Vehicle asset catalog refreshed once: {ordered.Length} assets, {m_ChildrenByAsset.Sum(pair => pair.Value.Count)} grouped trailers");
+
+        // Remember the world state this catalog was built from so later prefab or
+        // component additions trigger a rebuild instead of being missed forever.
+        m_LastQueryOrderVersion = m_VehiclePrefabQuery.GetCombinedComponentOrderVersion(true);
+        m_LastVehicleOrderVersion = EntityManager.GetComponentOrderVersion<VehicleData>();
+        m_LastCarOrderVersion = EntityManager.GetComponentOrderVersion<CarData>();
+        m_LastTrainOrderVersion = EntityManager.GetComponentOrderVersion<TrainData>();
+        m_ContentAvailabilityDirty = false;
+        m_PendingLoadRefresh = false;
+        Mod.Log.Info($"Vehicle asset catalog refreshed: {ordered.Length} assets, {m_ChildrenByAsset.Sum(pair => pair.Value.Count)} grouped trailers");
     }
 
     private static string Format(float value) => value.ToString("0.##", CultureInfo.InvariantCulture);
@@ -263,3 +325,4 @@ public sealed partial class RouteFilterUISystem : UISystemBase
             .Where(m_IdsByAsset.ContainsKey).Select(entity => m_IdsByAsset[entity]).OrderBy(id => id)));
     }
 }
+

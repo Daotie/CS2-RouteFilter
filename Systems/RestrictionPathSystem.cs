@@ -32,6 +32,11 @@ public sealed partial class RestrictionPathSystem : GameSystemBase
 
     protected override void OnUpdate()
     {
+        // The blockage barrier only exists while a detour is in progress. Skip the pathfind
+        // data container and the Complete() sync entirely when nothing is blocked right now,
+        // instead of touching the pathfind pipeline every frame.
+        if (m_RestrictedNodes.IsEmptyIgnoreFilter && m_RestrictedSegments.IsEmptyIgnoreFilter) return;
+
         var pathfindData = m_PathfindQueueSystem.GetDataContainer(out var dependencies);
         dependencies.Complete();
 

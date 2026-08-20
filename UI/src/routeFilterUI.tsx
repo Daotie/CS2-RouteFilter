@@ -5,6 +5,7 @@ import { useLocalization } from "cs2/l10n";
 import { Button, Portal } from "cs2/ui";
 import mod from "mod.json";
 import icon from "./routefilter.svg";
+import refreshIcon from "../../wh.svg";
 import styles from "./routeFilterUI.module.scss";
 
 type VehicleAsset = {
@@ -39,6 +40,8 @@ const AssetGlyph = ({ mode, trailer }: { mode: number; trailer: boolean }) => <s
     <path d="M7 16a2 2 0 1 0 0 .1M17 16a2 2 0 1 0 0 .1" />
   </>}
 </svg>;
+
+const RefreshGlyph = () => <img src={refreshIcon} alt="" className={styles.refreshIcon} />;
 
 export const RouteFilterUI = () => {
   const [search, setSearch] = useState("");
@@ -137,7 +140,7 @@ export const RouteFilterUI = () => {
       <div className={styles.actions}>
         <button onClick={() => trigger(mod.id, "selectAllAssets", 0)}>{tr("RouteFilter.UI.ForbidAll", "Forbid all assets")}</button>
         <button onClick={() => trigger(mod.id, "selectNoAssets", 0)}>{tr("RouteFilter.UI.AllowAll", "Allow all assets")}</button>
-        <button className={styles.refresh} onClick={() => trigger(mod.id, "refreshAssets")}>↻</button>
+        <button className={styles.refresh} aria-label={tr("RouteFilter.UI.RefreshAssets", "Refresh asset list")} onClick={() => trigger(mod.id, "refreshAssets")}><RefreshGlyph /></button>
       </div>
       <div className={styles.assetList} onWheel={event => { event.currentTarget.scrollTop += event.deltaY; event.stopPropagation(); }} onMouseLeave={() => setHovered(null)}>
         {visibleRoots.map(asset => renderAsset(asset))}

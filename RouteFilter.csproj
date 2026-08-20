@@ -3,9 +3,9 @@
     <Configurations>Debug;Release</Configurations>
     <AssemblyName>RouteFilter</AssemblyName>
     <RootNamespace>RouteFilter</RootNamespace>
-    <Version>1.0.3</Version>
-    <AssemblyVersion>1.0.3.0</AssemblyVersion>
-    <FileVersion>1.0.3.0</FileVersion>
+    <Version>1.0.4</Version>
+    <AssemblyVersion>1.0.4.0</AssemblyVersion>
+    <FileVersion>1.0.4.0</FileVersion>
     <Authors>Daotie</Authors>
     <Description>Asset-level vehicle access restrictions for road and rail nodes or segments in Cities: Skylines II.</Description>
     <Title>RouteFilter</Title>
@@ -37,6 +37,7 @@
     <Reference Include="Colossal.UI"><HintPath>$(ManagedPath)\Colossal.UI.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Colossal.UI.Binding"><HintPath>$(ManagedPath)\Colossal.UI.Binding.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Unity.Collections"><HintPath>$(ManagedPath)\Unity.Collections.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.Burst"><HintPath>$(ManagedPath)\Unity.Burst.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Unity.Entities"><HintPath>$(ManagedPath)\Unity.Entities.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Unity.Mathematics"><HintPath>$(ManagedPath)\Unity.Mathematics.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Unity.InputSystem"><HintPath>$(ManagedPath)\Unity.InputSystem.dll</HintPath><Private>false</Private></Reference>
@@ -46,6 +47,14 @@
   <ItemGroup>
     <Compile Remove="tools\**\*.cs" />
     <None Remove="tools\**" />
+  </ItemGroup>
+
+  <!-- The game toolchain's Mod.props injects the Entities 1.3.10 source generators as analyzers.
+       Under current Roslyn compilers they mis-handle file-scoped namespaces and emit global-namespace
+       partials that shadow the real system types, breaking UpdateSystem.UpdateAt<TSystem> with CS0311.
+       This mod uses classic SystemBase systems and requires no generated code, so drop those analyzers. -->
+  <ItemGroup>
+    <Analyzer Remove="@(Analyzer)" />
   </ItemGroup>
 
   <Import Project="$(ToolchainPath)\Mod.targets" Condition="Exists('$(ToolchainPath)\Mod.targets') AND '$(UseOfficialDeploy)' == 'true'" />

@@ -43,30 +43,31 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
         }
     }
 
-    private struct DrawBadgeJob : IJob
+    private struct DrawBadgesJob : IJobParallelFor
     {
         public OverlayRenderSystem.Buffer Buffer;
-        public float3 Position;
-        public bool Prominent;
+        [ReadOnly] public NativeArray<float3> Positions;
+        [ReadOnly] public NativeArray<bool> Prominent;
 
-        public void Execute()
+        public void Execute(int index)
         {
-            var alpha = Prominent ? 1f : 0.62f;
+            var isProminent = Prominent[index];
+            var alpha = isProminent ? 1f : 0.62f;
             var outline = new Color(0.92f, 0.16f, 0.10f, alpha);
-            var fill = new Color(0.92f, 0.16f, 0.10f, alpha * (Prominent ? 0.82f : 0.32f));
+            var fill = new Color(0.92f, 0.16f, 0.10f, alpha * (isProminent ? 0.82f : 0.32f));
             var bar = new Color(1f, 1f, 1f, alpha);
-            var diameter = Prominent ? kBadgeDiameterProminent : kBadgeDiameter;
+            var diameter = isProminent ? kBadgeDiameterProminent : kBadgeDiameter;
 
             // Flat tag: a horizontal prohibition disc floating above the target, sized
             // close to the selection highlight. It does not rotate with the camera.
-            Buffer.DrawCircle(outline, fill, Prominent ? 0.9f : 0.8f, 0,
-                new float2(0f, 1f), Position, diameter);
+            Buffer.DrawCircle(outline, fill, isProminent ? 0.9f : 0.8f, 0,
+                new float2(0f, 1f), Positions[index], diameter);
 
             var half = diameter * 0.32f;
-            var barWidth = Prominent ? 1.7f : 1.4f;
+            var barWidth = isProminent ? 1.7f : 1.4f;
             var line = new Colossal.Mathematics.Line3.Segment(
-                Position + new float3(-half, 0f, half),
-                Position + new float3(half, 0f, -half));
+                Positions[index] + new float3(-half, 0f, half),
+                Positions[index] + new float3(half, 0f, -half));
             Buffer.DrawLine(bar, line, barWidth, false);
         }
     }
@@ -76,6 +77,11 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
     private OverlayRenderSystem m_Overlay = null!;
     private EntityQuery m_RestrictedNodes;
     private EntityQuery m_RestrictedSegments;
+    // Persistent scratch arrays for the batched badge job; reused every frame so the job
+    // pipeline stays allocation free and the previous job is completed before refilling.
+    private NativeList<float3> m_BadgePositions;
+    private NativeList<bool> m_BadgeProminent;
+    private JobHandle m_BadgeJobHandle;
 
     protected override void OnCreate()
     {
@@ -90,11 +96,26 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
             ComponentType.ReadOnly<Game.Net.Edge>(),
             ComponentType.ReadOnly<SegmentAssetRestrictionV1>(),
             ComponentType.ReadOnly<RestrictedVehicleAssetV1>());
+        m_BadgePositions = new NativeList<float3>(64, Allocator.Persistent);
+        m_BadgeProminent = new NativeList<bool>(64, Allocator.Persistent);
+    }
+
+    protected override void OnDestroy()
+    {
+        m_BadgeJobHandle.Complete();
+        m_BadgePositions.Dispose();
+        m_BadgeProminent.Dispose();
+        base.OnDestroy();
     }
 
     protected override void OnUpdate()
     {
         if (m_ToolSystem.activeTool != m_Tool) return;
+
+        // The badge job from the previous frame reads the scratch arrays; finish it before
+        // refilling them so they are never overwritten while a worker still uses them.
+        m_BadgeJobHandle.Complete();
+
         if (m_Tool.SelectedTarget == m_Tool.HoveredTarget)
             Draw(m_Tool.SelectedTarget, true);
         else
@@ -103,40 +124,40 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
             Draw(m_Tool.SelectedTarget, true);
         }
         DrawRestrictionBadges();
-        if (m_Tool.SelectedTarget != m_Tool.HoveredTarget)
-        {
-            DrawBadge(m_Tool.HoveredTarget, true);
-            DrawBadge(m_Tool.SelectedTarget, true);
-        }
-        else
-        {
-            DrawBadge(m_Tool.HoveredTarget, true);
-        }
     }
 
     private void DrawRestrictionBadges()
     {
+        m_BadgePositions.Clear();
+        m_BadgeProminent.Clear();
+
         using var nodes = m_RestrictedNodes.ToEntityArray(Allocator.Temp);
-        foreach (var node in nodes) DrawBadge(node, false);
+        foreach (var node in nodes) AddBadge(node);
 
         using var segments = m_RestrictedSegments.ToEntityArray(Allocator.Temp);
-        foreach (var segment in segments) DrawBadge(segment, false);
+        foreach (var segment in segments) AddBadge(segment);
+
+        if (m_BadgePositions.Length == 0) return;
+
+        var buffer = m_Overlay.GetBuffer(out var dependencies);
+        var job = new DrawBadgesJob
+        {
+            Buffer = buffer,
+            Positions = m_BadgePositions.AsArray(),
+            Prominent = m_BadgeProminent.AsArray()
+        };
+        m_BadgeJobHandle = job.Schedule(m_BadgePositions.Length, 16, JobHandle.CombineDependencies(Dependency, dependencies));
+        Dependency = m_BadgeJobHandle;
+        m_Overlay.AddBufferWriter(m_BadgeJobHandle);
     }
 
-    private void DrawBadge(Unity.Entities.Entity target, bool prominent)
+    private void AddBadge(Unity.Entities.Entity target)
     {
         if (target == Unity.Entities.Entity.Null || !HasActiveRestriction(target)) return;
         if (!TryGetBadgePosition(target, out var position)) return;
 
-        var buffer = m_Overlay.GetBuffer(out var dependencies);
-        var job = new DrawBadgeJob
-        {
-            Buffer = buffer,
-            Position = position + new float3(0f, kBadgeHeight, 0f),
-            Prominent = prominent
-        };
-        Dependency = job.Schedule(JobHandle.CombineDependencies(Dependency, dependencies));
-        m_Overlay.AddBufferWriter(Dependency);
+        m_BadgePositions.Add(position + new float3(0f, kBadgeHeight, 0f));
+        m_BadgeProminent.Add(target == m_Tool.HoveredTarget || target == m_Tool.SelectedTarget);
     }
 
     private bool HasActiveRestriction(Unity.Entities.Entity target)
