@@ -14,6 +14,8 @@ type VehicleAsset = {
 };
 
 type AssetVisibility = "all" | "forbidden" | "allowed";
+type AssetSort = "name" | "maxSpeed" | "acceleration" | "braking";
+type SortDirection = "ascending" | "descending";
 
 const toolActive$ = bindValue<boolean>(mod.id, "toolActive", false);
 const targetMode$ = bindValue<number>(mod.id, "targetMode", 0);
@@ -40,6 +42,18 @@ const matchesCatalogFilters = (asset: VehicleAsset, search: string, visibility: 
   return true;
 };
 
+const compareNames = (left: VehicleAsset, right: VehicleAsset) =>
+  left.name.toLocaleLowerCase().localeCompare(right.name.toLocaleLowerCase()) || left.id - right.id;
+
+const compareAssets = (left: VehicleAsset, right: VehicleAsset, sort: AssetSort) => {
+  if (sort === "name") return compareNames(left, right);
+  const difference = left[sort] - right[sort];
+  return difference || compareNames(left, right);
+};
+
+const sortAssets = (assets: VehicleAsset[], sort: AssetSort, direction: SortDirection) =>
+  [...assets].sort((left, right) => compareAssets(left, right, sort) * (direction === "ascending" ? 1 : -1));
+
 const AssetGlyph = ({ mode, trailer }: { mode: number; trailer: boolean }) => <svg className={styles.glyph} viewBox="0 0 24 24">
   {mode === 2 ? <>
     <path d="M5 15V7c0-2 2-3 7-3s7 1 7 3v8c0 2-1 3-3 3H8c-2 0-3-1-3-3Z" />
@@ -55,6 +69,8 @@ const RefreshGlyph = () => <img src={refreshIcon} alt="" className={styles.refre
 export const RouteFilterUI = () => {
   const [search, setSearch] = useState("");
   const [visibility, setVisibility] = useState<AssetVisibility>("all");
+  const [sort, setSort] = useState<AssetSort>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("ascending");
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
   const [hovered, setHovered] = useState<VehicleAsset | null>(null);
   const [page, setPage] = useState(0);
@@ -80,20 +96,22 @@ export const RouteFilterUI = () => {
       const siblings = map.get(asset.parentId);
       if (siblings) siblings.push(asset); else map.set(asset.parentId, [asset]);
     });
+    map.forEach(siblings => siblings.sort(compareNames));
     return map;
   }, [relevant]);
-  const roots = useMemo(() => relevant
-    .filter(asset => !asset.parentId || !relevantIds.has(asset.parentId))
-    .filter(asset => matchesCatalogFilters(asset, normalizedSearch, visibility, selected) ||
-      (children.get(asset.id) ?? []).some(child => matchesCatalogFilters(child, normalizedSearch, visibility, selected))),
-  [relevant, relevantIds, children, normalizedSearch, visibility, selected]);
+  const roots = useMemo(() => sortAssets(relevant
+      .filter(asset => !asset.parentId || !relevantIds.has(asset.parentId))
+      .filter(asset => matchesCatalogFilters(asset, normalizedSearch, visibility, selected) ||
+        (children.get(asset.id) ?? []).some(child => matchesCatalogFilters(child, normalizedSearch, visibility, selected))),
+    sort, sortDirection),
+  [relevant, relevantIds, children, normalizedSearch, visibility, selected, sort, sortDirection]);
   const selectedRelevant = relevant.filter(asset => selected.has(asset.id)).length;
   const pageSize = 30;
   const pageCount = Math.max(1, Math.ceil(roots.length / pageSize));
   const pageIndex = Math.min(page, pageCount - 1);
   const visibleRoots = roots.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
 
-  useEffect(() => setPage(0), [search, visibility, targetTransport]);
+  useEffect(() => setPage(0), [search, visibility, sort, sortDirection, targetTransport]);
   useEffect(() => {
     if (!open) return;
     return () => { trigger(mod.id, "setPointerOverUi", false); };
@@ -154,6 +172,18 @@ export const RouteFilterUI = () => {
           <option value="forbidden">{tr("RouteFilter.UI.ShowForbidden", "Forbidden")}</option>
           <option value="allowed">{tr("RouteFilter.UI.ShowAllowed", "Allowed")}</option>
         </select></label>
+        <label><span>{tr("RouteFilter.UI.SortBy", "Sort by")}</span><select value={sort} onChange={event => setSort(event.target.value as AssetSort)}>
+          <option value="name">{tr("RouteFilter.UI.SortName", "Name")}</option>
+          <option value="maxSpeed">{tr("RouteFilter.UI.MaxSpeed", "Maximum speed")}</option>
+          <option value="acceleration">{tr("RouteFilter.UI.Acceleration", "Acceleration")}</option>
+          <option value="braking">{tr("RouteFilter.UI.Braking", "Braking")}</option>
+        </select></label>
+        <button type="button" className={styles.sortDirection}
+          aria-label={sortDirection === "ascending" ? tr("RouteFilter.UI.SortAscending", "Ascending") : tr("RouteFilter.UI.SortDescending", "Descending")}
+          title={sortDirection === "ascending" ? tr("RouteFilter.UI.SortAscending", "Ascending") : tr("RouteFilter.UI.SortDescending", "Descending")}
+          onClick={() => setSortDirection(current => current === "ascending" ? "descending" : "ascending")}>
+          {sortDirection === "ascending" ? "↑" : "↓"}
+        </button>
       </div>
       <div className={styles.details}>{hovered ? <>
         <div><AssetGlyph mode={hovered.mode} trailer={hovered.trailer} /><strong>{hovered.name}</strong></div>
