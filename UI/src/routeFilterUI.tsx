@@ -72,6 +72,7 @@ export const RouteFilterUI = () => {
   const [sort, setSort] = useState<AssetSort>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("ascending");
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
+  const [collapsedWhileFiltering, setCollapsedWhileFiltering] = useState<Set<number>>(() => new Set());
   const [hovered, setHovered] = useState<VehicleAsset | null>(null);
   const [page, setPage] = useState(0);
   const anchor = useRef<HTMLDivElement | null>(null);
@@ -110,38 +111,43 @@ export const RouteFilterUI = () => {
   const pageCount = Math.max(1, Math.ceil(roots.length / pageSize));
   const pageIndex = Math.min(page, pageCount - 1);
   const visibleRoots = roots.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
+  const filteringCatalog = normalizedSearch.length > 0 || visibility !== "all";
 
   useEffect(() => setPage(0), [search, visibility, sort, sortDirection, targetTransport]);
+  useEffect(() => setCollapsedWhileFiltering(new Set()), [search, visibility, targetTransport]);
   useEffect(() => {
     if (!open) return;
     return () => { trigger(mod.id, "setPointerOverUi", false); };
   }, [open]);
 
   const togglePanel = () => trigger(mod.id, "toggleTool");
-  const toggleExpanded = (id: number) => setExpanded(current => {
-    const next = new Set(current);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
+  const toggleExpanded = (id: number) => {
+    const update = (current: Set<number>) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    };
+    if (filteringCatalog) setCollapsedWhileFiltering(update); else setExpanded(update);
+  };
 
-  const renderAsset = (asset: VehicleAsset, child = false) => {
+  const renderAsset = (asset: VehicleAsset, child = false, contextOnly = false) => {
     const childAssets = children.get(asset.id) ?? [];
     const visibleChildAssets = childAssets.filter(item => matchesCatalogFilters(item, normalizedSearch, visibility, selected));
-    const isExpanded = expanded.has(asset.id) || normalizedSearch.length > 0 || visibility !== "all";
+    const isExpanded = filteringCatalog ? !collapsedWhileFiltering.has(asset.id) : expanded.has(asset.id);
     const groupIds = [asset.id, ...childAssets.map(item => item.id)];
     const selectedCount = groupIds.filter(id => selected.has(id)).length;
     const partial = childAssets.length > 0 && selectedCount > 0 && selectedCount < groupIds.length;
     return <React.Fragment key={asset.id}>
-      <div className={classNames(styles.assetRow, { [styles.child]: child, [styles.forbidden]: selected.has(asset.id), [styles.partial]: partial })}
+      <div className={classNames(styles.assetRow, { [styles.child]: child, [styles.forbidden]: !contextOnly && selected.has(asset.id), [styles.partial]: !contextOnly && partial, [styles.contextOnly]: contextOnly })}
         onMouseEnter={() => setHovered(asset)} onMouseOver={() => setHovered(asset)}>
         {childAssets.length > 0 ? <button type="button" className={styles.expand} onClick={() => toggleExpanded(asset.id)}>{isExpanded ? "⌄" : "›"}</button> : <span className={styles.expandSpacer} />}
-        <button type="button" aria-label={selected.has(asset.id)
+        {contextOnly ? <span className={styles.checkSpacer} /> : <button type="button" aria-label={selected.has(asset.id)
           ? tr("RouteFilter.UI.AllowAsset", "Allow asset")
           : tr("RouteFilter.UI.ForbidAsset", "Forbid asset")}
           className={classNames(styles.check, { [styles.checked]: selected.has(asset.id), [styles.partialCheck]: partial })}
           onClick={() => childAssets.length ? trigger(mod.id, "toggleAssetGroup", asset.id, !isExpanded) : trigger(mod.id, "toggleAsset", asset.id)}>
           {partial ? "−" : selected.has(asset.id) ? "×" : ""}
-        </button>
+        </button>}
         <div className={styles.assetMain}>
           <AssetGlyph mode={asset.mode} trailer={asset.trailer} /><em>{asset.name}</em>
           {childAssets.length > 0 && <small>{childAssets.length + 1}</small>}
@@ -199,7 +205,7 @@ export const RouteFilterUI = () => {
         <button className={styles.refresh} aria-label={tr("RouteFilter.UI.RefreshAssets", "Refresh asset list")} onClick={() => trigger(mod.id, "refreshAssets")}><RefreshGlyph /></button>
       </div>
       <div className={styles.assetList} onWheel={event => { event.currentTarget.scrollTop += event.deltaY; event.stopPropagation(); }} onMouseLeave={() => setHovered(null)}>
-        {visibleRoots.map(asset => renderAsset(asset))}
+        {visibleRoots.map(asset => renderAsset(asset, false, !matchesCatalogFilters(asset, normalizedSearch, visibility, selected)))}
         {roots.length === 0 && <p className={styles.empty}>{tr("RouteFilter.UI.Empty", "No matching vehicle assets")}</p>}
       </div>
       <div className={styles.pager}>
