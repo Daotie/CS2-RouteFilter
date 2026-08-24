@@ -13,6 +13,8 @@ type VehicleAsset = {
   braking: number; parentId: number; trailer: boolean;
 };
 
+type AssetVisibility = "all" | "forbidden" | "allowed";
+
 const toolActive$ = bindValue<boolean>(mod.id, "toolActive", false);
 const targetMode$ = bindValue<number>(mod.id, "targetMode", 0);
 const targetTransport$ = bindValue<number>(mod.id, "targetTransport", 0);
@@ -31,6 +33,13 @@ const parseCatalog = (raw: string): VehicleAsset[] => raw.split("\n").reduce<Veh
   return result;
 }, []);
 
+const matchesCatalogFilters = (asset: VehicleAsset, search: string, visibility: AssetVisibility, selected: Set<number>) => {
+  if (search && !asset.name.toLocaleLowerCase().includes(search)) return false;
+  if (visibility === "forbidden") return selected.has(asset.id);
+  if (visibility === "allowed") return !selected.has(asset.id);
+  return true;
+};
+
 const AssetGlyph = ({ mode, trailer }: { mode: number; trailer: boolean }) => <svg className={styles.glyph} viewBox="0 0 24 24">
   {mode === 2 ? <>
     <path d="M5 15V7c0-2 2-3 7-3s7 1 7 3v8c0 2-1 3-3 3H8c-2 0-3-1-3-3Z" />
@@ -45,6 +54,7 @@ const RefreshGlyph = () => <img src={refreshIcon} alt="" className={styles.refre
 
 export const RouteFilterUI = () => {
   const [search, setSearch] = useState("");
+  const [visibility, setVisibility] = useState<AssetVisibility>("all");
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
   const [hovered, setHovered] = useState<VehicleAsset | null>(null);
   const [page, setPage] = useState(0);
@@ -62,22 +72,28 @@ export const RouteFilterUI = () => {
   const selected = useMemo(() => new Set(selectedRaw.split(",").map(Number).filter(Number.isInteger)), [selectedRaw]);
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const relevant = useMemo(() => assets.filter(asset => targetTransport === 0 || (asset.mode & targetTransport) !== 0), [assets, targetTransport]);
+  const relevantIds = useMemo(() => new Set(relevant.map(asset => asset.id)), [relevant]);
   const children = useMemo(() => {
     const map = new Map<number, VehicleAsset[]>();
-    relevant.forEach(asset => { if (asset.parentId) map.set(asset.parentId, [...(map.get(asset.parentId) ?? []), asset]); });
+    relevant.forEach(asset => {
+      if (!asset.parentId) return;
+      const siblings = map.get(asset.parentId);
+      if (siblings) siblings.push(asset); else map.set(asset.parentId, [asset]);
+    });
     return map;
   }, [relevant]);
-  const roots = useMemo(() => relevant.filter(asset => !asset.parentId || !relevant.some(candidate => candidate.id === asset.parentId)).filter(asset => {
-    if (!normalizedSearch) return true;
-    return asset.name.toLocaleLowerCase().includes(normalizedSearch) || (children.get(asset.id) ?? []).some(child => child.name.toLocaleLowerCase().includes(normalizedSearch));
-  }), [relevant, children, normalizedSearch]);
+  const roots = useMemo(() => relevant
+    .filter(asset => !asset.parentId || !relevantIds.has(asset.parentId))
+    .filter(asset => matchesCatalogFilters(asset, normalizedSearch, visibility, selected) ||
+      (children.get(asset.id) ?? []).some(child => matchesCatalogFilters(child, normalizedSearch, visibility, selected))),
+  [relevant, relevantIds, children, normalizedSearch, visibility, selected]);
   const selectedRelevant = relevant.filter(asset => selected.has(asset.id)).length;
   const pageSize = 30;
   const pageCount = Math.max(1, Math.ceil(roots.length / pageSize));
   const pageIndex = Math.min(page, pageCount - 1);
   const visibleRoots = roots.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
 
-  useEffect(() => setPage(0), [search, targetTransport]);
+  useEffect(() => setPage(0), [search, visibility, targetTransport]);
   useEffect(() => {
     if (!open) return;
     return () => { trigger(mod.id, "setPointerOverUi", false); };
@@ -92,7 +108,8 @@ export const RouteFilterUI = () => {
 
   const renderAsset = (asset: VehicleAsset, child = false) => {
     const childAssets = children.get(asset.id) ?? [];
-    const isExpanded = expanded.has(asset.id) || normalizedSearch.length > 0;
+    const visibleChildAssets = childAssets.filter(item => matchesCatalogFilters(item, normalizedSearch, visibility, selected));
+    const isExpanded = expanded.has(asset.id) || normalizedSearch.length > 0 || visibility !== "all";
     const groupIds = [asset.id, ...childAssets.map(item => item.id)];
     const selectedCount = groupIds.filter(id => selected.has(id)).length;
     const partial = childAssets.length > 0 && selectedCount > 0 && selectedCount < groupIds.length;
@@ -110,7 +127,7 @@ export const RouteFilterUI = () => {
           {childAssets.length > 0 && <small>{childAssets.length + 1}</small>}
         </div>
       </div>
-      {childAssets.length > 0 && isExpanded && childAssets.filter(item => !normalizedSearch || item.name.toLocaleLowerCase().includes(normalizedSearch)).map(item => renderAsset(item, true))}
+      {childAssets.length > 0 && isExpanded && visibleChildAssets.map(item => renderAsset(item, true))}
     </React.Fragment>;
   };
 
@@ -131,6 +148,13 @@ export const RouteFilterUI = () => {
       </div>
       <div className={styles.assetHeader}><strong>{targetLabel}</strong><small>{selectedRelevant} / {relevant.length} {tr("RouteFilter.UI.ForbiddenCount", "forbidden")}</small></div>
       <input className={styles.search} value={search} onChange={event => setSearch(event.target.value)} placeholder={tr("RouteFilter.UI.Search", "Search vehicle assets")} />
+      <div className={styles.catalogControls}>
+        <label><span>{tr("RouteFilter.UI.Show", "Show")}</span><select value={visibility} onChange={event => setVisibility(event.target.value as AssetVisibility)}>
+          <option value="all">{tr("RouteFilter.UI.ShowAll", "All")}</option>
+          <option value="forbidden">{tr("RouteFilter.UI.ShowForbidden", "Forbidden")}</option>
+          <option value="allowed">{tr("RouteFilter.UI.ShowAllowed", "Allowed")}</option>
+        </select></label>
+      </div>
       <div className={styles.details}>{hovered ? <>
         <div><AssetGlyph mode={hovered.mode} trailer={hovered.trailer} /><strong>{hovered.name}</strong></div>
         <span>{tr("RouteFilter.UI.MaxSpeed", "Maximum speed")}: <b>{hovered.maxSpeed} km/h</b></span>
