@@ -23,7 +23,6 @@ const targetTransport$ = bindValue<number>(mod.id, "targetTransport", 0);
 const selectedTargetKind$ = bindValue<number>(mod.id, "selectedTargetKind", 0);
 const assetCatalog$ = bindValue<string>(mod.id, "assetCatalog", "");
 const selectedAssetIds$ = bindValue<string>(mod.id, "selectedAssetIds", "");
-const pendingChanges$ = bindValue<boolean>(mod.id, "pendingChanges", false);
 
 const parseCatalog = (raw: string): VehicleAsset[] => raw.split("\n").reduce<VehicleAsset[]>((result, line) => {
   const part = line.split("|");
@@ -83,7 +82,6 @@ export const RouteFilterUI = () => {
   const selectedTargetKind = useValue(selectedTargetKind$);
   const catalogRaw = useValue(assetCatalog$);
   const selectedRaw = useValue(selectedAssetIds$);
-  const pendingChanges = useValue(pendingChanges$);
   const { translate } = useLocalization();
   const tr = (key: string, fallback: string) => String(translate(key) ?? fallback);
   const assets = useMemo(() => parseCatalog(catalogRaw), [catalogRaw]);
@@ -209,10 +207,6 @@ export const RouteFilterUI = () => {
         <span>{pageIndex + 1} / {pageCount} · {selected.size} / {assets.length}</span>
         <button onClick={() => setPage(Math.min(pageCount - 1, pageIndex + 1))} disabled={pageIndex + 1 >= pageCount}>›</button>
       </div>
-      {selectedTargetKind !== 0 && pendingChanges && <div className={styles.pendingChanges} aria-live="polite">
-        <strong>{tr("RouteFilter.UI.PendingChanges", "Pending changes")}</strong>
-        <button type="button" onClick={() => trigger(mod.id, "revertPendingChanges")}>{tr("RouteFilter.UI.RevertChanges", "Revert pending changes")}</button>
-      </div>}
       <div className={styles.applyActions}>
         <button className={styles.applyButton} disabled={selectedTargetKind === 0} onClick={() => selectedTargetKind !== 0 && trigger(mod.id, "applySelection")}>{tr("RouteFilter.UI.ApplyToTarget", "Apply list to selected target")}</button>
         <button disabled={selectedTargetKind === 0} onClick={() => selectedTargetKind !== 0 && trigger(mod.id, "clearSelectedRestriction")}>{tr("RouteFilter.UI.ClearTarget", "Clear target restrictions")}</button>
