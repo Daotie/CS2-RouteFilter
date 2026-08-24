@@ -137,7 +137,9 @@ export const RouteFilterUI = () => {
       <div className={classNames(styles.assetRow, { [styles.child]: child, [styles.forbidden]: selected.has(asset.id), [styles.partial]: partial })}
         onMouseEnter={() => setHovered(asset)} onMouseOver={() => setHovered(asset)}>
         {childAssets.length > 0 ? <button type="button" className={styles.expand} onClick={() => toggleExpanded(asset.id)}>{isExpanded ? "⌄" : "›"}</button> : <span className={styles.expandSpacer} />}
-        <button type="button" aria-label={selected.has(asset.id) ? "Allow asset" : "Forbid asset"}
+        <button type="button" aria-label={selected.has(asset.id)
+          ? tr("RouteFilter.UI.AllowAsset", "Allow asset")
+          : tr("RouteFilter.UI.ForbidAsset", "Forbid asset")}
           className={classNames(styles.check, { [styles.checked]: selected.has(asset.id), [styles.partialCheck]: partial })}
           onClick={() => childAssets.length ? trigger(mod.id, "toggleAssetGroup", asset.id, !isExpanded) : trigger(mod.id, "toggleAsset", asset.id)}>
           {partial ? "−" : selected.has(asset.id) ? "×" : ""}
