@@ -85,7 +85,7 @@ export const RouteFilterUI = () => {
   const { translate } = useLocalization();
   const tr = (key: string, fallback: string) => String(translate(key) ?? fallback);
   const assets = useMemo(() => parseCatalog(catalogRaw), [catalogRaw]);
-  const selected = useMemo(() => new Set(selectedRaw.split(",").map(Number).filter(Number.isInteger)), [selectedRaw]);
+  const selected = useMemo(() => new Set(selectedRaw.split(",").map(value => value.trim()).filter(Boolean).map(Number).filter(Number.isInteger)), [selectedRaw]);
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const relevant = useMemo(() => assets.filter(asset => targetTransport === 0 || (asset.mode & targetTransport) !== 0), [assets, targetTransport]);
   const relevantIds = useMemo(() => new Set(relevant.map(asset => asset.id)), [relevant]);
