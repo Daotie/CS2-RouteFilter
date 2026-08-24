@@ -102,6 +102,8 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.SegmentSelected"] = Chinese ? "已选中路段" : "Segment selected",
             ["RouteFilter.UI.SelectTarget"] = Chinese ? "请先在地图上单击节点或路段" : "Click a node or segment on the map first",
             ["RouteFilter.UI.SelectionHint"] = Chinese ? "左键选中，右键取消选中。" : "Left-click selects; right-click cancels the selection.",
+            ["RouteFilter.UI.PendingChanges"] = Chinese ? "有待应用的更改" : "Pending changes",
+            ["RouteFilter.UI.RevertChanges"] = Chinese ? "撤销待应用的更改" : "Revert pending changes",
             ["RouteFilter.UI.ApplyToTarget"] = Chinese ? "应用到所选目标" : "Apply list to selected target",
             ["RouteFilter.UI.ClearTarget"] = Chinese ? "清除目标限制" : "Clear target restrictions",
             ["RouteFilter.UI.CancelTarget"] = Chinese ? "取消选中" : "Cancel selection",

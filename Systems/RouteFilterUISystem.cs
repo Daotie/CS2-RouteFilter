@@ -37,12 +37,14 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private readonly Dictionary<Entity, int> m_IdsByAsset = new();
     private readonly Dictionary<Entity, int> m_ModeByAsset = new();
     private readonly Dictionary<Entity, List<Entity>> m_ChildrenByAsset = new();
+    private readonly HashSet<Entity> m_AppliedVehicleAssets = new();
     private ValueBinding<bool> m_ToolActiveBinding = null!;
     private ValueBinding<int> m_TargetModeBinding = null!;
     private ValueBinding<int> m_TargetTransportBinding = null!;
     private ValueBinding<int> m_SelectedTargetKindBinding = null!;
     private ValueBinding<string> m_AssetCatalogBinding = null!;
     private ValueBinding<string> m_SelectedAssetsBinding = null!;
+    private ValueBinding<bool> m_PendingChangesBinding = null!;
     private Entity m_LastSelectedTarget = Entity.Null;
     private int m_LastQueryOrderVersion = int.MinValue;
     private int m_LastVehicleOrderVersion = int.MinValue;
@@ -67,6 +69,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         m_SelectedTargetKindBinding = CreateValue("selectedTargetKind", 0);
         m_AssetCatalogBinding = CreateValue("assetCatalog", string.Empty);
         m_SelectedAssetsBinding = CreateValue("selectedAssetIds", string.Empty);
+        m_PendingChangesBinding = CreateValue("pendingChanges", false);
 
         AddBinding(new TriggerBinding(Mod.Id, "toggleTool", ToggleTool));
         AddBinding(new TriggerBinding<int>(Mod.Id, "toggleAsset", ToggleAsset));
@@ -75,8 +78,9 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         AddBinding(new TriggerBinding<int>(Mod.Id, "selectAllAssets", SelectAllAssets));
         AddBinding(new TriggerBinding<int>(Mod.Id, "selectNoAssets", SelectNoAssets));
         AddBinding(new TriggerBinding(Mod.Id, "refreshAssets", RefreshAssetCatalog));
-        AddBinding(new TriggerBinding(Mod.Id, "applySelection", m_RestrictionTool.ApplySelection));
-        AddBinding(new TriggerBinding(Mod.Id, "clearSelectedRestriction", m_RestrictionTool.ClearSelectedRestriction));
+        AddBinding(new TriggerBinding(Mod.Id, "revertPendingChanges", RevertPendingChanges));
+        AddBinding(new TriggerBinding(Mod.Id, "applySelection", ApplySelection));
+        AddBinding(new TriggerBinding(Mod.Id, "clearSelectedRestriction", ClearSelectedRestriction));
         AddBinding(new TriggerBinding(Mod.Id, "cancelSelection", m_RestrictionTool.ClearSelection));
         AddBinding(new TriggerBinding<bool>(Mod.Id, "setPointerOverUi", m_RestrictionTool.SetPointerOverUi));
 
@@ -257,6 +261,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         }
 
         Mod.SelectedVehicleAssets.RemoveWhere(entity => !m_IdsByAsset.ContainsKey(entity));
+        m_AppliedVehicleAssets.RemoveWhere(entity => !m_IdsByAsset.ContainsKey(entity));
         m_AssetCatalogBinding.Update(string.Join("\n", lines));
         UpdateSelectedBinding();
 
@@ -276,14 +281,43 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private void LoadSelectedTargetAssets(Entity target)
     {
         Mod.SelectedVehicleAssets.Clear();
+        m_AppliedVehicleAssets.Clear();
         if (target != Entity.Null && EntityManager.Exists(target) &&
             EntityManager.TryGetBuffer(target, true, out DynamicBuffer<Components.RestrictedVehicleAssetV1> assets))
         {
             foreach (var asset in assets)
                 if (asset.m_Prefab != Entity.Null && m_IdsByAsset.ContainsKey(asset.m_Prefab))
+                {
                     Mod.SelectedVehicleAssets.Add(asset.m_Prefab);
+                    m_AppliedVehicleAssets.Add(asset.m_Prefab);
+                }
         }
         UpdateSelectedBinding();
+    }
+
+    private void RevertPendingChanges()
+    {
+        if (m_RestrictionTool.SelectedTarget == Entity.Null) return;
+        Mod.SelectedVehicleAssets.Clear();
+        foreach (var asset in m_AppliedVehicleAssets)
+            if (m_IdsByAsset.ContainsKey(asset)) Mod.SelectedVehicleAssets.Add(asset);
+        UpdateSelectedBinding();
+    }
+
+    private void ApplySelection()
+    {
+        var target = m_RestrictionTool.SelectedTarget;
+        m_RestrictionTool.ApplySelection();
+        if (target != Entity.Null) LoadSelectedTargetAssets(target);
+        else UpdatePendingChangesBinding();
+    }
+
+    private void ClearSelectedRestriction()
+    {
+        var target = m_RestrictionTool.SelectedTarget;
+        m_RestrictionTool.ClearSelectedRestriction();
+        if (target != Entity.Null) m_AppliedVehicleAssets.Clear();
+        UpdatePendingChangesBinding();
     }
 
     private void ToggleAsset(int id)
@@ -328,6 +362,13 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     {
         m_SelectedAssetsBinding.Update(string.Join(",", Mod.SelectedVehicleAssets
             .Where(m_IdsByAsset.ContainsKey).Select(entity => m_IdsByAsset[entity]).OrderBy(id => id)));
+        UpdatePendingChangesBinding();
+    }
+
+    private void UpdatePendingChangesBinding()
+    {
+        var target = m_RestrictionTool.SelectedTarget;
+        m_PendingChangesBinding.Update(target != Entity.Null && EntityManager.Exists(target) &&
+            !m_AppliedVehicleAssets.SetEquals(Mod.SelectedVehicleAssets));
     }
 }
-
