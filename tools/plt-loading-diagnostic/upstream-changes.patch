@@ -1,0 +1,286 @@
+diff --git a/Mod.cs b/Mod.cs
+index 6afce52..31ed512 100644
+--- a/Mod.cs
++++ b/Mod.cs
+@@ -567,6 +567,7 @@ namespace ParkingLotTool
+                 world.GetExistingSystemManaged<ParkingLotToolSystem>()
+                     ?.CancelEditingForShutdown();
+             ParkingLotRaycastPatch.Uninstall();
++            ParkingLotTextureLoadDiagnostic.Close();
+             log.Info(nameof(OnDispose));
+             if (_setting != null)
+             {
+diff --git a/ParkingLotTool.csproj b/ParkingLotTool.csproj
+index 5eb0a85..694ecab 100644
+--- a/ParkingLotTool.csproj
++++ b/ParkingLotTool.csproj
+@@ -270,7 +270,7 @@
+ 	     2026-09-18 lagen 2173 Ordner mit 44,7 GB in %TEMP%, zurueck bis zum
+ 	     31.08. Die Pipe braucht das Fluchtzeichen nicht: die
+ 	     Anfuehrungszeichen schuetzen sie bereits. -->
+-	<Target Name="CleanStaleBuildTempCaches" AfterTargets="Build">
++	<Target Name="CleanStaleBuildTempCaches" AfterTargets="Build" Condition="'$(SkipBuildTempCleanup)' != 'true'">
+ 		<Exec Command="powershell -NoProfile -NonInteractive -Command &quot;$cut=(Get-Date).AddHours(-2); Get-ChildItem $env:TEMP -Directory -ErrorAction SilentlyContinue | Where-Object { ($_.Name -like 'cache*' -or $_.Name -like 'microsoft.net.workload*') -and $_.LastWriteTime -lt $cut } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; exit 0&quot;"
+ 			ContinueOnError="true" StandardOutputImportance="low" StandardErrorImportance="low" />
+ 	</Target>
+diff --git a/Tools/ParkingLotApronPrefab.cs b/Tools/ParkingLotApronPrefab.cs
+index 04d4ee7..b937931 100644
+--- a/Tools/ParkingLotApronPrefab.cs
++++ b/Tools/ParkingLotApronPrefab.cs
+@@ -73,6 +73,7 @@ namespace ParkingLotTool.Tools
+             public bool Raeumt;
+             public int OriginalPrioritaet;
+             public int Pruefungen;
++            public int RegistriertFrame;
+             public bool Bereit;
+             public bool Fehler;
+             public bool Aufgegeben;
+@@ -85,6 +86,9 @@ namespace ParkingLotTool.Tools
+          * anders laeuft als gemessen.
+          */
+         private const int AufgabenNachZyklen = 120;
++        // One new material batch per rendered frame. PrefabUpdate may run
++        // more than once in the same frame during loading.
++        private int _registrierungFrame = -1;
+ 
+         /*
+          * Der Schluessel traegt Prioritaet und Raeumwirkung mit.
+@@ -472,12 +476,18 @@ namespace ParkingLotTool.Tools
+ 
+                 if (eintrag.KlonEntity == Entity.Null)
+                 {
++                    if (_registrierungFrame == UnityEngine.Time.frameCount) continue;
++                    _registrierungFrame = UnityEngine.Time.frameCount;
++                    eintrag.RegistriertFrame = UnityEngine.Time.frameCount;
+                     Registriere(eintrag);
+                     // Die Spielsysteme hinter uns muessen erst laufen. Eine
+                     // Pruefung hier saehe absichtlich nur die Nullwerte.
+                     continue;
+                 }
+ 
++                // Give downstream prefab and rendering systems two complete
++                // frame boundaries before publishing this clone to surfaces.
++                if (UnityEngine.Time.frameCount - eintrag.RegistriertFrame < 2) continue;
+                 eintrag.Pruefungen++;
+                 if (Pruefe(eintrag, out var zustand))
+                 {
+diff --git a/Tools/ParkingLotFlaechenrettung.cs b/Tools/ParkingLotFlaechenrettung.cs
+index c0e3f3a..15b36fe 100644
+--- a/Tools/ParkingLotFlaechenrettung.cs
++++ b/Tools/ParkingLotFlaechenrettung.cs
+@@ -61,6 +61,30 @@ namespace ParkingLotTool.Tools
+         private readonly HashSet<string> _unrettbarGemeldet = new();
+ 
+         private const int ReparaturZyklenMax = 600;
++        private sealed class RecoveryQueue
++        {
++            private readonly List<Entity> _items = new();
++            private int _head;
++            public int Count => _items.Count - _head;
++            public void Enqueue(Entity entity) => _items.Add(entity);
++            public Entity Dequeue()
++            {
++                var entity = _items[_head++];
++                if (_head >= 256 && _head >= _items.Count / 2)
++                {
++                    _items.RemoveRange(0, _head);
++                    _head = 0;
++                }
++                return entity;
++            }
++            public void Clear() { _items.Clear(); _head = 0; }
++        }
++        private readonly RecoveryQueue _rettungQueue = new();
++        private bool _rettungErfasst;
++        private int _rettungFrame = -1;
++        private const int RettungPruefungenProFrame = 64;
++        private const int RettungBindungenProFrame = 16;
++        private const int RettungFrameAbstand = 4;
+ 
+         private bool _eigeneFlaechenAngelegt;
+ 
+@@ -120,6 +144,9 @@ namespace ParkingLotTool.Tools
+             _reparaturFaellig = true;
+             _reparaturZyklen = 0;
+             _unrettbarGemeldet.Clear();
++            _rettungQueue.Clear();
++            _rettungErfasst = false;
++            _rettungFrame = -1;
+         }
+ 
+         /**
+@@ -131,89 +158,93 @@ namespace ParkingLotTool.Tools
+         {
+             if (!_reparaturFaellig || !_gesaet) return;
+ 
+-            var abfrage = EigeneFlaechen();
+-            using var teile = abfrage.ToEntityArray(Allocator.Temp);
++            var frame = UnityEngine.Time.frameCount;
++            if (_rettungFrame >= 0 && frame - _rettungFrame < RettungFrameAbstand) return;
++            _rettungFrame = frame;
+ 
+-            // Totes Prefab -> seine Teile. Ein Klon stirbt immer als Ganzes,
+-            // also genuegt der Blick auf die Prefab-Entity.
+-            var tot = new Dictionary<Entity, List<Entity>>();
+-            for (var i = 0; i < teile.Length; i++)
++            // Snapshot once per city load, rather than allocate and scan all
++            // city surfaces on every retry. Entity handles are checked again
++            // before writing, because the player may edit/delete a queued area.
++            if (!_rettungErfasst)
+             {
+-                var prefab = EntityManager.GetComponentData<PrefabRef>(teile[i]).m_Prefab;
+-                if (!IstTot(prefab)) continue;
+-                if (!tot.TryGetValue(prefab, out var liste))
+-                    tot[prefab] = liste = new List<Entity>();
+-                liste.Add(teile[i]);
+-            }
+-
+-            if (tot.Count == 0)
+-            {
+-                if (_reparaturZyklen > 0)
+-                    Mod.log.Info("PLT-Flaechenrettung: alle Flaechen haben "
+-                        + "wieder ein Material (nach " + _reparaturZyklen
+-                        + " Zyklen).");
+-                _reparaturFaellig = false;
+-                return;
++                using var teile = EigeneFlaechen().ToEntityArray(Allocator.Temp);
++                for (var i = 0; i < teile.Length; i++)
++                {
++                    var prefab = EntityManager.GetComponentData<PrefabRef>(teile[i]).m_Prefab;
++                    if (IstTot(prefab) && Flaechenklonname.IstEigener(_prefabSystem.GetPrefabName(prefab)))
++                        _rettungQueue.Enqueue(teile[i]);
++                }
++                _rettungErfasst = true;
++                Mod.log.Info("PLT bounded surface recovery: queued=" + _rettungQueue.Count
++                    + ", maxBindings=16 per 4 frames, maxCloneRegistrations=1 per frame.");
+             }
+ 
+             var umgehaengt = 0;
+-            var offen = 0;
+-            foreach (var paar in tot)
++            var pruefungen = Math.Min(RettungPruefungenProFrame, _rettungQueue.Count);
++            // Resolve each obsolete prefab at most once within this batch.
++            var klone = new Dictionary<Entity, Entity>();
++            for (var i = 0; i < pruefungen && umgehaengt < RettungBindungenProFrame; i++)
+             {
+-                var gesucht = _prefabSystem.GetPrefabName(paar.Key);
+-                // Fremde tote Flaechen gehoeren nicht uns; die meldet CS2 selbst.
+-                if (!Flaechenklonname.IstEigener(gesucht)) continue;
+-                if (!Flaechenklonname.TryLese(gesucht, out var vorbildname,
+-                        out var aufschlag, out var raeumt))
+-                {
+-                    MeldeUnrettbar(gesucht, paar.Value.Count,
+-                        "Name nicht lesbar");
+-                    continue;
+-                }
+-                var vorbild = SucheVorbild(vorbildname);
+-                if (vorbild == Entity.Null)
+-                {
+-                    MeldeUnrettbar(gesucht, paar.Value.Count,
+-                        "Vorbild '" + vorbildname + "' gibt es in diesem Spiel "
+-                        + "nicht - der Mod, der es liefert, ist nicht geladen "
+-                        + "oder nennt es inzwischen anders");
+-                    continue;
+-                }
+-                var klon = FordereAn(vorbild, aufschlag, out var fehler,
+-                    out var aufgegeben, raeumt);
+-                if (fehler || aufgegeben)
+-                {
+-                    MeldeUnrettbar(gesucht, paar.Value.Count,
+-                        "Klon liess sich nicht anlegen");
+-                    continue;
+-                }
+-                if (klon == Entity.Null) { offen += paar.Value.Count; continue; }
+-
+-                foreach (var teil in paar.Value)
++                var teil = _rettungQueue.Dequeue();
++                if (!EntityManager.Exists(teil) || !EntityManager.HasComponent<PrefabRef>(teil)
++                    || EntityManager.HasComponent<Deleted>(teil) || EntityManager.HasComponent<Temp>(teil)) continue;
++                var prefab = EntityManager.GetComponentData<PrefabRef>(teil).m_Prefab;
++                if (!IstTot(prefab)) continue;
++                if (!klone.TryGetValue(prefab, out var klon))
+                 {
+-                    EntityManager.SetComponentData(teil, new PrefabRef { m_Prefab = klon });
+-                    if (!EntityManager.HasComponent<Updated>(teil))
+-                        EntityManager.AddComponent<Updated>(teil);
+-                    if (!EntityManager.HasComponent<BatchesUpdated>(teil))
+-                        EntityManager.AddComponent<BatchesUpdated>(teil);
++                    var gesucht = _prefabSystem.GetPrefabName(prefab);
++                    if (!Flaechenklonname.IstEigener(gesucht)) continue;
++                    if (!Flaechenklonname.TryLese(gesucht, out var vorbildname,
++                            out var aufschlag, out var raeumt))
++                    {
++                        MeldeUnrettbar(gesucht, 1, "Name nicht lesbar");
++                        continue;
++                    }
++                    var vorbild = SucheVorbild(vorbildname);
++                    if (vorbild == Entity.Null)
++                    {
++                        // Asset packs may finish registering after load completion.
++                        _rettungQueue.Enqueue(teil);
++                        continue;
++                    }
++                    klon = FordereAn(vorbild, aufschlag, out var fehler, out var aufgegeben, raeumt);
++                    if (fehler || aufgegeben)
++                    {
++                        MeldeUnrettbar(gesucht, 1, "Klon liess sich nicht anlegen");
++                        continue;
++                    }
++                    klone[prefab] = klon;
+                 }
+-                umgehaengt += paar.Value.Count;
+-                Mod.log.Info("PLT-Flaechenrettung: " + paar.Value.Count
+-                    + " Teil(e) von totem '" + gesucht + "' auf den neuen Klon "
+-                    + "umgehaengt.");
++                if (klon == Entity.Null) { _rettungQueue.Enqueue(teil); continue; }
++                EntityManager.SetComponentData(teil, new PrefabRef { m_Prefab = klon });
++                if (!EntityManager.HasComponent<Updated>(teil)) EntityManager.AddComponent<Updated>(teil);
++                if (!EntityManager.HasComponent<BatchesUpdated>(teil)) EntityManager.AddComponent<BatchesUpdated>(teil);
++                umgehaengt++;
+             }
+ 
+-            _reparaturZyklen++;
+-            if (offen == 0 || _reparaturZyklen >= ReparaturZyklenMax)
++            // The timeout counts stalled batches, not successful progress.
++            _reparaturZyklen = umgehaengt > 0 ? 0 : _reparaturZyklen + 1;
++            if (_rettungQueue.Count == 0 || _reparaturZyklen >= ReparaturZyklenMax)
+             {
+                 _reparaturFaellig = false;
+-                if (offen > 0)
+-                    Mod.log.Error("PLT-Flaechenrettung: " + offen + " Teil(e) "
+-                        + "warten nach " + _reparaturZyklen + " Zyklen noch auf "
+-                        + "ihren Klon und bleiben ohne Material.");
++                if (_rettungQueue.Count > 0)
++                    Mod.log.Error("PLT bounded surface recovery stalled: remaining=" + _rettungQueue.Count);
++                else
++                    Mod.log.Info("PLT bounded surface recovery completed.");
++                _rettungQueue.Clear();
+             }
+         }
+ 
++        [Preserve]
++        protected override void OnGamePreload(Colossal.Serialization.Entities.Purpose purpose, GameMode mode)
++        {
++            base.OnGamePreload(purpose, mode);
++            _reparaturFaellig = false;
++            _rettungQueue.Clear();
++            _rettungErfasst = false;
++            _rettungFrame = -1;
++        }
++
+         /**
+          * Tot heisst: die Entity ist ein obsoletes Prefab. CS2 legt fuer
+          * jede unbekannte Kennung eines Spielstands eine solche Entity an
+diff --git a/UI/webpack.config.js b/UI/webpack.config.js
+index fe5b3a0..7736d82 100644
+--- a/UI/webpack.config.js
++++ b/UI/webpack.config.js
+@@ -11,7 +11,7 @@ if (!CSII_USERDATAPATH) {
+   throw "CSII_USERDATAPATH environment variable is not set, ensure the CSII Modding Toolchain is installed correctly";
+ }
+ 
+-const OUTPUT_DIR = `${CSII_USERDATAPATH}\\Mods\\${MOD.id}`;
++const OUTPUT_DIR = process.env.PARKINGLOT_OUTPUT_DIR || `${CSII_USERDATAPATH}\\Mods\\${MOD.id}`;
+ 
+ const banner = `
+  * Cities: Skylines II UI Module
