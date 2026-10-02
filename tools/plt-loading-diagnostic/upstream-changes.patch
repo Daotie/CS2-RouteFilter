@@ -1,8 +1,17 @@
 diff --git a/Mod.cs b/Mod.cs
-index 6afce52..31ed512 100644
+index 6afce52..d1c6aef 100644
 --- a/Mod.cs
 +++ b/Mod.cs
-@@ -567,6 +567,7 @@ namespace ParkingLotTool
+@@ -157,6 +157,8 @@ namespace ParkingLotTool
+                 "en-US", new Beschriftungen(_setting, deutsch: false));
+             GameManager.instance.localizationManager.AddSource(
+                 "de-DE", new Beschriftungen(_setting, deutsch: true));
++            GameManager.instance.localizationManager.AddSource(
++                "zh-HANS", new Beschriftungen(_setting, deutsch: false));
+             AssetDatabase.global.LoadSettings(
+                 nameof(ParkingLotTool), _setting, new Setting(this));
+ 
+@@ -567,6 +569,7 @@ namespace ParkingLotTool
                  world.GetExistingSystemManaged<ParkingLotToolSystem>()
                      ?.CancelEditingForShutdown();
              ParkingLotRaycastPatch.Uninstall();
@@ -23,8 +32,52 @@ index 5eb0a85..694ecab 100644
  		<Exec Command="powershell -NoProfile -NonInteractive -Command &quot;$cut=(Get-Date).AddHours(-2); Get-ChildItem $env:TEMP -Directory -ErrorAction SilentlyContinue | Where-Object { ($_.Name -like 'cache*' -or $_.Name -like 'microsoft.net.workload*') -and $_.LastWriteTime -lt $cut } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; exit 0&quot;"
  			ContinueOnError="true" StandardOutputImportance="low" StandardErrorImportance="low" />
  	</Target>
+diff --git a/Setting.cs b/Setting.cs
+index 7b94f16..264aaa6 100644
+--- a/Setting.cs
++++ b/Setting.cs
+@@ -158,6 +158,19 @@ namespace ParkingLotTool
+ 
+         public Setting(IMod mod) : base(mod) { }
+ 
++        [SettingsUIButton]
++        [SettingsUISection(ReiterAllgemein, GruppeSpielstand)]
++        [SettingsUIDisableByCondition(typeof(Setting), nameof(DeferredRecoveryUnavailable))]
++        public bool StartDeferredSurfaceRecovery
++        {
++            set => World.DefaultGameObjectInjectionWorld?
++                .GetExistingSystemManaged<ParkingLotApronPrefabSystem>()?.StartDeferredRecovery();
++        }
++
++        [SettingsUIHidden]
++        public bool DeferredRecoveryUnavailable => !(World.DefaultGameObjectInjectionWorld?
++            .GetExistingSystemManaged<ParkingLotApronPrefabSystem>()?.CanStartDeferredRecovery ?? false);
++
+         /**
+          * Nach dem Schliessen des Polygons sofort in den Zufahrt-Modus?
+          *
+@@ -847,6 +860,8 @@ namespace ParkingLotTool
+             IList<IDictionaryEntryError> errors, Dictionary<string, int> indexCounts)
+         {
+             var seite = _setting.id;
++            var recoveryPath = seite + "." + nameof(Setting) + "." + nameof(Setting.StartDeferredSurfaceRecovery);
++            var chinese = Game.SceneFlow.GameManager.instance.localizationManager.activeLocaleId == "zh-HANS";
+             var pfad = seite + "." + nameof(Setting) + "."
+                        + nameof(Setting.FensterZuruecksetzen);
+             var pfadAuto = seite + "." + nameof(Setting) + "."
+@@ -878,6 +893,10 @@ namespace ParkingLotTool
+ 
+             return new Dictionary<string, string>
+             {
++                { "Options.OPTION[" + recoveryPath + "]", chinese ? "开始延迟地表恢复" : "Start deferred surface recovery" },
++                { "Options.OPTION_DESCRIPTION[" + recoveryPath + "]", chinese
++                    ? "测试版每次载入城市后暂停 PLT 新地表克隆发布和失效地表恢复。先观察城市是否稳定，再点击一次启动分批恢复；启动后不能再次点击。未恢复地表可能缺少材质。请勿覆盖原存档。"
++                    : "This test build pauses new PLT surface clone publication and obsolete surface recovery on each city load. Observe the city first, then click once to begin bounded recovery. Unrecovered surfaces may lack materials. Do not overwrite the original save." },
+                 { "Options.OPTION[" + pfadVersion + "]",
+                     _deutsch ? "Version" : "Version" },
+                 { "Options.OPTION_DESCRIPTION[" + pfadVersion + "]",
 diff --git a/Tools/ParkingLotApronPrefab.cs b/Tools/ParkingLotApronPrefab.cs
-index 04d4ee7..b937931 100644
+index 04d4ee7..63bfd08 100644
 --- a/Tools/ParkingLotApronPrefab.cs
 +++ b/Tools/ParkingLotApronPrefab.cs
 @@ -73,6 +73,7 @@ namespace ParkingLotTool.Tools
@@ -45,7 +98,18 @@ index 04d4ee7..b937931 100644
  
          /*
           * Der Schluessel traegt Prioritaet und Raeumwirkung mit.
-@@ -472,12 +476,18 @@ namespace ParkingLotTool.Tools
+@@ -465,6 +469,10 @@ namespace ParkingLotTool.Tools
+             MeldePrioritaeten();
+             SaeheVanillaKlone();
+             SaeheGemerkteKlone();
++            // Existing menu-time clones remain registered for save resolution.
++            // New clone publication and obsolete-surface rebinding wait for
++            // explicit consent after the city has finished loading.
++            if (_manualRecoveryPending) return;
+             RetteToteFlaechen();
+             foreach (var eintrag in _eintraege.Values)
+             {
+@@ -472,12 +480,18 @@ namespace ParkingLotTool.Tools
  
                  if (eintrag.KlonEntity == Entity.Null)
                  {
@@ -65,10 +129,26 @@ index 04d4ee7..b937931 100644
                  if (Pruefe(eintrag, out var zustand))
                  {
 diff --git a/Tools/ParkingLotFlaechenrettung.cs b/Tools/ParkingLotFlaechenrettung.cs
-index c0e3f3a..15b36fe 100644
+index c0e3f3a..3cc21b3 100644
 --- a/Tools/ParkingLotFlaechenrettung.cs
 +++ b/Tools/ParkingLotFlaechenrettung.cs
-@@ -61,6 +61,30 @@ namespace ParkingLotTool.Tools
+@@ -56,11 +56,46 @@ namespace ParkingLotTool.Tools
+     {
+         private bool _vanillaGesaet;
+         private bool _reparaturFaellig;
++        private bool _cityReadyForRecovery;
++        private bool _manualRecoveryPending;
++
++        internal bool CanStartDeferredRecovery => _cityReadyForRecovery && _manualRecoveryPending;
++
++        internal void StartDeferredRecovery()
++        {
++            if (!CanStartDeferredRecovery) return;
++            _manualRecoveryPending = false;
++            Mod.log.Info("PLT deferred surface recovery started manually / 已手动开始延迟地表恢复.");
++        }
+         private int _reparaturZyklen;
+         private EntityQuery _eigeneFlaechen;
          private readonly HashSet<string> _unrettbarGemeldet = new();
  
          private const int ReparaturZyklenMax = 600;
@@ -99,7 +179,13 @@ index c0e3f3a..15b36fe 100644
  
          private bool _eigeneFlaechenAngelegt;
  
-@@ -120,6 +144,9 @@ namespace ParkingLotTool.Tools
+@@ -117,9 +152,15 @@ namespace ParkingLotTool.Tools
+         {
+             base.OnGameLoadingComplete(purpose, mode);
+             if (mode != GameMode.Game) return;
++            _cityReadyForRecovery = true;
++            _manualRecoveryPending = true;
++            Mod.log.Info("PLT deferred surface recovery waiting for manual start / 地表恢复等待手动启动. Options -> Mods -> Parking Lot Tool -> Start deferred surface recovery.");
              _reparaturFaellig = true;
              _reparaturZyklen = 0;
              _unrettbarGemeldet.Clear();
@@ -109,9 +195,12 @@ index c0e3f3a..15b36fe 100644
          }
  
          /**
-@@ -131,89 +158,93 @@ namespace ParkingLotTool.Tools
+@@ -129,91 +170,97 @@ namespace ParkingLotTool.Tools
+          */
+         private void RetteToteFlaechen()
          {
-             if (!_reparaturFaellig || !_gesaet) return;
+-            if (!_reparaturFaellig || !_gesaet) return;
++            if (_manualRecoveryPending || !_reparaturFaellig || !_gesaet) return;
  
 -            var abfrage = EigeneFlaechen();
 -            using var teile = abfrage.ToEntityArray(Allocator.Temp);
@@ -262,6 +351,8 @@ index c0e3f3a..15b36fe 100644
 +        protected override void OnGamePreload(Colossal.Serialization.Entities.Purpose purpose, GameMode mode)
 +        {
 +            base.OnGamePreload(purpose, mode);
++            _cityReadyForRecovery = false;
++            _manualRecoveryPending = mode == GameMode.Game;
 +            _reparaturFaellig = false;
 +            _rettungQueue.Clear();
 +            _rettungErfasst = false;

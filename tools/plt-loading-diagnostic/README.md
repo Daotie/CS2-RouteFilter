@@ -29,3 +29,25 @@ Current playset retains 369 entries; subscribed PLT 161156 remains disabled. Onl
 
 Next test: load the affected backup city once. Do not overwrite the original save. Inspect Logs/PLT-texture-load-*.log and Player.log together after exit/crash.
 下一步：加载问题城市备份一次，保留原存档；退出或崩溃后对照纹理诊断和 Player.log。
+
+## Deferred recovery test / 手动延迟恢复测试
+
+Current test build registers existing menu-time prefabs as before, but pauses new PLT surface clone publication and obsolete-surface rebinding from city preload until the player explicitly starts recovery. This is a scoped recovery delay, not deferred loading of the entire mod or all game textures. The runtime gate resets on every city preload and is never stored in city restriction/save data. The button is disabled before city loading completes and after a successful one-shot start; repeated clicks do not restart the recovery queue.
+
+本测试版保留主菜单阶段必要的 prefab 注册；城市预载入开始后，暂停新的地表克隆发布及失效地表重绑定。每次进城都需要手动启动，状态只在内存中存在。不是延迟全部模组加载，也不会延迟游戏本体所有纹理。
+
+Options -> Mods -> Parking Lot Tool -> Start deferred surface recovery.
+选项 -> 模组 -> Parking Lot Tool -> 开始延迟地表恢复。
+The new action and description support English and Simplified Chinese. Existing upstream settings are not fully translated by this patch.
+新增按钮与说明支持英文、简体中文，本补丁未全面翻译上游原有设置。
+
+Test: load the affected backup, leave recovery stopped and observe for a few minutes. If stable, click the button once and compare behavior. Do not overwrite the original city save. If it crashes before the button is clicked, post-load recovery does not explain that crash; check texture diagnostics, existing registered clones and other content rather than claiming success.
+测试：先保持恢复暂停，观察数分钟；稳定后只点击一次恢复。若点击前就崩溃，不能归因于点击后恢复。不要覆盖原存档。
+
+Extra waiting-state cost is a boolean branch; it avoids queue capture/rebind/clone registration while waiting. Existing upstream seeding calls remain. Resumed workload follows pending clones and relevant recovery records under the previous caps.
+等待状态新增开销为布尔判断，不扫描恢复队列、不发布新克隆；上游已有种子检查保留。恢复后工作量随待建克隆和待恢复记录增长。
+
+Debug / Release / webpack: 0 errors, 3 existing upstream warnings. Diff check passed; compiled DLL inspection confirms the gate precedes clone registration and surface repair.
+GAME VERIFIED: no. Deploy verified all 14 package files; playset remains 369 entries and old subscribed PLT disabled.
+Module ID: a2d88dca-84a3-4996-886d-ef88b76bb138
+Release SHA256: 9248E8439C37D1BC3B5201C161DBF432E27B4CC6169D57C4D70022DA732AFCD7
