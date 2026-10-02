@@ -133,7 +133,7 @@ public sealed class RouteFilterSaveData
     /// Bumped whenever the on-disk body changes. A payload whose schema is newer than this is
     /// preserved byte for byte and never reinterpreted.
     /// </summary>
-    public const ushort SchemaVersion = 3;
+    public const ushort SchemaVersion = 4;
 
     /// <summary>Older schemas this build can still read and migrate.</summary>
     public const ushort OldestSupportedSchema = 3;
@@ -192,17 +192,18 @@ public sealed class SaveDecodeResult
 /// Layout:
 /// <code>
 /// uint    magic                'RFLT'
-/// ushort  schema               3 (or 1/2 for legacy payloads, migrated on read)
+/// ushort  schema               4 (schema 3 is accepted without a checksum)
 /// ushort  flags                bit 0: payload is RouteFilter-owned (reserved, currently 0)
 /// int     prefabNameCount
 /// string  prefabName           x prefabNameCount      (UTF-16, deduplicated)
 /// int     restrictionCount
-///   byte    kind               0 node, 1 segment
+///   int     kind               0 node, 1 segment
 ///   int3    anchor             quantized world position of the node / first segment endpoint
 ///   int3    endAnchor          quantized second endpoint (segments only)
 ///   int     lengthCentimetres  segment length (segments only)
 ///   int     prefabCount
 ///   int     prefabIndex        x prefabCount         (indices into the name table)
+/// uint    checksum             schema 4 only, CRC32 of all preceding body bytes
 /// </code>
 ///
 /// Two deliberate choices:
@@ -216,6 +217,39 @@ public sealed class SaveDecodeResult
 public static class RouteFilterSaveCodec
 {
     public static void Encode(RouteFilterSaveData data, IRestrictionSaveSink sink)
+    {
+        if (data == null) throw new ArgumentNullException(nameof(data));
+        if (sink == null) throw new ArgumentNullException(nameof(sink));
+        if (data.PrefabNames.Count > RouteFilterSaveData.MaxPrefabNameCount ||
+            data.Restrictions.Count > RouteFilterSaveData.MaxRestrictionCount)
+            throw new ArgumentException("Restriction intent exceeds save limits");
+        foreach (var name in data.PrefabNames)
+            if (name != null && name.Length > RouteFilterSaveData.MaxPrefabNameLength)
+                throw new ArgumentException("Prefab identifier exceeds save limits");
+        foreach (var record in data.Restrictions)
+            if ((record.PrefabIndices?.Length ?? 0) > RouteFilterSaveData.MaxPrefabsPerRestriction)
+                throw new ArgumentException("Target prefab count exceeds save limits");
+        var body = new RestrictionByteSink();
+        EncodeBody(data, body);
+        var bytes = body.ToArray();
+        sink.WriteBytes(bytes);
+        sink.WriteUInt(Checksum(bytes));
+    }
+
+    // CRC detects accidental bit damage to names/target identities that would otherwise decode
+    // into a plausible but incorrect restriction. It is not an authenticity/security mechanism.
+    private static uint Checksum(byte[] bytes)
+    {
+        uint crc = uint.MaxValue;
+        foreach (var value in bytes)
+        {
+            crc ^= value;
+            for (var bit = 0; bit < 8; bit++) crc = (crc >> 1) ^ ((crc & 1) != 0 ? 0xEDB88320u : 0u);
+        }
+        return ~crc;
+    }
+
+    private static void EncodeBody(RouteFilterSaveData data, IRestrictionSaveSink sink)
     {
         if (data == null) throw new ArgumentNullException(nameof(data));
         sink.WriteUInt(RouteFilterSaveData.Magic);
@@ -288,7 +322,8 @@ public static class RouteFilterSaveCodec
                 preserved.WriteUShort(flags);
                 preserved.WriteBytes(raw);
                 result.ForeignPayload = preserved.ToArray();
-                result.Detail = $"payload schema {schema} is newer than supported {RouteFilterSaveData.SchemaVersion}";
+                result.Detail = flags != 0 ? $"unsupported header flags 0x{flags:X4}" :
+                    $"payload schema {schema} is newer than supported {RouteFilterSaveData.SchemaVersion}";
                 return result;
             }
             result.Status = SaveDecodeStatus.Corrupt;
@@ -301,6 +336,21 @@ public static class RouteFilterSaveCodec
             result.Status = SaveDecodeStatus.Corrupt;
             result.Detail = $"payload schema {schema} is older than the oldest supported {RouteFilterSaveData.OldestSupportedSchema}";
             return result;
+        }
+
+        if (schema == 4)
+        {
+            if (!source.ReadRemainingBytes(out var rest) || rest.Length < 4)
+                return ChecksumFailure("truncated checksum");
+            var bodyLength = rest.Length - 4;
+            var envelope = new RestrictionByteSink();
+            envelope.WriteUInt(magic); envelope.WriteUShort(schema); envelope.WriteUShort(flags);
+            var body = new byte[bodyLength];
+            Array.Copy(rest, body, bodyLength);
+            envelope.WriteBytes(body);
+            if (Checksum(envelope.ToArray()) != BitConverter.ToUInt32(rest, bodyLength))
+                return ChecksumFailure("payload checksum mismatch");
+            source = new RestrictionByteSource(body);
         }
 
         var data = RouteFilterSaveData.CreateEmpty();
@@ -373,6 +423,9 @@ public static class RouteFilterSaveCodec
                             $"{result.DroppedRecords} dropped, {result.DroppedPrefabNames} unusable prefab names";
         return result;
     }
+
+    private static SaveDecodeResult ChecksumFailure(string detail)
+        => new SaveDecodeResult { Status = SaveDecodeStatus.Corrupt, Detail = detail };
 
     private static bool TryReadRestriction(
         IRestrictionSaveSource source,

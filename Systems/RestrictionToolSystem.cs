@@ -211,6 +211,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
     public void SetRestriction(Entity target, IReadOnlyCollection<Entity> vehicleAssets)
     {
+        if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
         World.GetOrCreateSystemManaged<RoadEnforcementCoordinator>().ReleaseAll();
         var isNode = EntityManager.HasComponent<Node>(target);
         var isSegment = EntityManager.HasComponent<Edge>(target);
@@ -234,6 +235,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ForgetPending(target);
         if (isNode) SetNodeRestriction(target, compatibleAssets);
         else SetSegmentRestriction(target, compatibleAssets);
+        World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().RememberIntent(target, isNode ? (byte)0 : (byte)1);
 
         Mod.Log.Info($"{(isNode ? "Node" : "Segment")} {target.Index}:{target.Version} forbidden list set to {compatibleAssets.Count} compatible vehicle assets");
     }

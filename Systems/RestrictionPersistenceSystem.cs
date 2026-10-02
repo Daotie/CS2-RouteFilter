@@ -1,6 +1,8 @@
 using Colossal.Entities;
 using Colossal.Serialization.Entities;
 using Game;
+using Game.Common;
+using Game.Tools;
 using Game.Net;
 using Game.Prefabs;
 using RouteFilter.Components;
@@ -18,15 +20,9 @@ namespace RouteFilter.Systems;
 /// targets". Everything else - topology, candidates, safety verdicts, leases, attempts, graph
 /// publication state, diagnostics - is derived at runtime and rebuilt from this configuration.
 ///
-/// Three properties are structural rather than best-effort:
-/// <list type="number">
-/// <item>The payload is framed with its own exact byte length, so the game's
-/// <c>ComponentSystemSerializer</c> size check always matches even when the body is corrupt.</item>
-/// <item>A payload written by a newer schema is copied verbatim and re-emitted verbatim. It is
-/// never reinterpreted and never overwritten.</item>
-/// <item>A payload whose header cannot be trusted disables enforcement and locks persistence, so
-/// a half-parsed save is never half-applied and never silently replaced.</item>
-/// </list>
+/// Schema bodies are bounded by a length and an integrity checksum (schema 4). Future/corrupt
+/// bodies are retained in full. The game's native outer framing and legacy entity remapping
+/// require live integration validation; offline fixtures do not prove either.
 /// </summary>
 public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefaultSerializable
 {
@@ -34,13 +30,14 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
     private int m_RestoreCursor;
     private long m_RestoreVisitsRemaining;
 
-    private sealed class PendingRestore
+    private sealed class IntentRecord
     {
         public RestrictionTargetIdentity Identity;
         public Entity LegacyTarget;
         public byte LegacyKind;
         public bool IsLegacy;
-        public readonly List<string> AssetNames = new();
+        public Entity ResolvedTarget;
+        public readonly HashSet<string> AssetNames = new();
         public readonly HashSet<string> ResolvedNames = new();
         public int Attempts;
     }
@@ -51,7 +48,7 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
     private EntityQuery m_NodeQuery;
     private PrefabSystem m_PrefabSystem = null!;
 
-    private readonly List<PendingRestore> m_PendingRestore = new();
+    private readonly List<IntentRecord> m_IntentRecord = new();
     private readonly Dictionary<string, Entity> m_PrefabEntitiesByName = new();
     private readonly Dictionary<RestrictionAnchor, Entity> m_NodeIndex = new();
     private readonly List<Entity> m_ResolvedAssets = new();
@@ -76,15 +73,15 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
         m_PrefabSystem.onContentAvailabilityChanged += OnContentAvailabilityChanged;
         m_RestrictedNodes = GetEntityQuery(
             ComponentType.ReadOnly<NodeAssetRestrictionV1>(),
-            ComponentType.ReadOnly<RestrictedVehicleAssetV1>());
+            ComponentType.ReadOnly<RestrictedVehicleAssetV1>(), ComponentType.Exclude<Deleted>(), ComponentType.Exclude<Temp>());
         m_RestrictedSegments = GetEntityQuery(
             ComponentType.ReadOnly<Edge>(),
             ComponentType.ReadOnly<SegmentAssetRestrictionV1>(),
-            ComponentType.ReadOnly<RestrictedVehicleAssetV1>());
+            ComponentType.ReadOnly<RestrictedVehicleAssetV1>(), ComponentType.Exclude<Deleted>(), ComponentType.Exclude<Temp>());
         m_VehiclePrefabQuery = GetEntityQuery(
             ComponentType.ReadOnly<VehicleData>(),
             ComponentType.ReadOnly<PrefabData>());
-        m_NodeQuery = GetEntityQuery(ComponentType.ReadOnly<Node>());
+        m_NodeQuery = GetEntityQuery(ComponentType.ReadOnly<Node>(), ComponentType.Exclude<Deleted>(), ComponentType.Exclude<Temp>());
     }
 
     protected override void OnDestroy()
@@ -96,14 +93,14 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
     private void OnContentAvailabilityChanged()
     {
         m_NameMapStale = true;
-        foreach (var pending in m_PendingRestore) pending.Attempts = 0;
-        m_RestoreVisitsRemaining = (long)m_PendingRestore.Count * RestorePasses;
+        foreach (var pending in m_IntentRecord) { pending.Attempts = 0; pending.ResolvedNames.Clear(); }
+        m_RestoreVisitsRemaining = (long)m_IntentRecord.Count * RestorePasses;
         Mod.Log.Info("[RouteFilter.Persistence] Content availability changed; prefab name map will be rebuilt");
     }
 
     protected override void OnUpdate()
     {
-        if (!ConfigurationEditable || m_PendingRestore.Count == 0 || m_RestoreVisitsRemaining == 0) return;
+        if (!ConfigurationEditable || m_IntentRecord.Count == 0 || m_RestoreVisitsRemaining == 0) return;
         TryRestorePendingRestrictions();
     }
 
@@ -127,7 +124,7 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
 
     private void ClearTransientState()
     {
-        m_PendingRestore.Clear();
+        m_IntentRecord.Clear();
         m_RestoreCursor = 0;
         m_RestoreVisitsRemaining = 0;
         m_PrefabEntitiesByName.Clear();
@@ -139,9 +136,9 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
     }
 
     // The game's component serializer already supplies the outer block. Legacy V1/V2
-    // start with their version; schema 3 starts with a byte count, then the RFLT body.
+    // start with their version; schema 3/4 start with a byte count, then the RFLT body.
     // Dispatch consumes the first integer exactly once, without reader copies or rewind.
-    private const int MaxPayloadBytes = 128 * 1024 * 1024;
+    private const int MaxPayloadBytes = RestrictionByteSink.MaxPayloadBytes;
 
     public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
     {
@@ -193,7 +190,7 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
 
     private void LockPayload(string reason, byte[] original)
     {
-        m_PendingRestore.Clear();
+        m_IntentRecord.Clear();
         m_PersistenceLocked = true;
         DataTrusted = false;
         m_LockReason = reason;
@@ -220,7 +217,7 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
                 LockPayload("Invalid legacy asset count", null);
                 throw new InvalidOperationException(m_LockReason);
             }
-            var pending = new PendingRestore { IsLegacy = true, LegacyTarget = target, LegacyKind = kind };
+            var pending = new IntentRecord { IsLegacy = true, LegacyTarget = target, LegacyKind = kind };
             for (var j = 0; j < assetCount; j++)
             {
                 reader.Read(out int length);
@@ -233,20 +230,23 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
                 for (var k = 0; k < length; k++) reader.Read(out chars[k]);
                 if (length != 0) pending.AssetNames.Add(new string(chars));
             }
-            if (pending.AssetNames.Count != 0) { m_PendingRestore.Add(pending); m_RestoreVisitsRemaining += RestorePasses; }
+            if (pending.AssetNames.Count != 0 && target != Entity.Null)
+            { m_IntentRecord.Add(pending); m_RestoreVisitsRemaining += RestorePasses; }
+            else if (pending.AssetNames.Count != 0)
+                Mod.Log.Warn("[RouteFilter.Persistence] Missing legacy target: restriction skipped, no target guessed.");
         }
     }
 
     private void QueueRestrictions(RouteFilterSaveData data)
     {
         if (data == null || data.Restrictions.Count == 0) return;
-        var unique = new Dictionary<RestrictionTargetIdentity, PendingRestore>();
+        var unique = new Dictionary<RestrictionTargetIdentity, IntentRecord>();
         for (var i = 0; i < data.Restrictions.Count; i++)
         {
             var restriction = data.Restrictions[i];
             if (!unique.TryGetValue(restriction.Target, out var pending))
             {
-                pending = new PendingRestore { Identity = restriction.Target };
+                pending = new IntentRecord { Identity = restriction.Target };
                 unique.Add(restriction.Target, pending);
             }
             var indices = restriction.PrefabIndices;
@@ -256,13 +256,13 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
                     var index = indices[j];
                     if (index < 0 || index >= data.PrefabNames.Count) continue;
                     var name = data.PrefabNames[index];
-                    if (!string.IsNullOrEmpty(name) && !pending.AssetNames.Contains(name)) pending.AssetNames.Add(name);
+                    if (!string.IsNullOrEmpty(name)) pending.AssetNames.Add(name);
                 }
         }
         foreach (var pending in unique.Values)
         {
             if (pending.AssetNames.Count == 0) continue;
-            m_PendingRestore.Add(pending);
+            m_IntentRecord.Add(pending);
             m_RestoreVisitsRemaining += RestorePasses;
         }
     }
@@ -322,6 +322,8 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
     private bool TryDescribeTarget(Entity target, byte kind, out RestrictionTargetIdentity identity)
     {
         identity = default;
+        if (!EntityManager.Exists(target) || EntityManager.HasComponent<Deleted>(target) ||
+            EntityManager.HasComponent<Temp>(target)) return false;
         if (kind == 0)
         {
             if (!EntityManager.TryGetComponent(target, out Node node)) return false;
@@ -350,11 +352,11 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
         if (!m_NodeIndexBuilt) BuildNodeIndex();
         var tool = World.GetOrCreateSystemManaged<RestrictionToolSystem>();
         var processed = 0;
-        while (m_PendingRestore.Count != 0 && processed < 64 && m_RestoreVisitsRemaining > 0)
+        while (m_IntentRecord.Count != 0 && processed < 64 && m_RestoreVisitsRemaining > 0)
         {
-            if (m_RestoreCursor >= m_PendingRestore.Count) m_RestoreCursor = 0;
+            if (m_RestoreCursor >= m_IntentRecord.Count) m_RestoreCursor = 0;
             var i = m_RestoreCursor++;
-            var record = m_PendingRestore[i];
+            var record = m_IntentRecord[i];
             m_RestoreVisitsRemaining--;
             processed++;
             record.Attempts++;
@@ -364,6 +366,7 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
                 record.IsLegacy = false;
             }
             if (!TryResolveTarget(record.Identity, out var target)) continue;
+            record.ResolvedTarget = target;
             m_ResolvedAssets.Clear();
             var changed = false;
             foreach (var name in record.AssetNames)
@@ -373,27 +376,50 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
                 changed |= record.ResolvedNames.Add(name);
             }
             if (changed) tool.RestoreRestriction(target, record.Identity.Kind == 0, m_ResolvedAssets);
-            if (record.ResolvedNames.Count == record.AssetNames.Count) { m_PendingRestore.RemoveAt(i); m_RestoreCursor = i; }
+            // Retain the complete player intent even after successful resolution. The ECS
+            // buffer cannot preserve a name if its asset becomes unavailable later.
         }
+    }
+
+    public void RememberIntent(Entity target, byte kind)
+    {
+        if (!ConfigurationEditable || !TryDescribeTarget(target, kind, out var identity)) return;
+        if (!EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets)) return;
+        ForgetPending(target);
+        var intent = new IntentRecord { Identity = identity, ResolvedTarget = target };
+        foreach (var asset in assets)
+        {
+            var name = m_PrefabSystem.GetPrefabName(asset.m_Prefab);
+            if (!string.IsNullOrEmpty(name)) { intent.AssetNames.Add(name); intent.ResolvedNames.Add(name); }
+        }
+        if (intent.AssetNames.Count != 0) m_IntentRecord.Add(intent);
     }
 
     public void ForgetPending(Entity target)
     {
-        for (var i = m_PendingRestore.Count - 1; i >= 0; i--)
+        for (var i = m_IntentRecord.Count - 1; i >= 0; i--)
         {
-            var record = m_PendingRestore[i];
-            if (record.IsLegacy ? record.LegacyTarget == target :
-                TryDescribeTarget(target, record.Identity.Kind, out var identity) && identity.Matches(record.Identity))
-                m_PendingRestore.RemoveAt(i);
+            var record = m_IntentRecord[i];
+            if (record.ResolvedTarget == target || (record.IsLegacy ? record.LegacyTarget == target :
+                TryDescribeTarget(target, record.Identity.Kind, out var identity) && identity.Matches(record.Identity)))
+                m_IntentRecord.RemoveAt(i);
         }
     }
 
     private void CapturePending(RouteFilterSaveData data, Dictionary<string, int> names)
     {
+        // A target known to have been deleted is different from a target missing during load.
+        // Retire known deletions; unresolved identities remain quarantined player intent.
+        m_IntentRecord.RemoveAll(record => record.ResolvedTarget != Entity.Null &&
+            (!EntityManager.Exists(record.ResolvedTarget) || EntityManager.HasComponent<Deleted>(record.ResolvedTarget) ||
+             EntityManager.HasComponent<Temp>(record.ResolvedTarget)));
         var recordIndices = new Dictionary<RestrictionTargetIdentity, int>();
         for (var i = 0; i < data.Restrictions.Count; i++) recordIndices[data.Restrictions[i].Target] = i;
-        foreach (var pending in m_PendingRestore)
+        foreach (var pending in m_IntentRecord)
         {
+            if (pending.ResolvedTarget != Entity.Null &&
+                TryDescribeTarget(pending.ResolvedTarget, pending.Identity.Kind, out var currentIdentity))
+                pending.Identity = currentIdentity;
             if (pending.IsLegacy)
             {
                 if (!TryDescribeTarget(pending.LegacyTarget, pending.LegacyKind, out pending.Identity))

@@ -208,9 +208,9 @@ Section("corruption containment");
     var bytes = sink.ToArray();
     Array.Resize(ref bytes, bytes.Length - 3);
     var decoded = RouteFilterSaveCodec.Decode(new RestrictionByteSource(bytes));
-    Check(decoded.Status == SaveDecodeStatus.PartiallyRecovered, "truncated record is isolated, not fatal");
-    Check(decoded.DroppedRecords == 1, "the truncated record is the only one dropped");
-    Check(decoded.Data.Restrictions.Count == 0, "nothing half-applied from the truncated record");
+    Check(decoded.Status == SaveDecodeStatus.Corrupt, "truncated checksummed body is quarantined");
+    Check(!decoded.IsApplicable, "checksum failure exposes no partial intent");
+    Check(decoded.Data == null, "nothing half-applied from the truncated record");
 }
 
 {
@@ -227,7 +227,7 @@ Section("corruption containment");
     // One bad record must cost one record, not the file.
     var sink = new RestrictionByteSink();
     sink.WriteUInt(RouteFilterSaveData.Magic);
-    sink.WriteUShort(RouteFilterSaveData.SchemaVersion);
+    sink.WriteUShort(3);
     sink.WriteUShort(0);
     sink.WriteInt(1);
     sink.WriteString("car.a");
@@ -257,7 +257,7 @@ Section("corruption containment");
     // Out-of-range prefab indices are dropped individually; the restriction survives.
     var sink = new RestrictionByteSink();
     sink.WriteUInt(RouteFilterSaveData.Magic);
-    sink.WriteUShort(RouteFilterSaveData.SchemaVersion);
+    sink.WriteUShort(3);
     sink.WriteUShort(0);
     sink.WriteInt(1);
     sink.WriteString("car.a");
@@ -283,7 +283,7 @@ Section("corruption containment");
     // Implausible prefab table size must be rejected, not allocated.
     var sink = new RestrictionByteSink();
     sink.WriteUInt(RouteFilterSaveData.Magic);
-    sink.WriteUShort(RouteFilterSaveData.SchemaVersion);
+    sink.WriteUShort(3);
     sink.WriteUShort(0);
     sink.WriteInt(int.MaxValue);
     var decoded = RouteFilterSaveCodec.Decode(new RestrictionByteSource(sink.ToArray()));
@@ -345,7 +345,7 @@ Section("target identity quantization");
 Section("production byte codec robustness");
 {
     var sink = new RestrictionByteSink();
-    sink.WriteUInt(RouteFilterSaveData.Magic); sink.WriteUShort(RouteFilterSaveData.SchemaVersion); sink.WriteUShort(128);
+    sink.WriteUInt(RouteFilterSaveData.Magic); sink.WriteUShort(3); sink.WriteUShort(128);
     sink.WriteInt(0); sink.WriteInt(0);
     var bytes = sink.ToArray();
     var result = RouteFilterSaveCodec.Decode(new RestrictionByteSource(bytes));
@@ -358,10 +358,10 @@ Section("production byte codec robustness");
 }
 {
     var sink = new RestrictionByteSink();
-    sink.WriteString("车辆 Truck01");
+    sink.WriteString("杞﹁締 Truck01");
     sink.WriteInt(123456);
     var source = new RestrictionByteSource(sink.ToArray());
-    Check(source.ReadString(out var text) && text == "车辆 Truck01", "UTF16 string has exactly one length prefix");
+    Check(source.ReadString(out var text) && text == "杞﹁締 Truck01", "UTF16 string has exactly one length prefix");
     Check(source.ReadInt(out var sentinel) && sentinel == 123456 && source.Remaining == 0,
         "field after string remains aligned");
 }
@@ -387,6 +387,29 @@ Section("production byte codec robustness");
         var truncated = original.Take(length).ToArray();
         var partial = RouteFilterSaveCodec.Decode(new RestrictionByteSource(truncated));
         Check(partial.Status != SaveDecodeStatus.Ok, "every truncation is detected at " + length);
+    }
+}
+
+Section("checksum corruption containment");
+{
+    var data = RouteFilterSaveData.CreateEmpty(); data.PrefabNames.Add("Truck01");
+    data.Restrictions.Add(new PersistentRestriction { Target = new RestrictionTargetIdentity { Kind = 1,
+        Anchor = new RestrictionAnchor(100, 200, 300), EndAnchor = new RestrictionAnchor(400, 500, 600),
+        LengthCentimetres = 5000 }, PrefabIndices = new[] { 0 } });
+    var sink = new RestrictionByteSink(); RouteFilterSaveCodec.Encode(data, sink);
+    var bytes = sink.ToArray();
+    for (var position = 0; position < 8; position++)
+    {
+        var damaged = (byte[])bytes.Clone(); damaged[position] ^= 1;
+        var result = RouteFilterSaveCodec.Decode(new RestrictionByteSource(damaged));
+        Check(!result.IsApplicable, "header damage cannot apply intent at " + position);
+    }
+    for (var position = 8; position < bytes.Length; position++)
+    {
+        var damaged = (byte[])bytes.Clone(); damaged[position] ^= 1;
+        var result = RouteFilterSaveCodec.Decode(new RestrictionByteSource(damaged));
+        Check(result.Status == SaveDecodeStatus.Corrupt && !result.IsApplicable,
+            "bit damage to intent/checksum refused at " + position);
     }
 }
 

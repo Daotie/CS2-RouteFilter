@@ -6,6 +6,7 @@ namespace RouteFilter.Persistence;
 /// <summary>Byte-array implementations of the codec's sink and source, with exact bookkeeping.</summary>
 public sealed class RestrictionByteSink : IRestrictionSaveSink
 {
+    public const int MaxPayloadBytes = 64 * 1024 * 1024;
     private readonly List<byte> m_Bytes = new();
 
     public int Length => m_Bytes.Count;
@@ -16,7 +17,7 @@ public sealed class RestrictionByteSink : IRestrictionSaveSink
     public void WriteUShort(ushort value) => Write(BitConverter.GetBytes(value));
     public void WriteInt(int value) => Write(BitConverter.GetBytes(value));
     public void WriteFloat(float value) => Write(BitConverter.GetBytes(value));
-    public void WriteByte(byte value) => m_Bytes.Add(value);
+    public void WriteByte(byte value) { CheckSize(1); m_Bytes.Add(value); }
 
     public void WriteString(string value)
     {
@@ -26,10 +27,16 @@ public sealed class RestrictionByteSink : IRestrictionSaveSink
 
     public void WriteBytes(byte[] value)
     {
-        if (value != null) m_Bytes.AddRange(value);
+        if (value != null) { CheckSize(value.Length); m_Bytes.AddRange(value); }
     }
 
-    private void Write(byte[] chunk) => m_Bytes.AddRange(chunk);
+    private void CheckSize(int count)
+    {
+        if (count < 0 || count > MaxPayloadBytes - m_Bytes.Count)
+            throw new InvalidOperationException("RouteFilter save payload exceeds bounded size");
+    }
+
+    private void Write(byte[] chunk) { CheckSize(chunk.Length); m_Bytes.AddRange(chunk); }
 }
 
 public sealed class RestrictionByteSource : IRestrictionSaveSource
@@ -40,6 +47,8 @@ public sealed class RestrictionByteSource : IRestrictionSaveSource
 
     public RestrictionByteSource(byte[] bytes, int total = -1)
     {
+        if (bytes == null) throw new ArgumentNullException(nameof(bytes));
+        if (total < -1 || total > bytes.Length) throw new ArgumentOutOfRangeException(nameof(total));
         m_Bytes = bytes;
         m_Total = total < 0 ? bytes.Length : total;
     }

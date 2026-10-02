@@ -17,3 +17,8 @@ future headers including nonzero flags and empty bodies, legacy layout/counts, o
 These are NOT proof of live migration. Real V1/V2 saves, remapped ECS identities, missing targets,
 Reset → save → reload, active mutation serialization and upgrades need game verification.
 离线通过不代表真实迁移完成；真实旧存档、实体重映射、重置保存重载与升级仍需游戏验证。
+
+Schema 4 writes CRC32 over the entire intent body; schema 3 remains readable without a checksum.
+新写入 schema 4 对完整意图进行 CRC32 校验，旧 schema 3 无校验格式仍可读取。
+Both encode and framed load enforce a 64 MiB payload limit. Integrity verification is O(payload bytes), load/save only.
+编码与新版载入限制为 64 MiB；校验仅在加载和保存时执行，成本随意图字节数增长。
