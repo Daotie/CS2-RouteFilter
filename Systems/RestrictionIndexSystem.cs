@@ -178,6 +178,14 @@ public sealed partial class RestrictionIndexSystem : GameSystemBase
 
     protected override void OnUpdate()
     {
+        // Empty city configuration: cached query emptiness, no topology snapshots/arrays/logs.
+        if (m_Current.ActiveTargets.Count == 0 && m_RestrictedNodes.IsEmptyIgnoreFilter &&
+            m_RestrictedSegments.IsEmptyIgnoreFilter)
+        {
+            Mod.RestrictionsDirty = false;
+            m_RefreshTicks = 0;
+            return;
+        }
         if (!Mod.RestrictionsDirty && ++m_RefreshTicks < kPeriodicRefreshTicks) return;
 
         Mod.RestrictionsDirty = false;

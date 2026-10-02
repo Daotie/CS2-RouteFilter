@@ -210,6 +210,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
     public void SetRestriction(Entity target, IReadOnlyCollection<Entity> vehicleAssets)
     {
+        World.GetOrCreateSystemManaged<RestrictionLeaseSystem>().ReleaseAll();
         var isNode = EntityManager.HasComponent<Node>(target);
         var isSegment = EntityManager.HasComponent<Edge>(target);
         if (!isNode && !isSegment) return;
@@ -237,6 +238,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
     public void ClearRestriction(Entity target)
     {
+        World.GetOrCreateSystemManaged<RestrictionLeaseSystem>().ReleaseAll();
         Mod.RestrictionsDirty = true;
         if (EntityManager.HasComponent<NodeAssetRestrictionV1>(target)) EntityManager.RemoveComponent<NodeAssetRestrictionV1>(target);
         if (EntityManager.HasComponent<SegmentAssetRestrictionV1>(target)) EntityManager.RemoveComponent<SegmentAssetRestrictionV1>(target);

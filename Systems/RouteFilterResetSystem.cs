@@ -11,7 +11,8 @@ namespace RouteFilter.Systems;
 /// <summary>
 /// Executes the explicit Settings reset request. It removes only RouteFilter-owned ECS
 /// data and clears RouteFilter-managed caches. Shared vanilla lane/path state is observed
-/// for diagnostics but is never rewritten because its original owner cannot be proven.
+/// for diagnostics and not rewritten. Current 2.0 leases are released separately by
+/// their owner with exact compare-before-restore; no legacy ownership is inferred.
 /// </summary>
 public sealed partial class RouteFilterResetSystem : GameSystemBase
 {
@@ -37,6 +38,7 @@ public sealed partial class RouteFilterResetSystem : GameSystemBase
     {
         if (!Mod.ConsumeResetRequest()) return;
 
+        World.GetOrCreateSystemManaged<RestrictionLeaseSystem>().ReleaseAll();
 
         // Finish readers before clearing their producer snapshots or removing ECS data.
         World.GetOrCreateSystemManaged<RestrictionSafetySystem>().ResetRuntimeState();
@@ -81,7 +83,7 @@ public sealed partial class RouteFilterResetSystem : GameSystemBase
             $"{removedBlocks + removedRequests + removedCooldowns} " +
             $"(blocks={removedBlocks}, requests={removedRequests}, cooldowns={removedCooldowns}), " +
             $"probableLegacyBlockedLanesObserved={probableLegacyBlockedLanes}, " +
-            "sharedLaneStateRestored=0, pathStateRewritten=0, currentEnforcementActive=false");
+            "unknownLegacyLaneStateRestored=0, ownedLeaseReleaseInvoked=true, pathStateRewritten=0, automaticEnforcementActive=false");
     }
 
     private int CountProbableLegacyBlockedLanes()

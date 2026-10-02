@@ -19,7 +19,7 @@ public sealed class Mod : IMod
     public const string Version = "2.0.0-dev";
     // Bump this for every deployable build so the in-game panel and log identify
     // exactly which compiled payload is loaded by the active playset.
-    public const string BuildId = "RF2-20260906-FLAT-ASSETS-08";
+    public const string BuildId = "RF2-20261002-LEASE-PROBE-01";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";
@@ -38,6 +38,10 @@ public sealed class Mod : IMod
     /// <summary>Set whenever restriction data changes so cached indexes can be rebuilt.</summary>
     public static bool RestrictionsDirty { get; set; }
     private static int s_ResetRequested;
+    private static int s_LeaseProbeRequested;
+    private World m_RuntimeWorld;
+    internal static void RequestLeaseProbe(int command) => Interlocked.Exchange(ref s_LeaseProbeRequested, command);
+    internal static int ConsumeLeaseProbeRequest() => Interlocked.Exchange(ref s_LeaseProbeRequested, 0);
 
     internal static void RequestReset()
     {
@@ -59,6 +63,7 @@ public sealed class Mod : IMod
 
     public void OnLoad(UpdateSystem updateSystem)
     {
+        m_RuntimeWorld = updateSystem.World;
         Log.Info($"{nameof(OnLoad)} build={BuildId}");
 
         try
@@ -97,8 +102,11 @@ public sealed class Mod : IMod
         updateSystem.UpdateAfter<RestrictionCandidateSystem, Game.Simulation.CarNavigationSystem.Actions>(SystemUpdatePhase.GameSimulation);
         updateSystem.UpdateAfter<RestrictionCandidateSystem, RestrictionIndexSystem>(SystemUpdatePhase.GameSimulation);
         updateSystem.UpdateAfter<RestrictionSafetySystem, RestrictionCandidateSystem>(SystemUpdatePhase.GameSimulation);
+        updateSystem.UpdateAfter<RestrictionLeaseSystem, RestrictionSafetySystem>(SystemUpdatePhase.GameSimulation);
+        updateSystem.UpdateBefore<RestrictionLeaseSystem, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
         updateSystem.UpdateAt<RouteFilterUISystem>(SystemUpdatePhase.UIUpdate);
-        // Phase 1C observation only; no enforcement is scheduled.
+        // Phase 1D is a one-shot diagnostic primitive; no automatic lease admission,
+        // Obsolete, reroute, recovery, motion or rail enforcement is scheduled.
     }
 
     /// <summary>
@@ -149,6 +157,9 @@ public sealed class Mod : IMod
 
     public void OnDispose()
     {
+        if (m_RuntimeWorld != null && m_RuntimeWorld.IsCreated)
+            m_RuntimeWorld.GetExistingSystemManaged<RestrictionLeaseSystem>()?.ReleaseAll();
+        Interlocked.Exchange(ref s_LeaseProbeRequested, 0);
         Interlocked.Exchange(ref s_ResetRequested, 0);
         Settings?.UnregisterInOptionsUI();
         Log.Info(nameof(OnDispose));

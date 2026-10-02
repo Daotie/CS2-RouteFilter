@@ -25,6 +25,15 @@ public sealed class Setting : ModSetting
     [SettingsUISection(kSection, kGeneralGroup)] public bool EnableRestrictionBadges { get; set; }
 
     [SettingsUIButton]
+    [SettingsUIDisableByCondition(typeof(Setting), nameof(ResetUnavailable))]
+    [SettingsUISection(kSection, kGeneralGroup)]
+    public bool RunLeaseProbe { set => Mod.RequestLeaseProbe(1); }
+
+    [SettingsUIButton]
+    [SettingsUISection(kSection, kGeneralGroup)]
+    public bool ReportLeaseProbe { set => Mod.RequestLeaseProbe(2); }
+
+    [SettingsUIButton]
     [SettingsUIConfirmation("RouteFilter.Settings.ResetConfirmation")]
     [SettingsUIDisableByCondition(typeof(Setting), nameof(ResetUnavailable))]
     [SettingsUISection(kSection, kGeneralGroup)]
@@ -66,6 +75,10 @@ internal abstract class LocaleBase : IDictionarySource
             [Setting.GetOptionGroupLocaleID(Setting.kGeneralGroup)] = Chinese ? "常规" : "General",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "限制标记" : "Restriction badges",
             [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "在受限目标上方显示视觉标记。" : "Shows visual badges above restricted targets.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.RunLeaseProbe))] = Chinese ? "1D：对选中目标尝试一次 lease" : "1D: attempt one lease on selected target",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.RunLeaseProbe))] = Chinese ? "仅供小规模测试。先选择目标并应用限制，再取消暂停。只接受当帧已校准的 Safe；Unknown/Unsafe 不修改车道，不重试，不请求绕行。" : "Small-scale test only. Select a target, apply restrictions, then unpause. Accepts only a fresh calibrated Safe verdict; Unknown/Unsafe leave lanes unchanged. No retries or reroute requests.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.ReportLeaseProbe))] = Chinese ? "1D：记录 lease 测试计数" : "1D: log lease probe counters",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.ReportLeaseProbe))] = Chinese ? "按需记录创建、恢复、恢复冲突与拒绝计数；不会强制等待未完成的任务。" : "Logs admissions, restorations, restore conflicts and rejections on request; does not force unfinished jobs to complete.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.ResetRouteFilter))] = Chinese ? "重置 RouteFilter" : "Reset RouteFilter",
             [Setting.GetOptionDescLocaleID(nameof(Setting.ResetRouteFilter))] = Chinese ? "清除 RouteFilter 保存的限制、选择和运行时缓存。不会清除游戏或其他模组创建的道路阻塞。" : "Clears RouteFilter restrictions, selections, and runtime caches. It does not clear road blockages created by the game or other mods.",
             ["RouteFilter.Settings.ResetConfirmation"] = Chinese ? "这将移除当前城市中的所有 RouteFilter 通行限制，以及能够安全识别的 RouteFilter 运行时状态。此操作无法撤销。无法确认归属的游戏原生或其他模组状态不会被修改。" : "This removes all RouteFilter restrictions and safely identifiable RouteFilter runtime state in this city. This cannot be undone. Vanilla or other mod state with uncertain ownership will not be modified.",
