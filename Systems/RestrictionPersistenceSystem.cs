@@ -155,9 +155,7 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
             RouteFilterSaveCodec.Encode(CaptureCurrentConfiguration(), sink);
             bytes = sink.ToArray();
         }
-        writer.Write(bytes.Length);
-        using var native = new NativeArray<byte>(bytes, Allocator.Temp);
-        writer.Write(native);
+        RestrictionNativeIO.WriteBody(writer, bytes);
     }
 
     public void Deserialize<TReader>(TReader reader) where TReader : IReader
@@ -175,9 +173,7 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
             LockPayload("Invalid RouteFilter payload length", null);
             throw new InvalidOperationException(m_LockReason);
         }
-        using var native = new NativeArray<byte>(first, Allocator.Temp);
-        reader.Read(native);
-        var bytes = native.ToArray();
+        var bytes = RestrictionNativeIO.ReadBody(reader, first);
         var result = RouteFilterSaveCodec.Decode(new RestrictionByteSource(bytes));
         if (!result.IsApplicable || result.Status == SaveDecodeStatus.PartiallyRecovered)
         {
@@ -220,15 +216,10 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
             var pending = new IntentRecord { IsLegacy = true, LegacyTarget = target, LegacyKind = kind };
             for (var j = 0; j < assetCount; j++)
             {
-                reader.Read(out int length);
-                if (length < 0 || length > RouteFilterSaveData.MaxPrefabNameLength)
-                {
-                    LockPayload("Invalid legacy prefab name length", null);
-                    throw new InvalidOperationException(m_LockReason);
-                }
-                var chars = new char[length];
-                for (var k = 0; k < length; k++) reader.Read(out chars[k]);
-                if (length != 0) pending.AssetNames.Add(new string(chars));
+                string name;
+                try { name = RestrictionNativeIO.ReadName(reader); }
+                catch (InvalidOperationException error) { LockPayload(error.Message, null); throw; }
+                if (name.Length != 0) pending.AssetNames.Add(name);
             }
             if (pending.AssetNames.Count != 0 && target != Entity.Null)
             { m_IntentRecord.Add(pending); m_RestoreVisitsRemaining += RestorePasses; }

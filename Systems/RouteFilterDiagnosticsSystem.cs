@@ -106,6 +106,18 @@ public sealed partial class RouteFilterDiagnosticsSystem : GameSystemBase
 
     protected override void OnUpdate()
     {
+        if (Mod.ConsumeNativeProtocolRequest())
+        {
+            try
+            {
+                RestrictionNativeProtocolFixtures.Run();
+                Mod.Log.Info($"[RouteFilter.NativeProtocol] PASS build={Mod.BuildId}; isolated buffers only; city save/load remains unverified");
+            }
+            catch (System.Exception error)
+            {
+                Mod.Log.Error($"[RouteFilter.NativeProtocol] FAILED build={Mod.BuildId}: {error}");
+            }
+        }
         var frame = m_Simulation.frameIndex;
         var requested = Mod.ConsumeDiagnosticsRequest();
         var elapsed = unchecked((int)(frame - m_WindowStartFrame));

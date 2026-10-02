@@ -4,9 +4,8 @@ using System.Collections.Generic;
 namespace RouteFilter.Persistence;
 
 /// <summary>
-/// Byte-oriented sink used by <see cref="RouteFilterSaveCodec"/>. Implemented on top of the
-/// game's <c>Colossal.Serialization.Entities.IWriter</c> at runtime and over a plain byte array
-/// in the offline fixtures, so the format contract can be verified without launching the game.
+/// Byte-oriented sink used by <see cref="RouteFilterSaveCodec"/>. Runtime and offline fixtures
+/// use the same bounded managed byte encoder; native framing is handled separately.
 /// </summary>
 public interface IRestrictionSaveSink
 {
@@ -21,16 +20,15 @@ public interface IRestrictionSaveSink
 /// <summary>Byte-oriented source with explicit failure, so partial parses can never be mistaken for success.</summary>
 public interface IRestrictionSaveSource
 {
-    /// <summary>Bytes still unread. The runtime adapter knows this because our format is self-describing.</summary>
+    /// <summary>Bytes still unread in the bounded managed body.</summary>
     long Remaining { get; }
     bool ReadUInt(out uint value);
     bool ReadUShort(out ushort value);
     bool ReadInt(out int value);
     bool ReadString(out string value);
     /// <summary>
-    /// Consumes everything that is left. The runtime adapter knows the payload size because
-    /// RouteFilter always frames its own body, so this is exact; the offline adapter just asserts
-    /// that nothing is left. Used to resynchronise after a record that turned out to be corrupt.
+    /// Consumes the bounded managed remainder. This does not validate or resynchronise the
+    /// game's surrounding native stream.
     /// </summary>
     bool SkipToEnd();
     /// <summary>Copies the remainder verbatim; used to protect a payload written by a newer schema.</summary>
@@ -78,11 +76,9 @@ public struct RestrictionAnchor : IEquatable<RestrictionAnchor>
 /// <summary>
 /// Where a restriction target lives, in terms that survive a save/load cycle.
 ///
-/// A raw <c>Unity.Entities.Entity</c> is an archetype-local index and is explicitly not stable
-/// across save/load, so it is stored only as a validation hint. The authoritative identity is the
-/// baked geometry of the target, which round-trips exactly because vanilla writes the underlying
-/// floats unchanged. Positions are stored as fixed-point integers so that identity comparison is
-/// exact integer equality instead of floating-point tolerance.
+/// A raw Entity is not a persistent identity and is not written by this format. Geometry is
+/// quantized and matched exactly, with ambiguous identities refused. It is not guaranteed to
+/// identify a target across arbitrary network edits; see the documented compatibility limit.
 /// </summary>
 public struct RestrictionTargetIdentity : IEquatable<RestrictionTargetIdentity>
 {

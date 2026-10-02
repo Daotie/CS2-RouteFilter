@@ -40,3 +40,17 @@ Both encode and framed load enforce a 64 MiB payload limit. Integrity verificati
 
 Resolved intent retains the full original name set, independent of current prefab entities. Known target movement updates its identity; a known deleted target retires instead of rebinding to a future road.
 已解析意图仍保留完整名称集合，不依赖当前 prefab 实体。已知目标移动会更新身份，已知删除的目标会退役而非绑定到未来道路。
+
+## Native protocol diagnostic / 原生协议诊断
+The settings action “Test native save protocol (isolated memory)” exercises the actual game
+BinaryWriter/BinaryReader with temporary buffers, distinct writer/reader entity maps, a Chinese
+legacy name, schema-4 data and following-data sentinels. Production native framing and name
+helpers are shared with this fixture. It never calls the live persistence system or writes files.
+“测试存档原生协议（隔离内存）”使用游戏真实读写器、临时缓冲、不同实体映射表、中文旧版名称、
+schema 4 数据与后续哨兵值。共用生产代码的原生读写辅助函数，不调用城市的持久化系统或写文件。
+
+This diagnostic is implemented and build-verified, but NOT GAME TESTED. Even a PASS only proves
+these primitive protocol checks, not serializer scheduling, network identity, prefab restore,
+truncated outer native blocks, or full city save/load. Read the build ID in its result log.
+此诊断已实现并编译验证，尚未游戏执行。即使 PASS，也仅验证协议基础接口，不能替代序列化顺序、
+道路身份、资产恢复、原生外层块截断与完整城市保存载入测试。结果日志包含构建识别码。

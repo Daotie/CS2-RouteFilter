@@ -56,6 +56,11 @@ public sealed class Setting : ModSetting
     public bool LogDiagnostics { set => Mod.RequestDiagnosticsReport(); }
 
     [SettingsUIButton]
+    [SettingsUIDisableByCondition(typeof(Setting), nameof(ResetUnavailable))]
+    [SettingsUISection(kSection, kGeneralGroup)]
+    public bool TestNativeProtocol { set => Mod.RequestNativeProtocolTest(); }
+
+    [SettingsUIButton]
     [SettingsUIConfirmation("RouteFilter.Settings.ResetConfirmation")]
     [SettingsUIDisableByCondition(typeof(Setting), nameof(ResetUnavailable))]
     [SettingsUISection(kSection, kGeneralGroup)]
@@ -114,8 +119,10 @@ internal abstract class LocaleBase : IDictionarySource
             [Setting.GetOptionLabelLocaleID(nameof(Setting.RerouteUncertaintyMetres))] = Chinese ? "安全余量（米）" : "Safety margin (metres)",
             [Setting.GetOptionDescLocaleID(nameof(Setting.RerouteUncertaintyMetres))] = Chinese ? "在制动距离之外额外保留的距离。" : "Extra distance kept in addition to the modelled braking distance.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.VerboseDiagnostics))] = Chinese ? "详细诊断日志" : "Verbose diagnostics",
-            [Setting.GetOptionDescLocaleID(nameof(Setting.VerboseDiagnostics))] = Chinese ? "每秒记录一条聚合统计行。仅用于排查问题，游戏中保持关闭。" : "Logs one aggregated statistics line per second. Intended for troubleshooting; keep it off during play.",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.VerboseDiagnostics))] = Chinese ? "每 300 个模拟帧记录一条聚合统计行。仅用于排查问题，正常游玩时保持关闭。" : "Logs one aggregated statistics line every 300 simulation frames. Intended for troubleshooting; keep it off during normal play.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.LogDiagnostics))] = Chinese ? "记录当前统计" : "Log current statistics",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.TestNativeProtocol))] = Chinese ? "测试存档原生协议（隔离内存）" : "Test native save protocol (isolated memory)",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.TestNativeProtocol))] = Chinese ? "使用临时内存验证实体映射、中文字符串和数据块边界，并记录结果。不读取或修改城市；此测试不等同于完整存档载入验证。" : "Checks entity remapping, Unicode strings and block alignment in temporary memory and logs the result. Does not read or modify the city; this is not a complete city save/load test.",
             [Setting.GetOptionDescLocaleID(nameof(Setting.LogDiagnostics))] = Chinese ? "按需记录一次工作负载、候选、安全判定、绕行请求与车道修改计数。不会强制等待未完成的任务。" : "Logs workload, candidate, safety, reroute and lane mutation counters on request; never force-finishes a running job.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.ResetRouteFilter))] = Chinese ? "重置 RouteFilter" : "Reset RouteFilter",
             [Setting.GetOptionDescLocaleID(nameof(Setting.ResetRouteFilter))] = Chinese ? "清除 RouteFilter 保存的限制、选择和运行时缓存。不会清除游戏或其他模组创建的道路阻塞。" : "Clears RouteFilter restrictions, selections, and runtime caches. It does not clear road blockages created by the game or other mods.",

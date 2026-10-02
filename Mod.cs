@@ -19,7 +19,7 @@ public sealed class Mod : IMod
     public const string Version = "2.0.0-dev";
     // Bump this for every deployable build so the in-game panel and log identify
     // exactly which compiled payload is loaded by the active playset.
-    public const string BuildId = "RF2-20261002-RECONSTRUCTION-SAFETY-07";
+    public const string BuildId = "RF2-20261002-RECONSTRUCTION-SAFETY-08";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";
@@ -39,9 +39,12 @@ public sealed class Mod : IMod
     public static bool RestrictionsDirty { get; set; }
     private static int s_ResetRequested;
     private static int s_DiagnosticsRequested;
+    private static int s_NativeProtocolRequested;
     private World m_RuntimeWorld;
     internal static void RequestDiagnosticsReport() => Interlocked.Exchange(ref s_DiagnosticsRequested, 1);
     internal static bool ConsumeDiagnosticsRequest() => Interlocked.Exchange(ref s_DiagnosticsRequested, 0) != 0;
+    internal static void RequestNativeProtocolTest() => Interlocked.Exchange(ref s_NativeProtocolRequested, 1);
+    internal static bool ConsumeNativeProtocolRequest() => Interlocked.Exchange(ref s_NativeProtocolRequested, 0) != 0;
 
     internal static void RequestReset()
     {
@@ -167,6 +170,7 @@ public sealed class Mod : IMod
             m_RuntimeWorld.GetExistingSystemManaged<RailEnforcementBackend>()?.ReleaseAll();
         }
         Interlocked.Exchange(ref s_DiagnosticsRequested, 0);
+        Interlocked.Exchange(ref s_NativeProtocolRequested, 0);
         Interlocked.Exchange(ref s_ResetRequested, 0);
         Settings?.UnregisterInOptionsUI();
         Log.Info(nameof(OnDispose));
