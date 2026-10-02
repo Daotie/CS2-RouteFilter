@@ -47,7 +47,7 @@ $rfDanger: #e07b73;
 }
 
 .panelHeader {
-  flex: 0 0 44rem;
+  flex: 0 0 54rem;
   display: flex;
   align-items: center;
   min-width: 0;
@@ -55,36 +55,36 @@ $rfDanger: #e07b73;
   background-color: $rfSurfaceRaised;
   border-bottom: 1rem solid $rfBorder;
 }
-.brandIcon { flex: 0 0 24rem; width: 24rem; height: 24rem; display: flex; align-items: center; justify-content: center; background: transparent; }
-.brandIcon .toolGlyph { width: 24rem; height: 24rem; }
-.brandText { display: flex; align-items: baseline; min-width: 0; margin-left: 9rem; }
-.brandText strong { overflow: hidden; color: var(--menuText1Normal); font-size: 14rem; font-weight: 600; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
-.brandText span { margin-left: 10rem; color: $rfMuted; font-size: 10rem; white-space: nowrap; }
+.brandIcon { flex: 0 0 30rem; width: 30rem; height: 30rem; display: flex; align-items: center; justify-content: center; border-radius: 6rem; background: $rfAccentSoft; }
+.brandIcon .toolGlyph { width: 21rem; height: 21rem; }
+.brandText { flex: 1 1 auto; display: flex; flex-direction: column; align-items: flex-start; min-width: 0; margin-left: 10rem; }
+.brandText strong { max-width: 100%; overflow: hidden; color: var(--menuText1Normal); font-size: 16rem; font-weight: 600; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
+.brandText span { margin-top: 2rem; margin-left: 0; color: $rfMuted; font-size: 10rem; white-space: nowrap; }
 .buildMarker { width: 0; height: 0; margin: 0; overflow: hidden; }
 .closeButton { position: relative; flex: 0 0 28rem; display: flex; align-items: center; justify-content: center; width: 28rem; height: 28rem; border-radius: 4rem; margin-left: auto; padding: 0; color: $rfMuted; background: transparent; border: 0; }
 .closeButton:hover { color: var(--menuText1Normal); background-color: $rfSurfaceHover; }
 .closeGlyph { width: 16rem; height: 16rem; object-fit: contain; opacity: .9; }
 
 .targetSection { flex: 0 0 auto; padding: 10rem 14rem; border-bottom: 1rem solid $rfBorder; }
-.segmentedControl { display: flex; height: 32rem; padding: 0; background-color: $rfSurfaceInset; border: 0; border-radius: 9rem; }
-.segmentButton { flex: 1 1 50%; display: flex; align-items: center; justify-content: center; padding: 0 14rem; color: $rfMuted; background: transparent; border-radius: 9rem; font-size: 12rem; }
+.segmentedControl { display: flex; height: 36rem; padding: 0; background-color: transparent; border-bottom: 1rem solid $rfBorder; border-radius: 0; }
+.segmentButton { flex: 1 1 50%; display: flex; align-items: center; justify-content: center; padding: 0 14rem; color: $rfMuted; background: transparent; border-bottom: 2rem solid transparent; border-radius: 4rem 4rem 0 0; font-size: 13rem; }
 .segmentButtonIcon { width: 22rem; height: 22rem; margin-right: 9rem; object-fit: contain; }
 .segmentButton + .segmentButton { margin-left: 2rem; }
 .segmentButton:hover { color: var(--menuText1Normal); background-color: $rfSurfaceHover; }
-.segmentButtonActive { color: var(--menuText1Normal); background-color: var(--panelGradientStart); font-weight: 600; box-shadow: none; }
-.targetStatus { display: flex; align-items: center; min-width: 0; margin-top: 10rem; padding: 6rem 0; border-left: 0; background-color: transparent; }
-.targetStatusReady { border-left-color: $rfAccent; }
+.segmentButtonActive { color: var(--menuText1Normal); background-color: $rfAccentSoft; border-bottom-color: $rfAccent; font-weight: 600; box-shadow: none; }
+.targetStatus { display: flex; align-items: center; min-width: 0; margin-top: 8rem; padding: 8rem; border-radius: 4rem; border-left: 0; background-color: rgba(0, 0, 0, .12); }
+.targetStatusReady strong { color: $rfText; }
 .targetStatus > div { flex: 1 1 auto; min-width: 0; }
 .targetStatus strong, .targetStatus span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .targetStatus strong { color: $rfMuted; font-size: 12rem; font-weight: 600; }
 .targetStatus span { margin-top: 4rem; color: $rfMuted; font-size: 11rem; }
 
-.listHeading { flex: 0 0 auto; display: flex; align-items: center; padding: 10rem 14rem 6rem; }
+.listHeading { flex: 0 0 auto; display: flex; align-items: center; padding: 12rem 14rem 8rem; }
 .listHeading > div { flex: 1 1 auto; min-width: 0; }
 .listHeading strong, .listHeading span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .listHeading strong { font-size: 14rem; font-weight: 600; }
 .listHeading span { margin-top: 3rem; color: $rfMuted; font-size: 10rem; }
-.listHeading small { flex: 0 0 auto; margin-left: 8rem; color: var(--menuText1Normal); font-size: 13rem; }
+.listHeading small { flex: 0 0 auto; margin-left: 8rem; padding: 4rem 8rem; color: $rfText; background-color: $rfSurfaceInset; border-radius: 4rem; font-size: 11rem; white-space: nowrap; }
 
 .searchBox { flex: 0 0 34rem; display: flex; align-items: center; margin: 0 14rem 10rem; border: 1rem solid $rfBorder; border-radius: 4rem; background-color: $rfSurfaceInset; }
 .searchBox:focus-within { border-color: var(--menuText1Normal); }
@@ -95,11 +95,12 @@ $rfDanger: #e07b73;
 
 
 .assetList { flex: 0 1 auto; min-height: 0; max-height: 32vh; background-color: transparent; border: 0; border-radius: 4rem; margin: 0 14rem 10rem; padding-right: 6rem; overflow-x: hidden; }
-.assetRow { display: flex; align-items: center; width: 100%; min-height: 34rem; border-left: 2rem solid transparent; border-bottom: 1rem solid $rfBorder; background-color: transparent; }
-.assetGroupHeader { display: flex; align-items: center; height: 24rem; padding: 0 8rem; color: $rfMuted; font-size: 9rem; font-weight: 700; letter-spacing: .5rem; text-transform: none; }
+.assetRow { display: flex; align-items: center; width: 100%; min-height: 36rem; border-left: 2rem solid transparent; border-bottom: 1rem solid $rfBorder; background-color: transparent; }
+.assetGroupHeader { display: flex; align-items: center; height: 26rem; padding: 0 8rem; color: $rfMuted; background-color: rgba(0, 0, 0, .12); font-size: 10rem; font-weight: 700; letter-spacing: .5rem; text-transform: none; }
 .assetGroupHeader span { margin-left: auto; font-weight: 500; }
 .assetRow:hover { background-color: $rfSurfaceHover; }
 .assetRowSelected { border-left-color: $rfAccent; background-color: $rfAccentSoft; }
+.assetRowSelected .assetIdentity > span { color: $rfText; }
 .assetRowPartial { border-left-color: rgba(224, 170, 81, .85); }
 .assetRowChild { width: auto; margin-left: 20rem; }
 .assetRowDisabled { color: rgba(233, 240, 243, .38); }
@@ -125,10 +126,10 @@ $rfDanger: #e07b73;
 .actionBar { flex: 0 0 auto; padding: 10rem 14rem; border-top: 1rem solid $rfBorder; background-color: $rfSurfaceRaised; }
 .bulkActions, .commitActions { display: flex; align-items: center; }
 .commitActions { margin-top: 7rem; }
-.secondaryAction { flex: 1 1 33%; display: flex; align-items: center; justify-content: center; min-width: 0; height: 32rem; padding: 0 8rem; color: $rfMuted; background-color: $rfSurfaceHover; border-radius: 9rem; font-size: 12rem; }
+.secondaryAction { flex: 1 1 33%; display: flex; align-items: center; justify-content: center; min-width: 0; height: 32rem; padding: 0 8rem; color: $rfMuted; background-color: transparent; border: 1rem solid $rfBorder; border-radius: 4rem; font-size: 12rem; }
 .secondaryAction + .secondaryAction { margin-left: 5rem; }
-.clearAction, .applyAction { display: flex; align-items: center; justify-content: center; min-width: 0; height: 34rem; padding: 0 12rem; font-size: 12rem; }
-.clearAction { flex: 0 0 106rem; color: $rfDanger; background-color: rgba(224, 123, 115, .08); border: 1rem solid rgba(224, 123, 115, .25); }
+.clearAction, .applyAction { display: flex; align-items: center; justify-content: center; min-width: 0; height: 36rem; padding: 0 12rem; font-size: 12rem; }
+.clearAction { flex: 0 0 92rem; border-radius: 4rem; color: $rfDanger; background-color: rgba(224, 123, 115, .08); border: 1rem solid rgba(224, 123, 115, .25); }
 .applyAction { flex: 1 1 auto; margin-left: 7rem; color: white; background-color: $rfAccentSoft; border: 1rem solid $rfBorder; border-radius: 4rem; font-weight: 600; }
 .applyAction:hover { background-color: $rfSurfaceHover; }
 .actionDisabled { opacity: .36; }
@@ -138,7 +139,7 @@ $rfDanger: #e07b73;
 .panel button:active { opacity: .8; }
 
 // One compact utility row; no second card or glass layer.
-.utilityFooter { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 6rem 14rem; border-top: 1rem solid $rfBorder; background-color: $rfSurfaceRaised; }
+.utilityFooter { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 6rem 14rem; border-top: 0; background-color: $rfSurfaceRaised; }
 .buildLabel { color: $rfMuted; font-size: 9rem; }
 .utilityAction { display: flex; align-items: center; justify-content: center; height: 28rem; padding: 0 10rem; color: $rfMuted; background: transparent; border-radius: 4rem; font-size: 10rem; }
 .resetStatus { flex: 0 0 auto; padding: 6rem 14rem; color: $rfMuted; font-size: 11rem; }
@@ -149,5 +150,5 @@ $rfDanger: #e07b73;
 :global(body.legacy-interface) {
   .panel { background-image: none; background-color: var(--panelColorNormal); }
   .panelHeader, .actionBar, .utilityFooter { background-color: var(--panelColorDark); }
-  .segmentButtonActive { background-color: var(--panelColorNormal); }
+  .segmentButtonActive { background-color: $rfAccentSoft; }
 }
