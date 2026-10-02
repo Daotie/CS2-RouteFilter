@@ -518,8 +518,8 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         if (EntityManager.HasComponent<NetEdge>(target))
         {
             var edge = EntityManager.GetComponentData<NetEdge>(target);
-            if (edge.m_Start != Entity.Null) CollectTrackTraversals(target, m_AdjacentTraversals);
-            if (edge.m_End != Entity.Null) CollectTrackTraversals(target, m_AdjacentTraversals);
+            if (edge.m_Start != Entity.Null) CollectTrackTraversals(edge.m_Start, m_AdjacentTraversals);
+            if (edge.m_End != Entity.Null) CollectTrackTraversals(edge.m_End, m_AdjacentTraversals);
         }
         else if (EntityManager.TryGetBuffer(target, true, out DynamicBuffer<ConnectedEdge> connected))
         {
