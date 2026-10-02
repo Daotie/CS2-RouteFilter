@@ -166,14 +166,11 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
                 var pathState = hasPathOwner ? pathOwner.m_State : 0;
                 var category = Classify(candidate.m_Vehicle);
 
-                // The decision point is the end of the current entry-lane traversal, which is the
-                // first moment at which the vehicle is committed to the restricted target. The
-                // latency term is a deliberate conservative assumption rather than a measurement:
-                // over-estimating it makes RouteFilter refuse more often, which is the safe
-                // direction, and it never makes a reroute happen later than it can be honoured.
+                // These measurements are observational. No latency bound or graph-publication
+                // calibration has been verified; do not promote assumptions to Safe admission.
                 var calibration = new RerouteSafetyCalibration
                 {
-                    m_Confidence = SafetyConfidence.Calibrated,
+                    m_Confidence = SafetyConfidence.Instrumenting,
                     m_HasLastSafeDecisionPoint = hasCurrent && hasCurve,
                     m_DistanceToLastSafeDecisionPoint = gateDistance,
                     m_ExpectedLatencySeconds = ExpectedLatencySeconds,
@@ -264,6 +261,7 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
                 return;
             }
 
+            if (Observations.Count() >= 8192) return;
             ObservationOrder.Add(key);
             Observations.Add(key, new SafetyObservation
             {
@@ -517,9 +515,9 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
         m_CandidateSystem = World.GetOrCreateSystemManaged<RestrictionCandidateSystem>();
         m_Index = World.GetOrCreateSystemManaged<RestrictionIndexSystem>();
         m_SimulationSystem = World.GetOrCreateSystemManaged<SimulationSystem>();
-        m_Evaluations = new NativeList<RerouteSafetyEvaluation>(64, Allocator.Persistent);
-        m_Observations = new NativeParallelHashMap<CanonicalApproachKey, SafetyObservation>(128, Allocator.Persistent);
-        m_ObservationOrder = new NativeList<CanonicalApproachKey>(128, Allocator.Persistent);
+        m_Evaluations = new NativeList<RerouteSafetyEvaluation>(4096, Allocator.Persistent);
+        m_Observations = new NativeParallelHashMap<CanonicalApproachKey, SafetyObservation>(8192, Allocator.Persistent);
+        m_ObservationOrder = new NativeList<CanonicalApproachKey>(8192, Allocator.Persistent);
         m_Histograms = new NativeArray<uint>((int)LatencyMetric.Count * kHistogramBins, Allocator.Persistent);
         m_HistogramMaxima = new NativeArray<uint>((int)LatencyMetric.Count, Allocator.Persistent);
         m_Counters = new NativeArray<SafetyDiagnosticCounters>(1, Allocator.Persistent);
@@ -542,7 +540,7 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
     protected override void OnUpdate()
     {
         if (!CompletePreviousEvaluationWithoutStall()) return;
-        if (!m_CandidateSystem.HasWatchedGates) return;
+        if (!m_CandidateSystem.HasWatchedGates) { m_Evaluations.Clear(); return; }
         if (m_CandidateSystem.ScanSequence == m_LastConsumedScanSequence) return;
 
         m_Evaluations.Clear();

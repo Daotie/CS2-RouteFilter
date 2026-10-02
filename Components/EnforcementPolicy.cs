@@ -87,6 +87,8 @@ public struct EnforcementAttempt
     /// <summary>Lane whose blockage interval RouteFilter owns, or Entity.Null when unbacked.</summary>
     public Entity OwnedLane;
     public int RestrictionRevision;
+    public Game.Pathfind.PathFlags OriginalPathState, WrittenPathState;
+    public int OriginalElementIndex;
     public uint RequestedFrame;
     /// <summary>Hard deadline. No attempt may be extended; the record simply ends.</summary>
     public uint AbsoluteDeadlineFrame;
@@ -121,6 +123,9 @@ public struct CanonicalApproachKey : IEquatable<CanonicalApproachKey>
 /// </summary>
 public static class EnforcementPolicy
 {
+    public static bool OwnsRequest(in EnforcementAttempt attempt, Game.Pathfind.PathFlags state, int elementIndex)
+        => state == attempt.WrittenPathState && elementIndex == attempt.OriginalElementIndex;
+
     /// <summary>
     /// Vanilla turns <c>PathFlags.Obsolete</c> into an actual path request only through
     /// <c>Game.Vehicles.VehicleUtils.RequireNewPath</c>, which refuses while the owner is
@@ -168,14 +173,6 @@ public static class EnforcementPolicy
     public static bool HasRoomToAct(float distanceToGateAnchor, float requiredDistance)
         => IsFinite(distanceToGateAnchor) && IsFinite(requiredDistance) &&
            distanceToGateAnchor > requiredDistance;
-
-    /// <summary>
-    /// Fixed public-transport lines, freight lines and citizen dispatch trips all carry a
-    /// <c>Game.Pathfind.PathInformation</c> component whose origin/destination are owned by
-    /// vanilla. Their route is redrawn by their own AI every tick, so a RouteFilter reroute would
-    /// be immediately overwritten. Those vehicles are grandfathere instead.
-    /// </summary>
-    public static bool IsFixedRouteManaged(bool hasPathInformation) => hasPathInformation;
 
     /// <summary>
     /// A token is a monotonic, never-reused counter. It exists so a released lease can never be

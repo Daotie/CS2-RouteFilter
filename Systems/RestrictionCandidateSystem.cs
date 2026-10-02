@@ -71,6 +71,9 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         public uint LastSeenFrame;
     }
 
+    private const int MaxFrameCandidates = 4096;
+    private const int MaxTrackedApproaches = 8192;
+
     [BurstCompile]
     private struct CollectCandidatesJob : IJob
     {
@@ -205,6 +208,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                         continue;
                     }
 
+                    if (CanonicalSeen.Count() >= MaxFrameCandidates && !CanonicalSeen.Contains(canonical)) continue;
                     if (CanonicalSeen.Add(canonical))
                         counters.m_CanonicalVehicles++;
 
@@ -291,6 +295,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 counters.m_DuplicatesRemoved++;
                 return;
             }
+            if (Matches.Length >= MaxFrameCandidates ||
+                (Observations.Count() >= MaxTrackedApproaches && !Observations.ContainsKey(identity))) return;
             Matched.Add(identity);
 
             var firstSeen = GetFirstSeenFrame(identity);
@@ -500,6 +506,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 ? currentLane.m_CurvePosition.z >= currentLane.m_CurvePosition.x
                 : currentLane.m_CurvePosition.z <= currentLane.m_CurvePosition.x;
 
+            if (DebugRejections.Length >= 256) return;
             DebugRejections.Add(new RejectedCandidate
             {
                 m_PhysicalVehicle = physical,
@@ -567,6 +574,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         {
             RejectionReasons[(int)reason]++;
             if (DebugTarget == Entity.Null || target != DebugTarget) return;
+            if (DebugRejections.Length >= 256) return;
             DebugRejections.Add(new RejectedCandidate
             {
                 m_PhysicalVehicle = physical,
@@ -623,12 +631,12 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         m_WatchedEntryLanes = new NativeList<Entity>(64, Allocator.Persistent);
         m_GatesByEntryLane = new NativeParallelMultiHashMap<Entity, DirectedEntryGateRuntime>(128, Allocator.Persistent);
         m_TargetPrefabs = new NativeParallelMultiHashMap<Entity, Entity>(128, Allocator.Persistent);
-        m_Matches = new NativeList<CandidateMatch>(64, Allocator.Persistent);
-        m_DebugRejections = new NativeList<RejectedCandidate>(32, Allocator.Persistent);
-        m_CanonicalSeen = new NativeParallelHashSet<Entity>(64, Allocator.Persistent);
-        m_Matched = new NativeParallelHashSet<CandidateIdentity>(64, Allocator.Persistent);
-        m_Observations = new NativeParallelHashMap<CandidateIdentity, CandidateObservation>(128, Allocator.Persistent);
-        m_ObservationOrder = new NativeList<CandidateIdentity>(128, Allocator.Persistent);
+        m_Matches = new NativeList<CandidateMatch>(MaxFrameCandidates, Allocator.Persistent);
+        m_DebugRejections = new NativeList<RejectedCandidate>(256, Allocator.Persistent);
+        m_CanonicalSeen = new NativeParallelHashSet<Entity>(MaxFrameCandidates, Allocator.Persistent);
+        m_Matched = new NativeParallelHashSet<CandidateIdentity>(MaxFrameCandidates, Allocator.Persistent);
+        m_Observations = new NativeParallelHashMap<CandidateIdentity, CandidateObservation>(MaxTrackedApproaches, Allocator.Persistent);
+        m_ObservationOrder = new NativeList<CandidateIdentity>(MaxTrackedApproaches, Allocator.Persistent);
         m_Counters = new NativeArray<CandidateDiagnosticCounters>(1, Allocator.Persistent);
         m_RejectionReasons = new NativeArray<int>((int)RejectedCandidateReason.Count, Allocator.Persistent);
     }

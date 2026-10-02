@@ -109,12 +109,11 @@ public sealed partial class RouteFilterDiagnosticsSystem : GameSystemBase
         var frame = m_Simulation.frameIndex;
         var requested = Mod.ConsumeDiagnosticsRequest();
         var elapsed = unchecked((int)(frame - m_WindowStartFrame));
+        if (!requested && (m_Index.ActiveTargetCount == 0 || Mod.Settings?.VerboseDiagnostics != true)) return;
         if (!requested && (uint)elapsed < kReportIntervalFrames) return;
 
         LastWindow = Sample(frame, elapsed <= 0 ? 1u : (uint)elapsed);
         m_WindowStartFrame = (int)frame;
-        System.Array.Clear(m_RoadPrevious, 0, m_RoadPrevious.Length);
-        System.Array.Clear(m_RailPrevious, 0, m_RailPrevious.Length);
 
         // Logging is opt-in and rate-limited. A release build with verbose diagnostics off produces
         // no strings at all, so the sampling cost is two integer array reads per interval.
@@ -167,9 +166,9 @@ public sealed partial class RouteFilterDiagnosticsSystem : GameSystemBase
     private static int Delta(NativeArray<uint> current, uint[] previous, int slot)
     {
         var value = current[slot];
-        var delta = value - previous[slot];
+        var delta = value >= previous[slot] ? value - previous[slot] : value;
         previous[slot] = value;
-        return delta < 0 ? 0 : (int)delta;
+        return delta > int.MaxValue ? int.MaxValue : (int)delta;
     }
 
     private static string Format(in DiagnosticsWindow value)

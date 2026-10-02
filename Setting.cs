@@ -40,11 +40,11 @@ public sealed class Setting : ModSetting
     /// Conservative budget, in seconds, for vanilla to enqueue, run and apply one pathfind plus the
     /// vehicle's own reaction. Larger values refuse more often; the safe direction is to refuse.
     /// </summary>
-    [SettingsUISlider(min = 0.2f, max = 3f, step = 0.1f, unit = "float")]
+    [SettingsUIHidden]
     public float RerouteLatencySeconds { get; set; }
 
     /// <summary>Extra distance margin in metres added to the modelled braking distance.</summary>
-    [SettingsUISlider(min = 0f, max = 40f, step = 0.5f, unit = "float")]
+    [SettingsUIHidden]
     public float RerouteUncertaintyMetres { get; set; }
 
     /// <summary>Logs one aggregated RouteFilter statistics line per interval.</summary>
@@ -103,10 +103,10 @@ internal abstract class LocaleBase : IDictionarySource
             [Setting.GetOptionGroupLocaleID(Setting.kGeneralGroup)] = Chinese ? "常规" : "General",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "限制标记" : "Restriction badges",
             [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "在受限目标上方显示视觉标记。" : "Shows visual badges above restricted targets.",
-            [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "道路通行筛选" : "Road enforcement",
-            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "让受禁行车辆在进入受限目标之前重新规划路线。没有安全替代路线时车辆照常通行。" : "Reroute forbidden vehicles before they enter a restricted target. When there is no safe alternative the vehicle is let through.",
-            [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRailEnforcement))] = Chinese ? "轨道通行筛选" : "Rail enforcement",
-            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRailEnforcement))] = Chinese ? "对列车、地铁和有轨电车执行同样的重新规划。固定线路不会被改动。" : "Applies the same reroute rule to trains, subways and trams. Fixed lines are never redrawn.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "道路禁行实验管线" : "Experimental road enforcement",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "当前尚未通过图发布与安全延迟校准，不会基于未经验证的判断修改车辆。" : "Graph publication and safety latency are not validated. Unverified verdicts never mutate vehicles.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRailEnforcement))] = Chinese ? "轨道候选诊断" : "Rail candidate diagnostics",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRailEnforcement))] = Chinese ? "只识别受限列车编组。尚无经过验证的轨道排除机制，不修改车道或车辆寻路。" : "Observe restricted consists only. No validated track exclusion mechanism exists; lanes and vehicle paths are left unchanged.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EmergencyProtection))] = Chinese ? "紧急车辆豁免" : "Emergency vehicle exemption",
             [Setting.GetOptionDescLocaleID(nameof(Setting.EmergencyProtection))] = Chinese ? "警车、消防车、救护车和灵车永不被重新规划。" : "Police, fire, ambulance and hearse vehicles are never rerouted.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.RerouteLatencySeconds))] = Chinese ? "绕行延迟预算（秒）" : "Reroute latency budget (seconds)",

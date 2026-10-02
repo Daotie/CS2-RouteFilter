@@ -29,8 +29,8 @@ namespace RouteFilter.Systems;
 /// cleared, never reallocated.
 /// JOB DEPENDENCIES: one job per frame, chained after the safety job through the evaluation
 /// dependency. No per-frame Complete.
-/// MAIN THREAD SYNC: one Complete per frame only when work is actually pending, and only to read
-/// diagnostics counters. Nothing is synchronised for logging or for the UI.
+/// MAIN THREAD SYNC: already-completed jobs are retired without waiting. Save, Reset,
+/// unload and Dispose explicitly complete owned work before releasing mutations.
 /// STRUCTURAL CHANGES: one <c>Updated</c> add per lane the graph publication actually needs, and
 /// only at acquire/release boundaries.
 /// </summary>
@@ -59,7 +59,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
     /// </summary>
     private const uint kMaxGraphMutationsPerSecond = 8;
 
-    private const uint kSecondInFrames = 60;
+    private const uint kSecondInFrames = 60; // Budget window in simulation frames; not wall-clock seconds.
 
     // Counter slots. Fixed layout so diagnostics never allocate.
     private const int cLeasesAcquired = 0;
@@ -94,8 +94,8 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         [ReadOnly] public ComponentLookup<CarCurrentLane> CurrentLanes;
         [ReadOnly] public BufferLookup<CarNavigationLane> Navigation;
         [ReadOnly] public BufferLookup<LaneObject> LaneObjects;
+        [ReadOnly] public ComponentLookup<Updated> UpdatedLanes;
         /// <summary>Present on vehicles whose route is owned by a line or a dispatch trip.</summary>
-        [ReadOnly] public ComponentLookup<PathInformation> PathInformation;
 
         public ComponentLookup<PathOwner> PathOwners;
         public ComponentLookup<CarLane> Lanes;
@@ -136,14 +136,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
             }
         }
 
-        /// <summary>
-        /// Re-asserts and retires leases. The re-assert step exists because
-        /// <c>Game.Pathfind.LaneDataSystem</c> recomputes <c>m_BlockageStart</c>/<c>m_BlockageEnd</c>
-        /// from non-moving LaneObjects whenever a lane carries <c>Updated</c>, which is also what
-        /// publishes the change into the pathfind graph. RouteFilter therefore re-writes its value
-        /// only while vanilla's own value is empty, which is unambiguously "vanilla erased ours",
-        /// and never overwrites a blockage that another owner actually published.
-        /// </summary>
+        // Compare before restore. Any external change ends ownership, including an empty value.
         private void ReleaseExpired()
         {
             for (var i = Leases.Length - 1; i >= 0; i--)
@@ -186,21 +179,9 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
 
                 if (!owns)
                 {
-                    if (!RoadLeaseRules.IsEmpty(lane.m_BlockageStart, lane.m_BlockageEnd))
-                    {
-                        // Somebody published a real blockage on our lane. Give it up rather than
-                        // fight over it; the attempt below will simply grandfather.
-                        lease.State = RoadLeaseState.RestoreConflict;
-                        Leases[i] = lease;
-                        Leases.RemoveAtSwapBack(i);
-                        Counters[cLeaseRestoreConflict]++;
-                        continue;
-                    }
-                    lane.m_BlockageStart = lease.WrittenBlockageStart;
-                    lane.m_BlockageEnd = lease.WrittenBlockageEnd;
-                    Lanes[lease.Lane] = lane;
-                    Commands.AddComponent<Updated>(lease.Lane);
-                    Counters[cLeasesReasserted]++;
+                    // Empty is also an external modification. Never re-assert a lost write.
+                    Leases.RemoveAtSwapBack(i);
+                    Counters[cLeaseRestoreConflict]++;
                 }
             }
         }
@@ -210,46 +191,47 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
             for (var i = Attempts.Length - 1; i >= 0; i--)
             {
                 var attempt = Attempts[i];
-                if (!Valid(attempt.Vehicle))
+                var expired = RoadLeaseRules.HasExpired(Frame, attempt.AbsoluteDeadlineFrame);
+                if (!Valid(attempt.Vehicle) || !Valid(attempt.Target) ||
+                    attempt.RestrictionRevision != Revision || ForceRelease || expired ||
+                    !CurrentLanes.TryGetComponent(attempt.Vehicle, out var current) ||
+                    current.m_Lane != attempt.GateEntryLane)
                 {
+                    if (attempt.State == EnforcementAttemptState.Requested) Counters[cAttemptsUnresolved]++;
+                    if (PathOwners.TryGetComponent(attempt.Vehicle, out var ownedPath) &&
+                        EnforcementPolicy.OwnsRequest(attempt, ownedPath.m_State, ownedPath.m_ElementIndex))
+                    {
+                        ownedPath.m_State = attempt.OriginalPathState;
+                        PathOwners[attempt.Vehicle] = ownedPath;
+                    }
                     Attempts.RemoveAtSwapBack(i);
                     continue;
                 }
                 if (attempt.State != EnforcementAttemptState.Requested) continue;
-
-                if (!PathOwners.TryGetComponent(attempt.Vehicle, out var owner))
+                if (!PathOwners.TryGetComponent(attempt.Vehicle, out var owner) ||
+                    (owner.m_State & (PathFlags.Failed | PathFlags.Stuck)) != 0)
                 {
                     attempt.State = EnforcementAttemptState.Unresolved;
-                    attempt.LastRefusal = EnforcementRefusalReason.VehicleInvalid;
-                    Attempts.RemoveAtSwapBack(i);
                     Counters[cAttemptsUnresolved]++;
-                    continue;
                 }
-
-                if ((owner.m_State & (PathFlags.Failed | PathFlags.Stuck)) != 0)
-                {
-                    attempt.State = EnforcementAttemptState.Unresolved;
-                    attempt.LastRefusal = EnforcementRefusalReason.PathBusy;
-                    Counters[cAttemptsUnresolved]++;
-                    continue;
-                }
-                if ((owner.m_State & (PathFlags.Obsolete | PathFlags.DivertObsolete)) == 0 &&
-                    (owner.m_State & PathFlags.Pending) == 0)
+                else if ((owner.m_State & (PathFlags.Obsolete | PathFlags.DivertObsolete | PathFlags.Pending | PathFlags.Scheduled)) == 0)
                 {
                     attempt.State = EnforcementAttemptState.Resolved;
                     Counters[cAttemptsResolved]++;
-                    continue;
                 }
-                if (!RoadLeaseRules.HasExpired(Frame, attempt.AbsoluteDeadlineFrame)) continue;
-
-                attempt.State = EnforcementAttemptState.Unresolved;
-                attempt.LastRefusal = EnforcementRefusalReason.PathBusy;
-                Counters[cAttemptsUnresolved]++;
+                // Terminal records suppress another request for this approach, within a hard cap.
+                Attempts[i] = attempt;
             }
         }
 
         private bool TryRequest(in RerouteSafetyEvaluation evaluation)
         {
+            if (evaluation.m_Confidence != SafetyConfidence.Calibrated ||
+                Frame - evaluation.m_EvaluationFrame > 1 ||
+                !CurrentLanes.TryGetComponent(evaluation.m_Vehicle, out var currentLane) ||
+                currentLane.m_Lane != evaluation.m_EntryLane ||
+                !Navigation.TryGetBuffer(evaluation.m_Vehicle, out var navigation) || navigation.Length == 0 ||
+                navigation[0].m_Lane != evaluation.m_NextLane) return false;
             if (evaluation.m_RestrictionRevision != Revision)
             {
                 Counters[cRefusedStaleRevision]++;
@@ -265,7 +247,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
                 Counters[cRefusedExempt]++;
                 return false;
             }
-            if (PathInformation.HasComponent(evaluation.m_Vehicle))
+            if (evaluation.m_Category == RoadVehicleCategory.PublicTransport)
             {
                 // Fixed line, freight line or dispatch trip. Its route is redrawn by its own AI
                 // every tick, so a reroute request would be undone immediately and a failure would
@@ -296,6 +278,8 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
                 return false;
             }
 
+            // Never retry an old approach after a terminal record ages out.
+            if (Frame - evaluation.m_FirstSeenFrame > 2 && FindLane(evaluation.m_NextLane) < 0) return false;
             var leaseIndex = FindLane(evaluation.m_NextLane);
             if (leaseIndex < 0)
             {
@@ -325,6 +309,14 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
                 return false;
             }
 
+            var publicationLease = Leases[leaseIndex];
+            if (publicationLease.Target != evaluation.m_Target || publicationLease.GateEntryLane != evaluation.m_EntryLane) return false;
+            // A frame boundary alone is not acknowledgement: the native Updated marker must
+            // be consumed and the owned interval must still exist. Otherwise grandfather.
+            if (publicationLease.CreatedFrame == Frame || UpdatedLanes.HasComponent(publicationLease.Lane) ||
+                !RoadLeaseRules.OwnsCurrent(publicationLease, Lanes[publicationLease.Lane].m_BlockageStart,
+                    Lanes[publicationLease.Lane].m_BlockageEnd)) return false;
+            var originalState = owner.m_State;
             owner.m_State |= PathFlags.Obsolete;
             PathOwners[evaluation.m_Vehicle] = owner;
 
@@ -335,6 +327,9 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
                 GateEntryLane = evaluation.m_EntryLane,
                 OwnedLane = Leases[leaseIndex].Lane,
                 RestrictionRevision = Revision,
+                OriginalPathState = originalState,
+                WrittenPathState = owner.m_State,
+                OriginalElementIndex = owner.m_ElementIndex,
                 RequestedFrame = Frame,
                 AbsoluteDeadlineFrame = Frame + AttemptDeadline,
                 Backend = EnforcementBackend.Road,
@@ -350,6 +345,11 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         private bool TryAcquireLease(in RerouteSafetyEvaluation evaluation, out int leaseIndex)
         {
             leaseIndex = -1;
+            if (LaneObjects.TryGetBuffer(evaluation.m_NextLane, out var occupants) && occupants.Length != 0)
+            {
+                Counters[cRefusedLaneOccupied]++;
+                return false;
+            }
             var lane = Lanes[evaluation.m_NextLane];
             if (!RoadLeaseRules.CanAcquire(lane.m_BlockageStart, lane.m_BlockageEnd))
             {
@@ -370,7 +370,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
                 WrittenBlockageEnd = 1,
                 CreatedFrame = Frame,
                 AbsoluteExpiryFrame = Frame + LeaseLifetime,
-                OwnerToken = (uint)(index + 1),
+                OwnerToken = ++BudgetWindow[2],
                 State = RoadLeaseState.Active
             });
 
@@ -420,21 +420,20 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
     private EndFrameBarrier m_Barrier;
     private UpdateSystem m_Update;
     private JobHandle m_Work;
-    private uint m_Token;
 
     public bool EnforcementEnabled { get; set; } = true;
 
     /// <summary>Active owned state. Used by Reset, save-time release and diagnostics.</summary>
-    public int ActiveLeases => m_Leases.IsCreated ? m_Leases.Length : 0;
-    public int ActiveAttempts => m_Attempts.IsCreated ? m_Attempts.Length : 0;
+    public int ActiveLeases { get; private set; }
+    public int ActiveAttempts { get; private set; }
 
     protected override void OnCreate()
     {
         base.OnCreate();
-        m_Leases = new NativeList<RoadLaneLease>(8, Allocator.Persistent);
-        m_Attempts = new NativeList<EnforcementAttempt>(8, Allocator.Persistent);
+        m_Leases = new NativeList<RoadLaneLease>(kMaxLeases, Allocator.Persistent);
+        m_Attempts = new NativeList<EnforcementAttempt>(kMaxAttempts, Allocator.Persistent);
         m_Counters = new NativeArray<uint>(cCounterCount, Allocator.Persistent);
-        m_BudgetWindow = new NativeArray<uint>(2, Allocator.Persistent);
+        m_BudgetWindow = new NativeArray<uint>(3, Allocator.Persistent);
         m_Safety = World.GetOrCreateSystemManaged<RestrictionSafetySystem>();
         m_Index = World.GetOrCreateSystemManaged<RestrictionIndexSystem>();
         m_Simulation = World.GetOrCreateSystemManaged<SimulationSystem>();
@@ -469,7 +468,13 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
             return;
         }
 
-        if (!EnforcementEnabled || Mod.Settings?.EnableRoadEnforcement == false)
+        if (!m_Work.IsCompleted) return;
+        m_Work.Complete();
+        ActiveLeases = m_Leases.Length;
+        ActiveAttempts = m_Attempts.Length;
+
+        if (!EnforcementEnabled || Mod.Settings?.EnableRoadEnforcement == false ||
+            !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable)
         {
             if (ActiveLeases == 0 && ActiveAttempts == 0) return;
             ReleaseAll();
@@ -480,7 +485,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         m_Work.Complete();
 
         if (m_Leases.Length == 0 && m_Attempts.Length == 0 &&
-            m_Safety.EvaluationCount == 0) return;
+            (m_Index.ActiveTargetCount == 0 || m_Safety.EvaluationCount == 0)) return;
 
         var evaluations = m_Safety.GetEvaluations(out var safetyDependency);
         var job = new CoordinateJob
@@ -492,7 +497,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
             CurrentLanes = GetComponentLookup<CarCurrentLane>(true),
             Navigation = GetBufferLookup<CarNavigationLane>(true),
             LaneObjects = GetBufferLookup<LaneObject>(true),
-            PathInformation = GetComponentLookup<PathInformation>(true),
+            UpdatedLanes = GetComponentLookup<Updated>(true),
             PathOwners = GetComponentLookup<PathOwner>(),
             Lanes = GetComponentLookup<CarLane>(),
             Leases = m_Leases,
@@ -544,10 +549,20 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
             if (!EntityManager.HasComponent<Updated>(lease.Lane)) EntityManager.AddComponent<Updated>(lease.Lane);
             m_Counters[cLeasesReleased]++;
         }
+        for (var i = 0; i < m_Attempts.Length; i++)
+        {
+            var attempt = m_Attempts[i];
+            if (!EntityManager.Exists(attempt.Vehicle) || !EntityManager.HasComponent<PathOwner>(attempt.Vehicle)) continue;
+            var owner = EntityManager.GetComponentData<PathOwner>(attempt.Vehicle);
+            if (!EnforcementPolicy.OwnsRequest(attempt, owner.m_State, owner.m_ElementIndex)) continue;
+            owner.m_State = attempt.OriginalPathState;
+            EntityManager.SetComponentData(attempt.Vehicle, owner);
+        }
         m_Leases.Clear();
         m_Attempts.Clear();
+        ActiveLeases = 0;
+        ActiveAttempts = 0;
         m_BudgetWindow[0] = 0;
-        m_Token++;
     }
 
     public void ResetRuntimeState()

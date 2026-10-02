@@ -19,7 +19,7 @@ public sealed class Mod : IMod
     public const string Version = "2.0.0-dev";
     // Bump this for every deployable build so the in-game panel and log identify
     // exactly which compiled payload is loaded by the active playset.
-    public const string BuildId = "RF2-20261002-ROADRAIL-SCHEMA3-01";
+    public const string BuildId = "RF2-20261002-RECONSTRUCTION-SAFETY-06";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";
@@ -108,6 +108,7 @@ public sealed class Mod : IMod
         // and writes its flags. Both owned-mutation releases must therefore complete before the
         // game's SerializerSystem runs, not merely before RouteFilter's own callback.
         updateSystem.UpdateBefore<RoadEnforcementCoordinator, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
+        updateSystem.UpdateBefore<RailEnforcementBackend, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
         updateSystem.UpdateAfter<RouteFilterDiagnosticsSystem, RoadEnforcementCoordinator>(SystemUpdatePhase.GameSimulation);
         updateSystem.UpdateAt<RouteFilterUISystem>(SystemUpdatePhase.UIUpdate);
     }

@@ -78,8 +78,8 @@ internal struct RailCandidate
 /// <c>RuleFlags.HasBlockage</c>, so there is no road-equivalent way to make the vanilla rail
 /// pathfinder avoid a lane. The only mutable TrackLane fields are flags, speed limit and access
 /// restriction, all of which are either recomputed by <c>Game.Pathfind.LaneDataSystem</c> or are
-/// serialised. RouteFilter therefore mutates no TrackLane state at all, which also means rail
-/// enforcement cannot contaminate a save. See RAIL_ENFORCEMENT_DESIGN.md.
+/// serialised. RouteFilter therefore mutates no TrackLane state at all, the observation backend performs zero PathOwner or TrackLane writes.
+/// Rail avoidance remains unsupported until an independent safe primitive is proven. See RAIL_ENFORCEMENT_DESIGN.md.
 /// </summary>
 public sealed partial class RailEnforcementBackend : GameSystemBase
 {
@@ -162,7 +162,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
                     if (ParkedTrains.HasComponent(physical)) continue;
 
                     if (!TryCanonicalizeConsist(physical, out var head)) continue;
-                    if (!ConsistSeen.Add(head)) continue;
+                    if (ConsistSeen.Count() >= 4096 || !ConsistSeen.Add(head)) continue;
                     WorkCounters[1]++;
 
                     var gate = firstGate;
@@ -172,6 +172,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
                         if (!VehiclePrefabMatcher.TryMatch(head, head, gate.Target, PrefabRefs, Layouts,
                                 TargetPrefabs, out var matchedPrefab)) continue;
                         if (!TryValidateNavigation(head, gate, out var distanceToGate, out var curveLength)) continue;
+                        if (Candidates.Length >= 4096) continue;
                         Candidates.Add(Build(head, gate, matchedPrefab, distanceToGate, curveLength));
                     } while (GatesByEntryLane.TryGetNextValue(out gate, ref walk));
                 }
@@ -293,145 +294,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
 
     }
 
-    [BurstCompile]
-    private struct EnforceConsistsJob : IJob
-    {
-        [ReadOnly] public NativeList<RailCandidate> Candidates;
-        [ReadOnly] public EntityStorageInfoLookup EntityStorage;
-        [ReadOnly] public ComponentLookup<Deleted> DeletedData;
-        [ReadOnly] public ComponentLookup<Temp> TempData;
-        [ReadOnly] public ComponentLookup<PathInformation> PathInformation;
-        public ComponentLookup<PathOwner> PathOwners;
-        public NativeList<EnforcementAttempt> Attempts;
-        public NativeArray<uint> Counters;
-        public uint Frame;
-        public int Revision;
-        public uint AttemptDeadline;
-        public float LatencySeconds;
-        public float UncertaintyMargin;
-        public bool ForceRelease;
 
-        private bool Valid(Entity entity) => entity != Entity.Null && EntityStorage.Exists(entity) &&
-                                             !DeletedData.HasComponent(entity) && !TempData.HasComponent(entity);
-
-        public void Execute()
-        {
-            AgeAttempts();
-            if (ForceRelease) return;
-
-            for (var i = 0; i < Candidates.Length; i++)
-            {
-                var candidate = Candidates[i];
-                if (candidate.RestrictionRevision != Revision)
-                {
-                    Counters[rRefusedStaleRevision]++;
-                    continue;
-                }
-                if (!Valid(candidate.Consist) || !Valid(candidate.Target))
-                {
-                    Counters[rRefusedTopology]++;
-                    continue;
-                }
-                if (EnforcementPolicy.IsExempt(candidate.Category))
-                {
-                    Counters[rRefusedExempt]++;
-                    continue;
-                }
-                if (PathInformation.HasComponent(candidate.Consist))
-                {
-                    Counters[rRefusedFixedRoute]++;
-                    continue;
-                }
-                if (!PathOwners.TryGetComponent(candidate.Consist, out var owner) ||
-                    !EnforcementPolicy.CanRequestReroute(owner.m_State))
-                {
-                    Counters[rRefusedPathBusy]++;
-                    continue;
-                }
-                if (FindAttempt(candidate.Consist, candidate.Target) >= 0)
-                {
-                    Counters[rRefusedAlreadyActive]++;
-                    continue;
-                }
-                if (Attempts.Length >= kMaxAttempts)
-                {
-                    Counters[rRefusedStoreFull]++;
-                    Counters[rGrandfathered]++;
-                    continue;
-                }
-
-                var required = EnforcementPolicy.RequiredDistance(candidate.Speed, candidate.Braking,
-                    LatencySeconds, candidate.ConsistLength, UncertaintyMargin);
-                if (!EnforcementPolicy.HasRoomToAct(candidate.DistanceToGateAnchor, required))
-                {
-                    // Too late, too close, or unmeasurable. Grandfather: the train drives on.
-                    Counters[rRefusedNotSafe]++;
-                    Counters[rGrandfathered]++;
-                    continue;
-                }
-
-                owner.m_State |= PathFlags.Obsolete;
-                PathOwners[candidate.Consist] = owner;
-                Attempts.Add(new EnforcementAttempt
-                {
-                    Vehicle = candidate.Consist,
-                    Target = candidate.Target,
-                    GateEntryLane = candidate.EntryLane,
-                    OwnedLane = Entity.Null,
-                    RestrictionRevision = Revision,
-                    RequestedFrame = Frame,
-                    AbsoluteDeadlineFrame = Frame + AttemptDeadline,
-                    Backend = EnforcementBackend.Rail,
-                    State = EnforcementAttemptState.Requested,
-                    LastRefusal = EnforcementRefusalReason.None,
-                    Category = candidate.Category
-                });
-                Counters[rReroutesRequested]++;
-                Counters[rAttemptsOpened]++;
-            }
-        }
-
-        private void AgeAttempts()
-        {
-            for (var i = Attempts.Length - 1; i >= 0; i--)
-            {
-                var attempt = Attempts[i];
-                if (!Valid(attempt.Vehicle) || attempt.RestrictionRevision != Revision)
-                {
-                    Attempts.RemoveAtSwapBack(i);
-                    continue;
-                }
-                if (attempt.State != EnforcementAttemptState.Requested) continue;
-                if (!PathOwners.TryGetComponent(attempt.Vehicle, out var owner)) continue;
-
-                if ((owner.m_State & (PathFlags.Failed | PathFlags.Stuck)) != 0)
-                {
-                    // Vanilla could not find an alternative. RouteFilter stops tracking it and never
-                    // holds the train; whatever vanilla does next is the correct behaviour.
-                    Counters[rAttemptsUnresolved]++;
-                    Attempts.RemoveAtSwapBack(i);
-                    continue;
-                }
-                if ((owner.m_State & (PathFlags.Obsolete | PathFlags.DivertObsolete)) == 0 &&
-                    (owner.m_State & PathFlags.Pending) == 0)
-                {
-                    Counters[rAttemptsResolved]++;
-                    Attempts.RemoveAtSwapBack(i);
-                    continue;
-                }
-                if (!RoadLeaseRules.HasExpired(Frame, attempt.AbsoluteDeadlineFrame)) continue;
-                Counters[rAttemptsUnresolved]++;
-                Attempts.RemoveAtSwapBack(i);
-            }
-        }
-
-        private int FindAttempt(Entity vehicle, Entity target)
-        {
-            for (var i = 0; i < Attempts.Length; i++)
-                if (Attempts[i].Vehicle == vehicle && Attempts[i].Target == target) return i;
-            return -1;
-        }
-    }
 
     // --- managed topology ---------------------------------------------------------------
 
@@ -447,7 +310,6 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
     private NativeList<RailCandidate> m_Candidates;
     private NativeParallelHashSet<Entity> m_ConsistSeen;
     private NativeArray<int> m_WorkCounters;
-    private NativeList<EnforcementAttempt> m_Attempts;
     private NativeArray<uint> m_Counters;
     private JobHandle m_Work;
     private JobHandle m_DetectHandle;
@@ -459,7 +321,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
     private readonly List<Entity> m_AdjacentTraversals = new();
 
     public bool EnforcementEnabled { get; set; } = true;
-    public int ActiveAttempts => m_Attempts.IsCreated ? m_Attempts.Length : 0;
+    public int ActiveAttempts => 0;
     public int WatchedEntryLanes => m_WatchedEntryLanes.IsCreated ? m_WatchedEntryLanes.Length : 0;
     public int WatchedGates => m_GatesByEntryLane.IsCreated ? m_GatesByEntryLane.Count() : 0;
 
@@ -479,10 +341,9 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         m_WatchedEntryLanes = new NativeList<Entity>(16, Allocator.Persistent);
         m_GatesByEntryLane = new NativeParallelMultiHashMap<Entity, DirectedTrackGate>(16, Allocator.Persistent);
         m_TargetPrefabs = new NativeParallelMultiHashMap<Entity, Entity>(16, Allocator.Persistent);
-        m_Candidates = new NativeList<RailCandidate>(16, Allocator.Persistent);
-        m_ConsistSeen = new NativeParallelHashSet<Entity>(32, Allocator.Persistent);
+        m_Candidates = new NativeList<RailCandidate>(4096, Allocator.Persistent);
+        m_ConsistSeen = new NativeParallelHashSet<Entity>(4096, Allocator.Persistent);
         m_WorkCounters = new NativeArray<int>(3, Allocator.Persistent);
-        m_Attempts = new NativeList<EnforcementAttempt>(8, Allocator.Persistent);
         m_Counters = new NativeArray<uint>(rCounterCount, Allocator.Persistent);
     }
 
@@ -495,7 +356,6 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         m_Candidates.Dispose();
         m_ConsistSeen.Dispose();
         m_WorkCounters.Dispose();
-        m_Attempts.Dispose();
         m_Counters.Dispose();
         base.OnDestroy();
     }
@@ -514,7 +374,8 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
             return;
         }
 
-        if (!EnforcementEnabled || Mod.Settings?.EnableRailEnforcement == false)
+        if (!EnforcementEnabled || Mod.Settings?.EnableRailEnforcement == false ||
+            !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable)
         {
             if (ActiveAttempts != 0 || m_DetectPending) ReleaseAll();
             return;
@@ -530,7 +391,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         }
 
         if (m_DetectPending && !m_DetectHandle.IsCompleted) return;
-        if (m_DetectPending) m_DetectHandle.Complete();
+        if (m_DetectPending) { m_DetectHandle.Complete(); m_DetectPending = false; }
 
         m_Candidates.Clear();
         m_ConsistSeen.Clear();
@@ -565,27 +426,9 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         m_DetectHandle = detect.Schedule(Dependency);
         m_DetectPending = true;
 
-        var enforce = new EnforceConsistsJob
-        {
-            Candidates = m_Candidates,
-            EntityStorage = GetEntityStorageInfoLookup(),
-            DeletedData = GetComponentLookup<Deleted>(true),
-            TempData = GetComponentLookup<Temp>(true),
-            PathInformation = GetComponentLookup<PathInformation>(true),
-            PathOwners = GetComponentLookup<PathOwner>(),
-            Attempts = m_Attempts,
-            Counters = m_Counters,
-            Frame = m_Simulation.frameIndex,
-            Revision = m_RuntimeRevision,
-            AttemptDeadline = kAttemptDeadlineFrames,
-            // Trains are slower to react and their pathfind is more expensive, so the conservative
-            // budget is larger. Over-refusing costs one grandfathered train; under-refusing costs a
-            // train committed to a track it cannot leave.
-            LatencySeconds = math.max(ExpectedLatencySeconds, 2.5f),
-            UncertaintyMargin = UncertaintyMargin,
-            ForceRelease = Mod.RestrictionsDirty
-        };
-        m_Work = enforce.Schedule(m_DetectHandle);
+        // Detection only until a graph exclusion primitive is proven. Marking Obsolete
+        // alone can recompute the same route and is not rail restriction enforcement.
+        m_Work = m_DetectHandle;
         Dependency = m_Work;
     }
 
@@ -594,11 +437,10 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
 
     public void ReleaseAll()
     {
-        if (!m_Attempts.IsCreated) return;
+        if (!m_Candidates.IsCreated) return;
         m_Work.Complete();
         m_DetectHandle.Complete();
         Dependency.Complete();
-        m_Attempts.Clear();
     }
 
     public void ResetRuntimeState()

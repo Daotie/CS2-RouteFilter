@@ -65,11 +65,6 @@ foreach (RoadVehicleCategory category in Enum.GetValues(typeof(RoadVehicleCatego
     Check(!EnforcementPolicy.IsExempt(category), $"{category} must not be exempt");
 }
 
-// ---------------------------------------------------------------- fixed route refusal
-
-Check(EnforcementPolicy.IsFixedRouteManaged(true), "a vehicle with PathInformation is line-managed");
-Check(!EnforcementPolicy.IsFixedRouteManaged(false), "an ordinary vehicle is not line-managed");
-
 // ---------------------------------------------------------------- distance model
 
 var required = EnforcementPolicy.RequiredDistance(10f, 5f, 1f, 4.5f, 5f);
@@ -111,9 +106,19 @@ var token = 0u;
 for (var i = 0; i < 1000; i++) token = EnforcementPolicy.NextToken(token);
 Check(token == 1000u, "tokens are monotonic and never reused");
 
+// Actual runtime compare-before-restore contract, including native changes to unrelated flags.
+var attempt = new EnforcementAttempt { OriginalPathState = PathFlags.Updated,
+    WrittenPathState = PathFlags.Updated | PathFlags.Obsolete, OriginalElementIndex = 7 };
+for (var state = 0; state < 65536; state++)
+{
+    var owns = EnforcementPolicy.OwnsRequest(attempt, (PathFlags)state, 7);
+    Check(owns == ((PathFlags)state == attempt.WrittenPathState), "full flags snapshot required");
+    Check(!EnforcementPolicy.OwnsRequest(attempt, (PathFlags)state, 8), "changed path element never restored");
+}
+
 Console.WriteLine("PASS: 65,536 lane ownership pairs, vanilla empty interval, exact expiry, frame wrap, " +
                   "ended ownership, acquire-only-on-empty, reroute admission against every PathFlags " +
-                  "combination that matters, emergency exemption, fixed-route refusal, distance model " +
+                  "combination that matters, emergency exemption, exact PathOwner ownership, distance model " +
                   "monotonicity and frame-wrap behaviour.");
 Console.WriteLine("NOT TESTED HERE: Unity jobs, ECS scheduling, the game's SerializerSystem, and live " +
                   "pathfinding. Those need the game running.");
