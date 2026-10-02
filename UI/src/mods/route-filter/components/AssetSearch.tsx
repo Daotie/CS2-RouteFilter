@@ -11,6 +11,9 @@ type Props = {
 export const AssetSearch = ({ value, placeholder, onChange }: Props) => (
   <label className={styles.searchBox}>
     <img src={icons.search} alt="" />
-    <input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} />
+    <span className={styles.searchInput}>
+      <input value={value} onChange={event => onChange(event.target.value)} aria-label={placeholder} />
+      {value === "" && <span className={styles.searchPlaceholder}>{placeholder}</span>}
+    </span>
   </label>
 );

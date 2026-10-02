@@ -1,12 +1,12 @@
-$rfSurface: rgba(43, 62, 74, .76);
-$rfSurfaceRaised: rgba(22, 38, 50, .26);
-$rfSurfaceInset: rgba(15, 31, 43, .38);
-$rfSurfaceHover: rgba(255, 255, 255, .07);
-$rfBorder: rgba(191, 216, 231, .20);
-$rfText: rgba(255, 255, 255, .92);
-$rfMuted: rgba(216, 231, 240, .76);
+$rfSurface: var(--panelColorNormal);
+$rfSurfaceRaised: var(--panelGradientDarkStart);
+$rfSurfaceInset: rgba(0, 0, 0, .30);
+$rfSurfaceHover: var(--menuHoverColor);
+$rfBorder: var(--menuBorderColor1);
+$rfText: var(--menuText1Normal);
+$rfMuted: var(--menuText2Normal);
 $rfAccent: rgba(50, 180, 220, 1);
-$rfAccentSoft: rgba(47, 159, 211, .36);
+$rfAccentSoft: var(--menuActiveColor);
 $rfDanger: #e07b73;
 
 .toolGlyph { width: 24rem; height: 24rem; object-fit: contain; pointer-events: none; }
@@ -24,10 +24,12 @@ $rfDanger: #e07b73;
   height: auto;
   max-height: 78vh;
   color: var(--menuText1Normal);
-  background-color: var(--panelColorNormal);
-  border: 1rem solid $rfBorder;
-  border-radius: 6rem;
-  // Use the native game blur token when supplied; alpha surface remains the fallback.
+  font-family: var(--fontFamily);
+  background-color: transparent;
+  background-image: linear-gradient(var(--panelGradientStart), var(--panelGradientEnd));
+  border: 0;
+  border-radius: 10rem;
+  // Native theme blur; legacy mode supplies its flat panel surface below.
   backdrop-filter: var(--panelBlur, none);
   box-shadow: none;
   pointer-events: auto;
@@ -45,57 +47,59 @@ $rfDanger: #e07b73;
 }
 
 .panelHeader {
-  flex: 0 0 52rem;
+  flex: 0 0 44rem;
   display: flex;
   align-items: center;
   min-width: 0;
-  padding: 0 16rem;
+  padding: 0 14rem;
   background-color: $rfSurfaceRaised;
   border-bottom: 1rem solid $rfBorder;
 }
-.brandIcon { flex: 0 0 34rem; width: 34rem; height: 34rem; display: flex; align-items: center; justify-content: center; border-radius: 6rem; background: #3fb6ff; }
+.brandIcon { flex: 0 0 24rem; width: 24rem; height: 24rem; display: flex; align-items: center; justify-content: center; background: transparent; }
 .brandIcon .toolGlyph { width: 24rem; height: 24rem; }
 .brandText { display: flex; align-items: baseline; min-width: 0; margin-left: 9rem; }
-.brandText strong { overflow: hidden; color: var(--menuText1Normal); font-size: 19rem; font-weight: 600; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
-.brandText span { margin-left: 10rem; color: $rfMuted; font-size: 14rem; white-space: nowrap; }
+.brandText strong { overflow: hidden; color: var(--menuText1Normal); font-size: 14rem; font-weight: 600; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
+.brandText span { margin-left: 10rem; color: $rfMuted; font-size: 10rem; white-space: nowrap; }
 .buildMarker { width: 0; height: 0; margin: 0; overflow: hidden; }
-.closeButton { position: relative; flex: 0 0 42rem; width: 42rem; height: 32rem; margin-left: auto; padding: 0; color: $rfMuted; background: transparent; border: 0; }
-.closeButton:hover { color: var(--menuText1Normal); background-color: rgba(224, 123, 115, .16); border-color: rgba(224, 123, 115, .38); }
-.closeGlyph { width: 26rem; height: 26rem; object-fit: contain; opacity: .9; }
+.closeButton { position: relative; flex: 0 0 28rem; display: flex; align-items: center; justify-content: center; width: 28rem; height: 28rem; border-radius: 4rem; margin-left: auto; padding: 0; color: $rfMuted; background: transparent; border: 0; }
+.closeButton:hover { color: var(--menuText1Normal); background-color: $rfSurfaceHover; }
+.closeGlyph { width: 16rem; height: 16rem; object-fit: contain; opacity: .9; }
 
-.targetSection { flex: 0 0 auto; padding: 10rem 12rem; border-bottom: 1rem solid $rfBorder; }
-.segmentedControl { display: flex; height: 38rem; padding: 3rem; background-color: $rfSurfaceInset; border: 1rem solid $rfBorder; border-radius: 6rem; }
-.segmentButton { flex: 1 1 50%; display: flex; align-items: center; justify-content: center; padding: 0 14rem; color: $rfMuted; background: transparent; border-radius: 5rem; font-size: 14rem; }
+.targetSection { flex: 0 0 auto; padding: 10rem 14rem; border-bottom: 1rem solid $rfBorder; }
+.segmentedControl { display: flex; height: 32rem; padding: 0; background-color: $rfSurfaceInset; border: 0; border-radius: 9rem; }
+.segmentButton { flex: 1 1 50%; display: flex; align-items: center; justify-content: center; padding: 0 14rem; color: $rfMuted; background: transparent; border-radius: 9rem; font-size: 12rem; }
 .segmentButtonIcon { width: 22rem; height: 22rem; margin-right: 9rem; object-fit: contain; }
 .segmentButton + .segmentButton { margin-left: 2rem; }
 .segmentButton:hover { color: var(--menuText1Normal); background-color: $rfSurfaceHover; }
-.segmentButtonActive { color: var(--menuText1Normal); background-color: $rfAccentSoft; box-shadow: inset 0 0 0 1rem rgba(114, 211, 248, .65); }
-.targetStatus { display: flex; align-items: center; min-width: 0; margin-top: 12rem; padding: 10rem 10rem; border-left: 3rem solid rgba(158, 175, 184, .42); background-color: rgba(0, 0, 0, .14); }
+.segmentButtonActive { color: var(--menuText1Normal); background-color: var(--panelGradientStart); font-weight: 600; box-shadow: none; }
+.targetStatus { display: flex; align-items: center; min-width: 0; margin-top: 10rem; padding: 6rem 0; border-left: 0; background-color: transparent; }
 .targetStatusReady { border-left-color: $rfAccent; }
 .targetStatus > div { flex: 1 1 auto; min-width: 0; }
 .targetStatus strong, .targetStatus span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.targetStatus strong { font-size: 14rem; font-weight: 600; }
+.targetStatus strong { color: $rfMuted; font-size: 12rem; font-weight: 600; }
 .targetStatus span { margin-top: 4rem; color: $rfMuted; font-size: 11rem; }
 
-.listHeading { flex: 0 0 auto; display: flex; align-items: center; padding: 10rem 12rem 6rem; }
+.listHeading { flex: 0 0 auto; display: flex; align-items: center; padding: 10rem 14rem 6rem; }
 .listHeading > div { flex: 1 1 auto; min-width: 0; }
 .listHeading strong, .listHeading span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.listHeading strong { font-size: 19rem; font-weight: 600; }
+.listHeading strong { font-size: 14rem; font-weight: 600; }
 .listHeading span { margin-top: 3rem; color: $rfMuted; font-size: 10rem; }
 .listHeading small { flex: 0 0 auto; margin-left: 8rem; color: var(--menuText1Normal); font-size: 13rem; }
 
-.searchBox { flex: 0 0 34rem; display: flex; align-items: center; margin: 0 16rem 10rem; border: 1rem solid $rfBorder; border-radius: 4rem; background-color: $rfSurfaceInset; }
-.searchBox:focus-within { border-color: rgba(114, 211, 248, .65); }
+.searchBox { flex: 0 0 34rem; display: flex; align-items: center; margin: 0 14rem 10rem; border: 1rem solid $rfBorder; border-radius: 4rem; background-color: $rfSurfaceInset; }
+.searchBox:focus-within { border-color: var(--menuText1Normal); }
 .searchBox img { flex: 0 0 16rem; width: 16rem; height: 16rem; margin-left: 9rem; object-fit: contain; opacity: .82; }
-.searchBox input { flex: 1 1 auto; min-width: 0; height: 30rem; padding: 0 9rem 0 7rem; border: 0; color: var(--menuText1Normal); background: transparent; font-size: 12rem; }
-.searchBox input::placeholder { color: $rfMuted; }
+.searchInput { position: relative; flex: 1 1 auto; min-width: 0; }
+.searchInput input { width: 100%; min-width: 0; height: 30rem; padding: 0 10rem; border: 0; color: $rfText; background: transparent; font-size: 12rem; }
+.searchPlaceholder { position: absolute; top: 0; bottom: 0; left: 10rem; display: flex; align-items: center; color: $rfMuted; font-size: 12rem; pointer-events: none; }
 
-.assetList { flex: 0 1 auto; min-height: 0; max-height: 32vh; background-color: rgba(19, 35, 47, .20); border: 1rem solid $rfBorder; border-radius: 5rem; margin: 0 10rem 0 16rem; padding-right: 6rem; overflow-x: hidden; }
-.assetRow { display: flex; align-items: center; width: 100%; min-height: 37rem; border-left: 2rem solid transparent; border-bottom: 1rem solid rgba(190, 215, 230, .12); background-color: transparent; }
+
+.assetList { flex: 0 1 auto; min-height: 0; max-height: 32vh; background-color: transparent; border: 0; border-radius: 4rem; margin: 0 14rem 10rem; padding-right: 6rem; overflow-x: hidden; }
+.assetRow { display: flex; align-items: center; width: 100%; min-height: 34rem; border-left: 2rem solid transparent; border-bottom: 1rem solid $rfBorder; background-color: transparent; }
 .assetGroupHeader { display: flex; align-items: center; height: 24rem; padding: 0 8rem; color: $rfMuted; font-size: 9rem; font-weight: 700; letter-spacing: .5rem; text-transform: none; }
 .assetGroupHeader span { margin-left: auto; font-weight: 500; }
 .assetRow:hover { background-color: $rfSurfaceHover; }
-.assetRowSelected { border-left-color: $rfAccent; background-color: rgba(62, 166, 214, .20); }
+.assetRowSelected { border-left-color: $rfAccent; background-color: $rfAccentSoft; }
 .assetRowPartial { border-left-color: rgba(224, 170, 81, .85); }
 .assetRowChild { width: auto; margin-left: 20rem; }
 .assetRowDisabled { color: rgba(233, 240, 243, .38); }
@@ -106,7 +110,7 @@ $rfDanger: #e07b73;
 .selectionGlyph { flex: 0 0 18rem; width: 18rem; height: 18rem; padding: 0; color: transparent; background: rgba(0, 0, 0, .24); border: 1rem solid rgba(183, 207, 220, .38); border-radius: 3rem; font-size: 13rem; }
 .selectionGlyphActive { color: #eefcfb; background-color: rgba(53, 158, 207, .85); border-color: rgba(145, 218, 249, .85); }
 .selectionGlyphPartial { color: #fff1cc; background-color: rgba(190, 137, 56, .56); border-color: rgba(224, 170, 81, .84); }
-.assetGlyph { flex: 0 0 34rem; width: 44rem; height: 30rem; margin-left: 8rem; object-fit: contain; }
+.assetGlyph { flex: 0 0 28rem; width: 28rem; height: 24rem; margin-left: 8rem; object-fit: contain; }
 .assetBody { fill: #f0f4f5; stroke: rgba(34, 59, 76, .75); stroke-width: .65; }
 .assetWindow { fill: #8eb8cf; stroke: rgba(41, 78, 101, .75); stroke-width: .55; }
 .assetDetail { fill: none; stroke: #a7c1cc; stroke-width: 1.05; stroke-linecap: round; stroke-linejoin: round; }
@@ -118,25 +122,32 @@ $rfDanger: #e07b73;
 .assetMeta, .groupCount { flex: 0 0 auto; margin: 0 9rem; color: $rfMuted; font-size: 9rem; }
 .emptyState { padding: 18rem 12rem; color: $rfMuted; font-size: 11rem; text-align: center; }
 
-.actionBar { flex: 0 0 auto; padding: 8rem 12rem 10rem; border-top: 1rem solid $rfBorder; background-color: $rfSurfaceRaised; }
+.actionBar { flex: 0 0 auto; padding: 10rem 14rem; border-top: 1rem solid $rfBorder; background-color: $rfSurfaceRaised; }
 .bulkActions, .commitActions { display: flex; align-items: center; }
 .commitActions { margin-top: 7rem; }
-.secondaryAction { flex: 1 1 33%; display: flex; align-items: center; justify-content: center; min-width: 0; height: 32rem; padding: 0 8rem; color: $rfMuted; background-color: rgba(20, 41, 56, .46); border-radius: 5rem; font-size: 14rem; }
+.secondaryAction { flex: 1 1 33%; display: flex; align-items: center; justify-content: center; min-width: 0; height: 32rem; padding: 0 8rem; color: $rfMuted; background-color: $rfSurfaceHover; border-radius: 9rem; font-size: 12rem; }
 .secondaryAction + .secondaryAction { margin-left: 5rem; }
-.clearAction, .applyAction { min-width: 0; height: 34rem; padding: 0 12rem; font-size: 14rem; }
+.clearAction, .applyAction { display: flex; align-items: center; justify-content: center; min-width: 0; height: 34rem; padding: 0 12rem; font-size: 12rem; }
 .clearAction { flex: 0 0 106rem; color: $rfDanger; background-color: rgba(224, 123, 115, .08); border: 1rem solid rgba(224, 123, 115, .25); }
-.applyAction { flex: 1 1 auto; margin-left: 7rem; color: white; background-color: rgba(40, 142, 190, .88); border: 1rem solid rgba(137, 216, 249, .46); border-radius: 4rem; font-weight: 600; }
-.applyAction:hover { background-color: rgba(57, 163, 210, .95); }
+.applyAction { flex: 1 1 auto; margin-left: 7rem; color: white; background-color: $rfAccentSoft; border: 1rem solid $rfBorder; border-radius: 4rem; font-weight: 600; }
+.applyAction:hover { background-color: $rfSurfaceHover; }
 .actionDisabled { opacity: .36; }
-.actionIcon, .utilityIcon { width: 14rem; height: 14rem; margin-right: 5rem; object-fit: contain; vertical-align: -3rem; }
+.actionIcon, .utilityIcon { width: 14rem; height: 14rem; margin-right: 5rem; object-fit: contain; flex-shrink: 0; }
 
 .panel button:hover { border-color: rgba(255,255,255,.45); }
 .panel button:active { opacity: .8; }
 
 // One compact utility row; no second card or glass layer.
-.utilityFooter { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 6rem 12rem; border-top: 1rem solid $rfBorder; background-color: $rfSurfaceRaised; }
+.utilityFooter { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 6rem 14rem; border-top: 1rem solid $rfBorder; background-color: $rfSurfaceRaised; }
 .buildLabel { color: $rfMuted; font-size: 9rem; }
-.utilityAction { height: 28rem; padding: 0 10rem; color: $rfMuted; background: rgba(20, 41, 56, .32); border-radius: 4rem; font-size: 10rem; }
-.resetStatus { flex: 0 0 auto; padding: 6rem 12rem; color: $rfMuted; font-size: 11rem; }
+.utilityAction { display: flex; align-items: center; justify-content: center; height: 28rem; padding: 0 10rem; color: $rfMuted; background: transparent; border-radius: 4rem; font-size: 10rem; }
+.resetStatus { flex: 0 0 auto; padding: 6rem 14rem; color: $rfMuted; font-size: 11rem; }
 .targetInfo { flex: 0 0 20rem; width: 20rem; height: 20rem; margin-right: 10rem; object-fit: contain; opacity: .84; }
 .panel button:disabled:hover { border-color: $rfBorder; }
+
+// Match the game theme switch used by native tool panels.
+:global(body.legacy-interface) {
+  .panel { background-image: none; background-color: var(--panelColorNormal); }
+  .panelHeader, .actionBar, .utilityFooter { background-color: var(--panelColorDark); }
+  .segmentButtonActive { background-color: var(--panelColorNormal); }
+}
