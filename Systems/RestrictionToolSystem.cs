@@ -75,6 +75,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
     {
         Mod.Log.Info($"[RouteFilter.Tool] Activated {Mod.SelectedTargetMode}");
         if (m_ToolSystem.activeTool == this) return;
+        P0Diagnostics.Arm(World, m_ToolSystem.selected);
         m_ToolSystem.selected = Entity.Null;
         m_ToolSystem.activeTool = this;
     }
@@ -92,6 +93,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
     public override void InitializeRaycast()
     {
         base.InitializeRaycast();
+        if (!P0Diagnostics.Tool) { m_ToolRaycastSystem.typeMask = (TypeMask)0; return; }
         m_ToolRaycastSystem.typeMask = TypeMask.Net;
         m_ToolRaycastSystem.netLayerMask = Layer.Road | Layer.PublicTransportRoad |
                                                Layer.TrainTrack | Layer.TramTrack | Layer.SubwayTrack;
@@ -104,6 +106,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         // active session every frame would otherwise schedule a net raycast and write
         // m_ToolSystem.selected, fighting the active vanilla tool.
         if (m_ToolSystem.activeTool != this) return inputDeps;
+        if (!P0Diagnostics.Tool) { m_ToolSystem.selected = Entity.Null; return inputDeps; }
 
         if (SelectedTarget != Entity.Null && !EntityManager.Exists(SelectedTarget)) ClearSelection();
 
@@ -111,7 +114,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         {
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
-            m_ToolSystem.selected = SelectedTarget;
+            m_ToolSystem.selected = P0Diagnostics.Highlight ? SelectedTarget : Entity.Null;
             return inputDeps;
         }
 
@@ -119,7 +122,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         {
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
-            m_ToolSystem.selected = SelectedTarget;
+            m_ToolSystem.selected = P0Diagnostics.Highlight ? SelectedTarget : Entity.Null;
             if (Mod.Clear != null && Mod.Clear.WasPressedThisFrame()) ClearSelection();
             return inputDeps;
         }
@@ -128,7 +131,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         if (HoveredTarget != target) Mod.Log.Debug($"[RouteFilter.Tool] Hover {Mod.SelectedTargetMode}={target}");
         HoveredTarget = target;
         HoveredTransportMode = GetTransportMode(target);
-        m_ToolSystem.selected = SelectedTarget != Entity.Null ? SelectedTarget : target;
+        m_ToolSystem.selected = P0Diagnostics.Highlight ? (SelectedTarget != Entity.Null ? SelectedTarget : target) : Entity.Null;
         if (Mod.Clear != null && Mod.Clear.WasPressedThisFrame())
         {
             ClearSelection();

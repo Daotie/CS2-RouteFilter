@@ -125,11 +125,15 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
     protected override void OnUpdate()
     {
         if (m_ToolSystem.activeTool != m_Tool) return;
+        if (!P0Diagnostics.Highlight && !P0Diagnostics.Overlay) return;
+        if (!m_BadgeJobHandle.IsCompleted) return;
 
         // The badge job from the previous frame reads the scratch arrays; finish it before
         // refilling them so they are never overwritten while a worker still uses them.
         m_BadgeJobHandle.Complete();
 
+        if (P0Diagnostics.Highlight)
+        {
         if (m_Tool.SelectedTarget == m_Tool.HoveredTarget)
             Draw(m_Tool.SelectedTarget, true);
         else
@@ -138,10 +142,11 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
             Draw(m_Tool.SelectedTarget, true);
         }
 
-        DrawRoutePreview();
+        }
+        if (P0Diagnostics.Overlay) DrawRoutePreview();
 
         // Gate restriction badges behind EnableRestrictionBadges
-        if (Mod.Settings.EnableRestrictionBadges)
+        if (P0Diagnostics.Highlight && Mod.Settings.EnableRestrictionBadges)
         {
             DrawRestrictionBadges();
         }

@@ -121,7 +121,9 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         if (m_Update.currentPhase == SystemUpdatePhase.Serialize) { ReleaseAll(); return; }
         if (!m_Work.IsCompleted) return;
         m_Work.Complete(); ActiveAttempts = m_Attempts.Length;
-        if (!EnforcementEnabled || !RestrictionPathfindHook.Available || Mod.Settings?.EnableRoadEnforcement == false ||
+        foreach (var attempt in m_Attempts)
+            if (attempt.Vehicle == P0Diagnostics.Vehicle) P0Diagnostics.Record("Reroute", $"state={attempt.State} intercepted={attempt.QueryIntercepted} entry={attempt.GateEntryLane} next={attempt.OwnedLane} expiry={attempt.AbsoluteDeadlineFrame}");
+        if (!P0Diagnostics.Restriction || !EnforcementEnabled || !RestrictionPathfindHook.Available || Mod.Settings?.EnableRoadEnforcement == false ||
             !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable || Mod.RestrictionsDirty)
         { if (m_Attempts.Length > 0) ReleaseAll(); return; }
         if (m_Index.ActiveTargetCount == 0 && m_Attempts.Length == 0) return;

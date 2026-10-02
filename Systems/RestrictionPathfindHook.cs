@@ -208,74 +208,74 @@ internal static unsafe class RestrictionPathfindHook
     private static bool TryIntercept(PathfindQueueSystem queue, PathfindAction action, Entity owner,
         JobHandle dependencies, uint resultFrame, object system, PathEventData eventData, bool wantsEvent, bool highPriority)
     {
-        if (!Available || s_World == null || !s_World.IsCreated || !dependencies.IsCompleted) return false;
+        if (!Available || s_World == null || !s_World.IsCreated || !dependencies.IsCompleted) return Refused(owner, "queue unavailable/world invalid/setup dependency still pending");
         var index = s_World.GetExistingSystemManaged<RestrictionIndexSystem>();
-        if (index == null || index.ActiveTargetCount == 0 || Mod.RestrictionsDirty) return false;
+        if (index == null || index.ActiveTargetCount == 0 || Mod.RestrictionsDirty) return Refused(owner, "index absent/zero active targets/dirty restriction");
         var persistence = s_World.GetExistingSystemManaged<RestrictionPersistenceSystem>();
-        if (persistence == null || !persistence.ConfigurationEditable) return false;
+        if (persistence == null || !persistence.ConfigurationEditable) return Refused(owner, "configuration not editable");
         var manager = s_World.EntityManager;
-        if (!manager.Exists(owner) || manager.HasComponent<Deleted>(owner) || manager.HasComponent<Temp>(owner)) return false;
+        if (!manager.Exists(owner) || manager.HasComponent<Deleted>(owner) || manager.HasComponent<Temp>(owner)) return Refused(owner, "owner invalid/deleted/temp");
         var isRail = manager.HasComponent<Train>(owner);
         EnforcementAttempt attempt;
         if (isRail)
         {
             if (Mod.Settings?.EnableRailEnforcement == false ||
-                s_World.GetExistingSystemManaged<RailEnforcementBackend>()?.TryGetRequest(owner, out attempt) != true) return false;
+                s_World.GetExistingSystemManaged<RailEnforcementBackend>()?.TryGetRequest(owner, out attempt) != true) return Refused(owner, "rail disabled/no owned attempt");
         }
         else if (Mod.Settings?.EnableRoadEnforcement == false ||
-                 s_World.GetExistingSystemManaged<RoadEnforcementCoordinator>()?.TryGetRequest(owner, out attempt) != true) return false;
+                 s_World.GetExistingSystemManaged<RoadEnforcementCoordinator>()?.TryGetRequest(owner, out attempt) != true) return Refused(owner, "road disabled/no owned attempt");
         var frame = s_World.GetExistingSystemManaged<SimulationSystem>().frameIndex;
         if (attempt.RestrictionRevision != index.Revision || EnforcementPolicy.HasExpired(frame, attempt.AbsoluteDeadlineFrame) ||
             !manager.Exists(attempt.Target) || !manager.Exists(attempt.OwnedLane) ||
             manager.HasComponent<Deleted>(attempt.Target) || manager.HasComponent<Temp>(attempt.Target) ||
-            manager.HasComponent<Deleted>(attempt.OwnedLane)) return false;
+            manager.HasComponent<Deleted>(attempt.OwnedLane)) return Refused(owner, "revision stale/expired/target or lane invalid");
         dependencies.Complete(); // Already complete; release setup's safety ownership without a stall.
         if (manager.TryGetComponent(owner, out Controller controller) && controller.m_Controller != Entity.Null &&
-            controller.m_Controller != owner) return false;
+            controller.m_Controller != owner) return Refused(owner, "owner is noncanonical controller");
         if (!manager.TryGetComponent(owner, out PathOwner pathOwner) || !EnforcementPolicy.IsExpectedSetup(attempt, pathOwner.m_State) ||
-            !manager.TryGetComponent(owner, out Game.Common.Target destination) || destination.m_Target != attempt.NativeDestination) return false;
+            !manager.TryGetComponent(owner, out Game.Common.Target destination) || destination.m_Target != attempt.NativeDestination) return Refused(owner, "unexpected PathOwner setup state/destination changed");
         var nextIndex = attempt.ViaLane == Entity.Null ? 0 : 1;
         if (isRail)
         {
             if (!manager.HasComponent<TrainCurrentLane>(owner) ||
-                manager.GetComponentData<TrainCurrentLane>(owner).m_Front.m_Lane != attempt.GateEntryLane) return false;
+                manager.GetComponentData<TrainCurrentLane>(owner).m_Front.m_Lane != attempt.GateEntryLane) return Refused(owner, "rail current lane changed");
             if (manager.TryGetBuffer(owner, true, out DynamicBuffer<TrainNavigationLane> nav) &&
                 ((nav.Length > nextIndex && nav[nextIndex].m_Lane != attempt.OwnedLane) ||
-                 (nextIndex == 1 && nav.Length > 0 && nav[0].m_Lane != attempt.ViaLane))) return false;
+                 (nextIndex == 1 && nav.Length > 0 && nav[0].m_Lane != attempt.ViaLane))) return Refused(owner, "rail immediate navigation changed");
         }
         else if (!manager.HasComponent<CarCurrentLane>(owner) ||
-                 manager.GetComponentData<CarCurrentLane>(owner).m_Lane != attempt.GateEntryLane) return false;
+                 manager.GetComponentData<CarCurrentLane>(owner).m_Lane != attempt.GateEntryLane) return Refused(owner, "road current lane changed");
         else
         {
             var current = manager.GetComponentData<CarCurrentLane>(owner);
-            if (current.m_ChangeLane != Entity.Null || current.m_ChangeProgress != 0) return false;
+            if (current.m_ChangeLane != Entity.Null || current.m_ChangeProgress != 0) return Refused(owner, "road lane change active");
             if (manager.TryGetBuffer(owner, true, out DynamicBuffer<CarNavigationLane> nav) &&
                 ((nav.Length > nextIndex && nav[nextIndex].m_Lane != attempt.OwnedLane) ||
-                 (nextIndex == 1 && nav.Length > 0 && nav[0].m_Lane != attempt.ViaLane))) return false;
+                 (nextIndex == 1 && nav.Length > 0 && nav[0].m_Lane != attempt.ViaLane))) return Refused(owner, "road immediate navigation changed");
         }
         // Admission can precede CompleteSetup by many frames. Recheck the live approach,
         // not the old candidate's distance. Too late or unknown means native grandfathering.
         if (!manager.TryGetComponent(attempt.GateEntryLane, out Curve approachCurve) ||
             !manager.TryGetComponent(owner, out Moving moving) ||
             !math.isfinite(attempt.Braking) || attempt.Braking <= 0 ||
-            !math.isfinite(attempt.GeometryLength) || attempt.GeometryLength <= 0) return false;
+            !math.isfinite(attempt.GeometryLength) || attempt.GeometryLength <= 0) return Refused(owner, "curve/movement/braking/geometry missing");
         var speed = math.length(moving.m_Velocity);
         // Pending clears navigation and can shorten the current traversal end. Use the admitted
         // gate endpoint on the unchanged entry lane; validate live position and destination.
         var position = isRail ? manager.GetComponentData<TrainCurrentLane>(owner).m_Front.m_CurvePosition.y :
             manager.GetComponentData<CarCurrentLane>(owner).m_CurvePosition.x;
-        if (attempt.Forward ? position >= attempt.TraversalEnd : position <= attempt.TraversalEnd) return false;
+        if (attempt.Forward ? position >= attempt.TraversalEnd : position <= attempt.TraversalEnd) return Refused(owner, "at/past admitted gate endpoint");
         var remaining = GateApproachDistance.Remaining(approachCurve, position, attempt.TraversalEnd);
         var required = speed * math.clamp(Mod.Settings?.RerouteLatencySeconds ?? 2.4f, 2.4f, 4f) +
             speed * speed / (2 * attempt.Braking) + speed * SafeToAttemptRerouteEvaluator.VanillaRoadNavigationTimeStep +
             attempt.GeometryLength + (Mod.Settings?.RerouteUncertaintyMetres ?? 5f);
-        if (!math.isfinite(speed) || !math.isfinite(remaining) || !math.isfinite(required) || remaining <= required) return false;
+        if (!math.isfinite(speed) || !math.isfinite(remaining) || !math.isfinite(required) || remaining <= required) return Refused(owner, "remaining distance insufficient/nonfinite");
         RetireCompleted();
         if (frame - s_Window >= 64) { s_Window = frame; s_Admissions = 0; }
-        if (s_Admissions >= 8) return false;
+        if (s_Admissions >= 8) return Refused(owner, "native query admission budget exhausted");
         var slot = -1;
         for (var i = 0; i < s_Transactions.Length; i++) if (s_Transactions[i] == null) { slot = i; break; }
-        if (slot < 0) return false;
+        if (slot < 0) return Refused(owner, "transaction store full");
         var count = 0;
         var lanes = new NativeArray<Entity>(128, Allocator.Persistent);
         // Rail uses its own track topology, not the road index. Both exclude target-internal edges.
@@ -283,14 +283,14 @@ internal static unsafe class RestrictionPathfindHook
         else if (index.TryGetInternalLanes(attempt.Target, out var internalLanes))
             foreach (var lane in internalLanes)
             {
-                if (count == lanes.Length) { lanes.Dispose(); return false; }
+                if (count == lanes.Length) { lanes.Dispose(); return Refused(owner, "target lane count exceeds 128"); }
                 lanes[count++] = lane;
             }
-        if (count <= 0) { lanes.Dispose(); return false; }
+        if (count <= 0) { lanes.Dispose(); return Refused(owner, "target internal lane set empty"); }
         // The transaction must include the imminent forbidden lane; refuse incomplete topology.
         var hasGate = false;
         for (var i = 0; i < count; i++) if (lanes[i] == attempt.OwnedLane) hasGate = true;
-        if (!hasGate) { lanes.Dispose(); return false; }
+        if (!hasGate) { lanes.Dispose(); return Refused(owner, "imminent gate lane absent from exclusion set"); }
         var transaction = new Transaction { Lanes = lanes, State = new NativeArray<int>(8, Allocator.Persistent),
             Edges = new NativeArray<EdgeID>(256, Allocator.Persistent), Originals = new NativeArray<PathMethod>(256, Allocator.Persistent),
             Target = attempt.Target, Revision = index.Revision, Expiry = attempt.AbsoluteDeadlineFrame,
@@ -300,10 +300,17 @@ internal static unsafe class RestrictionPathfindHook
         // Capture only here. The postfix runs after those updates are scheduled, so its graph
         // writer dependencies include the current publication, not the previous graph generation.
         s_Transactions[slot] = transaction;
+        if (owner == P0Diagnostics.Vehicle) { P0Diagnostics.Record("Lease", $"query-only transaction target={attempt.Target} expiry={attempt.AbsoluteDeadlineFrame} lanes={count}"); P0Diagnostics.Record("Reroute", "native enqueue intercepted"); }
         s_Admissions++; Queries++;
         if (isRail) { RailQueries++; s_World.GetExistingSystemManaged<RailEnforcementBackend>().MarkIntercepted(owner); }
         else { RoadQueries++; s_World.GetExistingSystemManaged<RoadEnforcementCoordinator>().MarkIntercepted(owner); }
         return true;
+    }
+
+    private static bool Refused(Entity owner, string reason)
+    {
+        if (owner == P0Diagnostics.Vehicle) P0Diagnostics.Record("Reroute", reason);
+        return false;
     }
 
     private static void AfterNativeQueueUpdate(PathfindQueueSystem __instance)
@@ -379,6 +386,8 @@ internal static unsafe class RestrictionPathfindHook
                 Interlocked.Exchange(ref UnsafeUtility.ArrayElementAsRef<int>(NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(transaction.State), 6), 1);
             if (!transaction.Scheduled || !transaction.Handle.IsCompleted) continue;
             transaction.Handle.Complete();
+            if (transaction.Owner == P0Diagnostics.Vehicle)
+                P0Diagnostics.Record("GraphMutation", $"applied={transaction.State[1]} restored={transaction.State[2]} conflicts={transaction.State[3]} alternative={transaction.State[4]} fallback={transaction.State[5]} exception={transaction.State[7]}");
             Applied += (uint)transaction.State[1];
             Restored += (uint)transaction.State[2]; Conflicts += (uint)transaction.State[3];
             Alternatives += (uint)transaction.State[4]; Fallbacks += (uint)transaction.State[5];

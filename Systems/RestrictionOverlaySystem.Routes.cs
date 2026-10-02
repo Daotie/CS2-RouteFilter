@@ -18,11 +18,12 @@ public sealed partial class RestrictionOverlaySystem
     private const int RouteObjectLimit = 256;
     private const int RouteVehicleLimit = 32;
     private const int RouteElementLimit = 256;
-    private const int RouteCurveLimit = 1024;
+    private const int RouteCurveLimit = 48;
     private NativeList<Bezier4x3> m_RouteCurves;
     private JobHandle m_RouteJob;
     private Entity m_RouteTarget;
-    private int m_RouteRefreshFrame;
+    private uint m_RouteRefreshFrame;
+    private bool m_RouteBuilt;
     private readonly HashSet<Entity> m_RouteTargetLanes = new();
     private readonly HashSet<Entity> m_RouteSourceLanes = new();
     private readonly HashSet<Entity> m_RouteVehicles = new();
@@ -35,7 +36,7 @@ public sealed partial class RestrictionOverlaySystem
         public void Execute()
         {
             foreach (var curve in Curves)
-                Buffer.DrawDashedCurve(new Color(.35f, .82f, 1f, .65f), curve, 1.2f, 14f, .6f);
+                Buffer.DrawCurve(new Color(.35f, .82f, 1f, .65f), curve, 1.2f);
         }
     }
 
@@ -51,6 +52,7 @@ public sealed partial class RestrictionOverlaySystem
         m_RouteCurves.Clear();
         m_RouteTarget = Entity.Null;
         m_RouteRefreshFrame = 0;
+        m_RouteBuilt = false;
         m_RouteTargetLanes.Clear();
         m_RouteSourceLanes.Clear();
         m_RouteVehicles.Clear();
@@ -60,17 +62,20 @@ public sealed partial class RestrictionOverlaySystem
     private void DrawRoutePreview()
     {
         var target = m_Tool.SelectedTarget;
+        if (!m_RouteJob.IsCompleted) return;
         m_RouteJob.Complete();
+        var frame = World.GetOrCreateSystemManaged<Game.Simulation.SimulationSystem>().frameIndex;
         if (target == Entity.Null || !EntityManager.Exists(target))
         {
             if (m_RouteTarget != Entity.Null) ClearRoutePreview();
             return;
         }
-        if (target != m_RouteTarget || UnityEngine.Time.frameCount - m_RouteRefreshFrame >= 30)
+        if (!m_RouteBuilt || target != m_RouteTarget || frame - m_RouteRefreshFrame >= 64)
         {
             CollectRoutePreview(target);
             m_RouteTarget = target;
-            m_RouteRefreshFrame = UnityEngine.Time.frameCount;
+            m_RouteRefreshFrame = frame;
+            m_RouteBuilt = true;
         }
         if (m_RouteCurves.Length == 0) return;
         var buffer = m_Overlay.GetBuffer(out var dependencies);
@@ -127,11 +132,28 @@ public sealed partial class RestrictionOverlaySystem
             {
                 var lane = path[i].m_Target;
                 if (m_RouteDrawnLanes.Add(lane) && EntityManager.TryGetComponent(lane, out Curve curve))
-                    m_RouteCurves.Add(curve.m_Bezier);
+                    AddBoundedCurve(curve.m_Bezier);
             }
             if (m_RouteCurves.Length >= RouteCurveLimit) break;
         }
     }
+
+    // Overlay curves are shader bounding quads. Full highway curves and hundreds of
+    // overlapping full-city paths cause pixel overdraw even while simulation is paused.
+    // Split long quads and enforce an absolute draw budget independently of path length.
+    private void AddBoundedCurve(Bezier4x3 curve)
+    {
+        var upperLength = Unity.Mathematics.math.distance(curve.a, curve.b) +
+            Unity.Mathematics.math.distance(curve.b, curve.c) + Unity.Mathematics.math.distance(curve.c, curve.d);
+        if (!Unity.Mathematics.math.isfinite(upperLength)) return;
+        var pieces = Unity.Mathematics.math.max(1, (int)Unity.Mathematics.math.ceil(upperLength / 32f));
+        // Reject corrupt or extremely long geometry instead of spending an unbounded loop.
+        if (pieces > 256) return;
+        for (var piece = 0; piece < pieces && m_RouteCurves.Length < RouteCurveLimit; piece++)
+            m_RouteCurves.Add(MathUtils.Cut(curve, new Unity.Mathematics.float2(
+                (float)piece / pieces, (float)(piece + 1) / pieces)));
+    }
+    internal int PreviewCurveCount => m_RouteCurves.IsCreated ? m_RouteCurves.Length : 0;
 
     private void AddPreviewLanes(Entity target, bool selected)
     {

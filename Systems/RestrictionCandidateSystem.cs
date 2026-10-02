@@ -121,6 +121,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         public NativeArray<int> RejectionReasons;
 
         public Entity DebugTarget;
+        public Entity TraceVehicle;
+        public NativeArray<Entity> TraceCurrent;
         public int RestrictionRevision;
         public uint DetectionFrame;
         /// <summary>Settings-driven master switch for Emergency Protection, evaluated per frame.</summary>
@@ -128,6 +130,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
 
         public void Execute()
         {
+            TraceCurrent[0] = TraceVehicle != Entity.Null && CurrentLanes.TryGetComponent(TraceVehicle, out var traceLane) ? traceLane.m_Lane : Entity.Null;
             for (var i = 0; i < RejectionReasons.Length; i++) RejectionReasons[i] = 0;
             var counters = new CandidateDiagnosticCounters
             {
@@ -500,7 +503,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
             RejectedCandidateReason reason)
         {
             RejectionReasons[(int)reason]++;
-            if (DebugTarget == Entity.Null || gate.Target != DebugTarget) return;
+            if (TraceVehicle != Entity.Null ? vehicle != TraceVehicle : DebugTarget == Entity.Null || gate.Target != DebugTarget) return;
 
             var curveLength = Curves.TryGetComponent(gate.EntryLane, out var curve) ? curve.m_Length : 0f;
             var velocity = MovingData.TryGetComponent(vehicle, out var moving)
@@ -577,7 +580,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
             RejectedCandidateReason reason)
         {
             RejectionReasons[(int)reason]++;
-            if (DebugTarget == Entity.Null || target != DebugTarget) return;
+            if (TraceVehicle != Entity.Null ? vehicle != TraceVehicle : DebugTarget == Entity.Null || target != DebugTarget) return;
             if (DebugRejections.Length >= 256) return;
             DebugRejections.Add(new RejectedCandidate
             {
@@ -606,6 +609,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
     private NativeParallelHashMap<CandidateIdentity, CandidateObservation> m_Observations;
     private NativeList<CandidateIdentity> m_ObservationOrder;
     private NativeArray<CandidateDiagnosticCounters> m_Counters;
+    private NativeArray<Entity> m_TraceCurrent;
     private NativeArray<int> m_RejectionReasons;
     private JobHandle m_ScanHandle;
     private JobHandle m_ReaderHandle;
@@ -642,6 +646,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         m_Observations = new NativeParallelHashMap<CandidateIdentity, CandidateObservation>(MaxTrackedApproaches, Allocator.Persistent);
         m_ObservationOrder = new NativeList<CandidateIdentity>(MaxTrackedApproaches, Allocator.Persistent);
         m_Counters = new NativeArray<CandidateDiagnosticCounters>(1, Allocator.Persistent);
+        m_TraceCurrent = new NativeArray<Entity>(1, Allocator.Persistent);
         m_RejectionReasons = new NativeArray<int>((int)RejectedCandidateReason.Count, Allocator.Persistent);
     }
 
@@ -658,6 +663,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         m_Observations.Dispose();
         m_ObservationOrder.Dispose();
         m_Counters.Dispose();
+        m_TraceCurrent.Dispose();
         m_RejectionReasons.Dispose();
         base.OnDestroy();
     }
@@ -711,6 +717,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
             Counters = m_Counters,
             RejectionReasons = m_RejectionReasons,
             DebugTarget = DebugTarget,
+            TraceVehicle = P0Diagnostics.Vehicle,
+            TraceCurrent = m_TraceCurrent,
             RestrictionRevision = m_RuntimeRevision,
             DetectionFrame = m_SimulationSystem.frameIndex,
             EmergencyProtectionEnabled = Mod.Settings?.EmergencyProtection ?? true
@@ -879,11 +887,27 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
     private void ProcessCompletedDiagnostics()
     {
         var counters = m_Counters[0];
+        if (P0Diagnostics.Vehicle != Entity.Null && P0Diagnostics.Target != Entity.Null &&
+            m_Index.TryGetInternalLanes(P0Diagnostics.Target, out var traceInternals))
+        {
+            var crossing = false;
+            foreach (var lane in traceInternals) if (lane == m_TraceCurrent[0]) { crossing = true; break; }
+            P0Diagnostics.Record("GateCrossing", $"insideRestrictedTarget={crossing}");
+        }
         Accumulate(ref m_ReportCounters, counters);
         for (var i = 0; i < m_ReportRejectionReasons.Length; i++)
             m_ReportRejectionReasons[i] += m_RejectionReasons[i];
         m_ReportScans++;
 
+        if (P0Diagnostics.Vehicle != Entity.Null)
+        {
+            foreach (var match in m_Matches)
+                if (match.m_Vehicle == P0Diagnostics.Vehicle)
+                    P0Diagnostics.Record("Candidate", $"matched target={match.m_Target} prefab={match.m_MatchedPrefab} entry={match.m_EntryLane} next={match.m_NextLane} via={match.m_ViaLane} remaining={match.m_DirectionAwareRemainingDistanceApprox:F1}");
+            foreach (var rejected in m_DebugRejections)
+                if (rejected.m_Vehicle == P0Diagnostics.Vehicle || rejected.m_PhysicalVehicle == P0Diagnostics.Vehicle)
+                    P0Diagnostics.Record("RejectReason", $"reason={rejected.m_Reason} target={rejected.m_Target} expectedNext={rejected.m_NextLane} observedNext={rejected.m_ObservedNextLane}");
+        }
         DumpDebugTargetMatches();
         if (m_ReportScans < 256) return;
 

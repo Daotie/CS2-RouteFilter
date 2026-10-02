@@ -51,14 +51,9 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private ValueBinding<int> m_RestrictionRevisionBinding = null!;
     private int m_RestrictionRevision;
     private Entity m_LastSelectedTarget = Entity.Null;
-    private int m_LastQueryOrderVersion = int.MinValue;
-    private int m_LastVehicleOrderVersion = int.MinValue;
-    private int m_LastCarOrderVersion = int.MinValue;
-    private int m_LastTrainOrderVersion = int.MinValue;
     private bool m_ContentAvailabilityDirty;
     private bool m_PendingLoadRefresh;
-    private int m_CatalogPollTicks;
-    private const int kCatalogPollInterval = 30;
+    private float m_NextCatalogPoll;
 
     public override GameMode gameMode => GameMode.GameOrEditor;
 
@@ -91,7 +86,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         AddBinding(new TriggerBinding<int, bool>(Mod.Id, "toggleAssetGroup", ToggleAssetGroup));
         AddBinding(new TriggerBinding<int>(Mod.Id, "setTargetMode", SetTargetMode));
         AddBinding(new TriggerBinding<string, bool>(Mod.Id, "setFilteredAssetSelection", SetFilteredAssetSelection));
-        AddBinding(new TriggerBinding(Mod.Id, "refreshAssets", () => { Mod.Log.Info("[RouteFilter.Binding] refreshAssets received"); m_CatalogPollTicks = 0; RefreshAssetCatalog(); }));
+        AddBinding(new TriggerBinding(Mod.Id, "refreshAssets", () => { Mod.Log.Info("[RouteFilter.Binding] refreshAssets received"); m_NextCatalogPoll = 0; RefreshAssetCatalog(); }));
         AddBinding(new TriggerBinding(Mod.Id, "applySelection", () => { Mod.Log.Info("[RouteFilter.Binding] applySelection received"); m_RestrictionTool.ApplySelection(); PublishRestriction(); }));
         AddBinding(new TriggerBinding(Mod.Id, "clearSelectedRestriction", () => { Mod.Log.Info("[RouteFilter.Binding] clearSelectedRestriction received"); m_RestrictionTool.ClearSelectedRestriction(); LoadSelectedTargetAssets(m_RestrictionTool.SelectedTarget); PublishRestriction(); }));
         AddBinding(new TriggerBinding(Mod.Id, "cancelSelection", m_RestrictionTool.ClearSelection));
@@ -126,21 +121,26 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         if (m_VehiclePrefabQuery.IsEmptyIgnoreFilter)
         {
             // Prefabs are not available (for example while loading); force a refresh once they appear.
-            m_LastQueryOrderVersion = int.MinValue;
-            m_LastVehicleOrderVersion = int.MinValue;
-            m_LastCarOrderVersion = int.MinValue;
-            m_LastTrainOrderVersion = int.MinValue;
             return;
         }
 
-        var queryVersion = m_VehiclePrefabQuery.GetCombinedComponentOrderVersion(true);
-        var vehicleVersion = EntityManager.GetComponentOrderVersion<VehicleData>();
-        var carVersion = EntityManager.GetComponentOrderVersion<CarData>();
-        var trainVersion = EntityManager.GetComponentOrderVersion<TrainData>();
-        if (m_AssetsById.Count != 0 && !m_PendingLoadRefresh && !m_ContentAvailabilityDirty &&
-            queryVersion == m_LastQueryOrderVersion && vehicleVersion == m_LastVehicleOrderVersion &&
-            carVersion == m_LastCarOrderVersion && trainVersion == m_LastTrainOrderVersion)
-            return;
+        // Global component-order versions change for unrelated entities/archetypes.
+        // Compare actual catalog membership instead; never rebuild from a global version.
+        if (m_AssetsById.Count != 0 && !m_PendingLoadRefresh && !m_ContentAvailabilityDirty)
+        {
+            using var prefabs = m_VehiclePrefabQuery.ToEntityArray(Allocator.Temp);
+            var eligible = 0;
+            var changed = false;
+            foreach (var prefab in prefabs)
+            {
+                var mode = EntityManager.HasComponent<CarData>(prefab) ? 1 :
+                    EntityManager.HasComponent<TrainData>(prefab) ? 2 : 0;
+                if (mode == 0) continue;
+                eligible++;
+                if (!m_ModeByAsset.TryGetValue(prefab, out var oldMode) || oldMode != mode) changed = true;
+            }
+            if (!changed && eligible == m_AssetsById.Count) return;
+        }
         RefreshAssetCatalog();
     }
 
@@ -152,13 +152,12 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         Mod.RetryKeyBindings();
         m_ConfigurationEditableBinding.Update(World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable);
 
-        // The catalog check walks the prefab query, so it is sampled rather than run every
-        // frame. O(1) binding updates below are unchanged; only the archetype scan is gated.
-        // Thirty frames is well inside the window in which a player can notice a newly
-        // streamed asset pack, and every explicit refresh path still forces an immediate rebuild.
-        if (++m_CatalogPollTicks >= kCatalogPollInterval)
+        // Sample catalog membership every five real seconds, independently of paused FPS.
+        // Explicit refresh still rebuilds immediately; unchanged catalogs never reserialize.
+        P0Diagnostics.Poll(World);
+        if (P0Diagnostics.Catalog && UnityEngine.Time.realtimeSinceStartup >= m_NextCatalogPoll)
         {
-            m_CatalogPollTicks = 0;
+            m_NextCatalogPoll = UnityEngine.Time.realtimeSinceStartup + 5f;
             PollAssetCatalog();
         }
         m_ToolActiveBinding.Update(m_ToolSystem.activeTool == m_RestrictionTool);
@@ -315,10 +314,6 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
         // Remember the world state this catalog was built from so later prefab or
         // component additions trigger a rebuild instead of being missed forever.
-        m_LastQueryOrderVersion = m_VehiclePrefabQuery.GetCombinedComponentOrderVersion(true);
-        m_LastVehicleOrderVersion = EntityManager.GetComponentOrderVersion<VehicleData>();
-        m_LastCarOrderVersion = EntityManager.GetComponentOrderVersion<CarData>();
-        m_LastTrainOrderVersion = EntityManager.GetComponentOrderVersion<TrainData>();
         m_ContentAvailabilityDirty = false;
         m_PendingLoadRefresh = false;
         Mod.Log.Info($"Vehicle asset catalog refreshed: {ordered.Length} assets, {m_ChildrenByAsset.Sum(pair => pair.Value.Count)} grouped trailers");
