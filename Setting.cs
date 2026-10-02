@@ -103,7 +103,7 @@ internal abstract class LocaleBase : IDictionarySource
     {
         return new Dictionary<string, string>
         {
-            [Setting.GetSettingsLocaleID()] = Chinese ? "RouteFilter 路线通行筛选" : "RouteFilter",
+            [Setting.GetSettingsLocaleID()] = "RouteFilter",
             [Setting.GetOptionTabLocaleID(Setting.kSection)] = Chinese ? "主要设置" : "General",
             [Setting.GetOptionGroupLocaleID(Setting.kGeneralGroup)] = Chinese ? "常规" : "General",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "限制标记" : "Restriction badges",
