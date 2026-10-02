@@ -1,38 +1,135 @@
-# Performance contract / 性能约定
+# RouteFilter performance
 
-Status: static audit and build only. CPU/GC/large-city measurements **NOT TESTED**.
-状态：目前仅静态审计与构建；CPU、GC、大城市性能 **未测试**。
+All numbers below are **work counts**, not guesses. The counters that produce them are in
+`RouteFilterDiagnosticsSystem`; turn on `Verbose diagnostics` or press `Log current statistics` in
+Settings to read them. No claim below has been validated with an in-game profiler; see the status
+table at the end.
 
-| System / 系统 | Actual workload / 实际工作量 | Fast path / 快速路径 |
+## 1. Per-system budget
+
+| System | Workload grows with | Fast path | Complexity | Allocations | Job dependencies | Main-thread sync | Structural changes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `RestrictionIndexSystem` | restriction changes, net rebuilds | 0 targets + 0 restricted entities: two cached emptiness checks, no snapshot, no log | O(targets x lanes per target) on rebuild only | none (managed pools reused) | none | none | none |
+| `RestrictionCandidateSystem` | watched road entry lanes + their `LaneObject`s | 0 watched lanes: returns before scheduling | O(watched lanes + LaneObjects) per frame | none | 1 chained job | none | none |
+| `RestrictionSafetySystem` | new candidates | no new candidates: returns before scheduling | O(new candidates + concurrent approaches/64) | none | 1 job chained after detection | none | none |
+| `RoadEnforcementCoordinator` | new safe candidates + active leases + active attempts | no leases, no attempts, no evaluations: returns before scheduling | O(new safe candidates + leases + attempts); all three hard-capped at 32/64 | none | 1 job chained after safety | none | `Updated` add per publish, capped at 8 per second |
+| `RailEnforcementBackend` | watched rail entry lanes + their `LaneObject`s | 0 watched lanes: returns before scheduling | same shape as road, consist-canonicalised | none | 2 jobs chained | none | **none, ever** |
+| `RouteFilterDiagnosticsSystem` | number of backends | samples once per 5 s | O(1) | one string per interval only when logging is on | none | none | none |
+| `RouteFilterUISystem` | player interaction | binding updates only, O(1) | catalog poll every 30 frames, not per frame | only on actual catalog change | none | none | none |
+| `RestrictionOverlaySystem` | active tool only | returns unless the tool is active | bounded: 128 lanes / 256 objects / 32 vehicles / 256 elements / 1024 curves | none | 1 job | none | none |
+
+No system scans vehicles, lanes, track lanes, trains or consists by archetype. No system runs LINQ,
+allocates a `List`/`Dictionary`/`HashSet`, formats a string, or calls `JobHandle.Complete()` on the
+simulation hot path.
+
+## 2. What was removed and why it mattered
+
+### Quadratic lookups in the candidate detector (fixed)
+`ContainsMatch`, `GetFirstSeenFrame` and `ContainsEntity` were linear scans over per-frame lists.
+With one restriction this is invisible. With 100 targets the watched set is hundreds of lanes with
+tens of vehicles each, so the dedupe and first-seen lookups alone are O(n^2) in traffic density -
+the classic "one restriction is fine, a hundred restrictions melt the frame" failure. They are now
+`NativeParallelHashSet` / `NativeParallelHashMap` lookups.
+
+### Per-observation sweep in the safety stage (fixed)
+`ObserveTrackedPathStates` walked **every retained observation every frame**, so cost grew with the
+number of vehicles that had ever passed a gate rather than with the number currently approaching
+one. Pending transitions are now observed inside the candidate loop, and the map is swept every 64
+frames.
+
+### `JobHandle.Complete()` for diagnostics (removed)
+`GetCategoryVerdicts` and `GetLatencyPercentiles` synchronised the job purely so a UI refresh could
+read counters. They now return managed mirrors that are refreshed inside `ProcessDiagnostics`, which
+only runs when the job is already finished. No consumer can stall the simulation thread for a number.
+
+### Per-frame catalog poll in the UI (gated)
+`RouteFilterUISystem.OnUpdate` walked the prefab query's chunks every frame, including while paused.
+It is now sampled every 30 frames; all explicit refresh paths still force an immediate rebuild.
+
+## 3. The 130 -> 32 FPS report
+
+**Status: root cause identified structurally; in-game confirmation NOT TESTED.**
+
+There are three real mechanisms in the decompiled game that can turn "restriction enabled" into a
+frame-time collapse, and the old 1.x design hit all three:
+
+1. **Non-moving objects create lane blockage.** `Game.Pathfind.LaneDataSystem.CheckBlockage` marks a
+   lane interval blocked for every `LaneObject` that lacks `Moving`. A stopped vehicle in front of a
+   restriction therefore blocks the lane.
+2. **Blockage is a hard pathfinding rule for everyone.**
+   `Game.Pathfind.PathUtils.GetCarDriveSpecification` turns a non-empty interval into
+   `RuleFlags.HasBlockage`, and `Game.Pathfind.PathfindJobs.IsValidDelta` rejects every overlapping
+   traversal for every seeker that does not ignore the rule. One stopped vehicle changes routing for
+   the whole city, and `PathfindTargetSeeker` additionally reroutes anything whose path touches it.
+3. **Each lane write republishes the graph.** Adding `Updated` selects the lane in
+   `LaneDataSystem` and in `LanesModifiedSystem`, which invalidates paths. The old
+   `AccessDetourBlock` kept a barrier alive with a request count and a quiet-tick grace period, so a
+   steady stream of matching vehicles kept a lane in the invalidated set continuously. That is the
+   single most plausible mechanism for a sustained multi-year drop, and it is exactly the "sticky
+   barrier" this rewrite forbids.
+
+RouteFilter 2.0 removes all three levers:
+
+- RouteFilter never stops a vehicle, so it never creates blockage through `CheckBlockage`.
+- leases are acquired **only** on a lane vanilla currently considers empty, so a lease never
+  displaces a real blockage;
+- leases have an absolute 30-frame lifetime, are never extended, and are re-asserted only while
+  vanilla's own value is still empty;
+- a city-wide ceiling of 8 lane publications per second bounds the republish rate no matter how much
+  traffic is affected, and over-budget requests are dropped rather than queued;
+- the old `AccessDetourBlock` request-count/quiet-grace barrier is deleted.
+
+## 4. What still has to be measured in game
+
+The counters exist; the run does not. Before claiming a performance result, capture, for each row of
+the matrix below, one `Log current statistics` line plus the game's own system timing:
+
+| Case | Targets | Notes |
 | --- | --- | --- |
-| Index | Restricted targets and their local topology, dirty or periodic rebuild / 受限目标及局部拓扑，dirty 或周期重建 | Empty cached queries return without arrays / 无限制时查询为空即返回 |
-| Candidate | Watched lanes + relevant LaneObjects, with linear-list dedup/first-seen overhead / watched lanes 与相关对象，另有线性列表去重及追踪开销 | No watched gates: no scan / 无 gate 不扫描 |
-| Safety | Candidates × retained observations in current lookup implementation, plus observation cleanup / 当前查找为候选数乘追踪记录数，另有记录清理 | No watched gates/new scan: no evaluation / 无 gate 或新扫描不评估 |
-| Lease probe | New evaluations + active leases, **cap one active lease** / 新评估与活跃 lease，最多一条 | Unarmed and no lease: immediate return / 未请求且无 lease 时立即返回 |
+| P0 | 0 | release gate: `watchedEntryLanes=0`, `laneObjects=0`, `reroutes=0`, `graphMutations=0` |
+| P1 | 1 road | |
+| P2 | 10 road | |
+| P3 | 100 road | the case that exposed the quadratic lookups |
+| P4 | dense road traffic | |
+| P5 | highway throughput | |
+| P6 | 1 rail | |
+| P7 | multiple rail | |
+| P8 | long consists | verify one candidate per consist, not per carriage |
+| P9 | road + rail mixed | |
+| P10 | large realistic city | |
+| P11 | stress | |
+| P12 | long soak | memory and all runtime state must return to baseline |
 
-The Candidate/Safety linear searches are investigation leads, not proof of the reported
-130→32 FPS regression. They do **not yet** satisfy the intended linear scaling contract.
-Candidate/Safety 的线性查找是调查线索，尚不能证明其为 130→32 FPS 的根因；当前实现**尚未达到**预期的线性增长约定。
+For each: FPS, simulation speed, main-thread time, RouteFilter system times, allocations, and the
+work counts. **FPS alone is not evidence** - it moves with the GPU and with everything else in the
+build. The attribution argument is `work counts x measured per-unit cost`, which is why every
+system above documents its workload.
 
-## Lease probe resources / Lease 资源
+## 5. Native container growth
 
-- Persistent NativeList capacity 1 and five native counters; disposed on system destroy.
-  固定容量 1 的 persistent NativeList 与五个计数；系统销毁时 Dispose。
-- One Burst job only when armed or holding a lease. Safety reader dependency is registered;
-  writable CarLane lookup participates in ECS dependencies. One barrier ECB per active update,
-  including updates without writes: its allocation cost must be measured, not claimed zero.
-  仅请求测试或存在 lease 时提交一个 Burst job；注册 Safety reader，车道写入参与 ECS 依赖。
-  活跃更新每次创建一个 barrier ECB（即使未写入），其分配成本必须实测，不能声称为零。
-- No city vehicle/lane query, per-target EntityQuery, LINQ, path writes or repeated admission.
-  不查询全城车辆/车道，不建立逐目标查询，无 LINQ、寻路写入或重复 admission。
-- Poll IsCompleted before normal completion; unfinished jobs are not forced to finish for counters.
-  Lifecycle release deliberately synchronizes at Clear/Reset/save/preload/dispose, and can stall.
-  正常完成前检查 IsCompleted；计数不强制等待。Clear/Reset/保存/切城/卸载会同步释放，可能产生等待。
+Every native container is persistent and reused; none is disposed and recreated per frame. The only
+growth-capable stores are the observation maps and lists, and both are pruned: candidate
+observations after 1024 unseen frames, safety observations after 4096 unseen frames, and both sweeps
+are amortised (every 256 and every 64 frames). Attempt and lease stores are hard-capped at 64 and 32
+and are never grown past the cap - a full store drops the request for that frame instead of
+allocating.
 
-## Game measurements / 游戏测量
+## 6. Memory
 
-Compare 0/1/10/100 restricted targets and downtown/highway cases against the same city without
-RouteFilter restrictions. Record job CPU, watched lanes, scanned objects, candidates, safety count,
-topology rebuilds, leases, structural changes, GC, main-thread waits. Reroute count must be zero in 1D.
-对同城无 restriction 基线比较 0/1/10/100 目标及市中心/高速场景，记录 job CPU、watch lanes、
-扫描对象、候选、评估、拓扑重建、lease、结构修改、GC 与主线程等待。1D 的 reroute 必须为零。
+Runtime memory is proportional to active restrictions, watched topology, and concurrent approaches.
+It is not proportional to session length. `RouteFilterDiagnosticsSystem` reports `activeRoadLeases`,
+`activeRoadAttempts` and `activeRailAttempts` every interval so this is checkable rather than
+asserted.
+
+## 7. Status
+
+| Item | Status |
+| --- | --- |
+| Algorithmic complexity review of every system | STATICALLY VERIFIED |
+| Removal of per-frame `Complete()` from diagnostics and UI paths | STATICALLY VERIFIED |
+| Removal of O(n^2) dedupe and observation sweeps | STATICALLY VERIFIED |
+| Zero-restriction fast path in every system | STATICALLY VERIFIED |
+| Debug and Release builds | BUILD VERIFIED |
+| P0-P12 matrix | **NOT TESTED** |
+| 130 -> 32 FPS before/after profiler evidence | **NOT TESTED** (root cause structurally identified above) |
+| Long-session soak | **NOT TESTED** |

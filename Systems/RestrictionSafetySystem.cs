@@ -50,8 +50,6 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
 
     private struct SafetyObservation
     {
-        public Entity Vehicle;
-        public Entity Target;
         public uint FirstSeenFrame;
         public uint LastCandidateFrame;
         public uint LastPositionFrame;
@@ -98,7 +96,8 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
         [ReadOnly] public ComponentLookup<VehicleWork> WorkVehicles;
 
         public NativeList<RerouteSafetyEvaluation> Evaluations;
-        public NativeList<SafetyObservation> Observations;
+        public NativeParallelHashMap<CanonicalApproachKey, SafetyObservation> Observations;
+        public NativeList<CanonicalApproachKey> ObservationOrder;
         public NativeArray<uint> Histograms;
         public NativeArray<uint> HistogramMaxima;
         public NativeArray<SafetyDiagnosticCounters> Counters;
@@ -108,10 +107,12 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
         public uint EvaluationFrame;
         public float SelectedSimulationSpeed;
         public float SmoothSimulationSpeed;
+        /// <summary>Budget for vanilla to enqueue, run and apply one car pathfind, plus reaction.</summary>
+        public float ExpectedLatencySeconds;
+        public float UncertaintyMargin;
 
         public void Execute()
         {
-            ObserveTrackedPathStates();
             var counters = default(SafetyDiagnosticCounters);
 
             for (var i = 0; i < Candidates.Length; i++)
@@ -165,16 +166,20 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
                 var pathState = hasPathOwner ? pathOwner.m_State : 0;
                 var category = Classify(candidate.m_Vehicle);
 
-                // Instrumentation mode intentionally has no fabricated policy inputs.
+                // The decision point is the end of the current entry-lane traversal, which is the
+                // first moment at which the vehicle is committed to the restricted target. The
+                // latency term is a deliberate conservative assumption rather than a measurement:
+                // over-estimating it makes RouteFilter refuse more often, which is the safe
+                // direction, and it never makes a reroute happen later than it can be honoured.
                 var calibration = new RerouteSafetyCalibration
                 {
-                    m_Confidence = SafetyConfidence.Instrumenting,
-                    m_HasLastSafeDecisionPoint = false,
-                    m_DistanceToLastSafeDecisionPoint = float.NaN,
-                    m_ExpectedLatencySeconds = float.NaN,
-                    m_VehicleGeometryMargin = float.NaN,
-                    m_LaneChangeMargin = float.NaN,
-                    m_UncertaintyMargin = float.NaN
+                    m_Confidence = SafetyConfidence.Calibrated,
+                    m_HasLastSafeDecisionPoint = hasCurrent && hasCurve,
+                    m_DistanceToLastSafeDecisionPoint = gateDistance,
+                    m_ExpectedLatencySeconds = ExpectedLatencySeconds,
+                    m_VehicleGeometryMargin = geometryLength,
+                    m_LaneChangeMargin = 0f,
+                    m_UncertaintyMargin = UncertaintyMargin
                 };
 
                 var evaluation = SafeToAttemptRerouteEvaluator.Evaluate(new RerouteSafetyInput
@@ -212,23 +217,20 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
                 CountEvaluation(evaluation, ref counters);
             }
 
+            if (EvaluationFrame % 64 == 0) PruneObservations();
             Counters[0] = counters;
         }
 
-        private void ObserveTrackedPathStates()
+        private void UpdateObservation(in CandidateMatch candidate, float curveAnchor, PathFlags pathState)
         {
-            for (var i = Observations.Length - 1; i >= 0; i--)
+            var key = new CanonicalApproachKey { Vehicle = candidate.m_Vehicle, Target = candidate.m_Target };
+            if (Observations.TryGetValue(key, out var observation))
             {
-                var observation = Observations[i];
-                if (!IsValid(observation.Vehicle) ||
-                    EvaluationFrame - observation.LastCandidateFrame > kObservationRetentionFrames)
-                {
-                    Observations.RemoveAtSwapBack(i);
-                    continue;
-                }
-
-                if (!PathOwners.TryGetComponent(observation.Vehicle, out var owner)) continue;
-                var pending = (owner.m_State & PathFlags.Pending) != 0;
+                // Pending transitions are observed only for vehicles that are currently candidates.
+                // The previous implementation walked every retained observation every frame, which
+                // made cost grow with the number of vehicles that had ever passed the gate rather
+                // than with the number currently approaching it.
+                var pending = (pathState & PathFlags.Pending) != 0;
                 var wasPending = (observation.LastPathState & PathFlags.Pending) != 0;
                 if (pending && !wasPending)
                 {
@@ -238,28 +240,14 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
                 }
                 else if (!pending && wasPending && observation.HasPendingStart)
                 {
-                    Record(LatencyMetric.NaturalPendingDuration,
-                        EvaluationFrame - observation.PendingStartFrame);
+                    Record(LatencyMetric.NaturalPendingDuration, EvaluationFrame - observation.PendingStartFrame);
                     observation.HasPendingStart = false;
                 }
-
-                observation.LastPathState = owner.m_State;
-                Observations[i] = observation;
-            }
-        }
-
-        private void UpdateObservation(CandidateMatch candidate, float curveAnchor, PathFlags pathState)
-        {
-            for (var i = 0; i < Observations.Length; i++)
-            {
-                var observation = Observations[i];
-                if (observation.Vehicle != candidate.m_Vehicle || observation.Target != candidate.m_Target) continue;
 
                 if (observation.HasPosition && math.isfinite(curveAnchor) &&
                     math.abs(curveAnchor - observation.LastCurveAnchor) > 1e-6f)
                 {
-                    Record(LatencyMetric.ObservedPositionChangeGap,
-                        EvaluationFrame - observation.LastPositionFrame);
+                    Record(LatencyMetric.ObservedPositionChangeGap, EvaluationFrame - observation.LastPositionFrame);
                     observation.LastPositionFrame = EvaluationFrame;
                     observation.LastCurveAnchor = curveAnchor;
                 }
@@ -272,14 +260,13 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
 
                 observation.LastCandidateFrame = EvaluationFrame;
                 observation.LastPathState = pathState;
-                Observations[i] = observation;
+                Observations[key] = observation;
                 return;
             }
 
-            Observations.Add(new SafetyObservation
+            ObservationOrder.Add(key);
+            Observations.Add(key, new SafetyObservation
             {
-                Vehicle = candidate.m_Vehicle,
-                Target = candidate.m_Target,
                 FirstSeenFrame = candidate.m_FirstSeenFrame,
                 LastCandidateFrame = EvaluationFrame,
                 LastPositionFrame = EvaluationFrame,
@@ -289,6 +276,23 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
                 HasPendingStart = (pathState & PathFlags.Pending) != 0,
                 PendingStartFrame = EvaluationFrame
             });
+        }
+
+        /// <summary>
+        /// Amortised sweep. Observations are removed once they stop appearing as candidates, which
+        /// bounds the map by concurrent approaches rather than by session length.
+        /// </summary>
+        private void PruneObservations()
+        {
+            for (var i = ObservationOrder.Length - 1; i >= 0; i--)
+            {
+                var key = ObservationOrder[i];
+                if (!Observations.TryGetValue(key, out var observation)) continue;
+                if (IsValid(key.Vehicle) && EvaluationFrame - observation.LastCandidateFrame <= kObservationRetentionFrames)
+                    continue;
+                Observations.Remove(key);
+                ObservationOrder.RemoveAtSwapBack(i);
+            }
         }
 
         private void CountEvaluation(RerouteSafetyEvaluation evaluation, ref SafetyDiagnosticCounters counters)
@@ -468,7 +472,8 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
     private RestrictionIndexSystem m_Index = null!;
     private SimulationSystem m_SimulationSystem = null!;
     private NativeList<RerouteSafetyEvaluation> m_Evaluations;
-    private NativeList<SafetyObservation> m_Observations;
+    private NativeParallelHashMap<CanonicalApproachKey, SafetyObservation> m_Observations;
+    private NativeList<CanonicalApproachKey> m_ObservationOrder;
     private NativeArray<uint> m_Histograms;
     private NativeArray<uint> m_HistogramMaxima;
     private NativeArray<SafetyDiagnosticCounters> m_Counters;
@@ -479,12 +484,29 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
     private int m_ReportScans;
     private SafetyDiagnosticCounters m_ReportCounters;
     private readonly int[] m_ReportCategoryVerdicts = new int[kVehicleCategoryCount * kVerdictCount];
+    private readonly int[] m_LastCategoryVerdicts = new int[kVehicleCategoryCount * kVerdictCount];
+    private readonly LatencyPercentiles[] m_LastPercentiles = new LatencyPercentiles[(int)LatencyMetric.Count];
     private readonly int[] m_ReportReasons = new int[kSafetyReasonBitCount];
     private readonly ReportDistribution m_ReportRemainingDistance = new(1f);
     private readonly ReportDistribution m_ReportBrakingDistance = new(1f);
     private readonly ReportDistribution m_ReportFirstSeenFrames = new(1f);
     private uint m_LastConsumedScanSequence;
     private int m_DebugMissScans;
+
+    /// <summary>Managed mirror of the last completed per-frame evaluation count.</summary>
+    private int m_LastEvaluationCount;
+
+    /// <summary>
+    /// Evaluations produced by the most recent completed job, or 0 while one is still in flight.
+    /// Read without synchronising: callers use this only as a cheap "is there anything to do" test.
+    /// </summary>
+    public int EvaluationCount => m_EvaluationPending ? 0 : m_Evaluations.Length;
+
+    /// <summary>Conservative reroute latency budget in seconds. See PERFORMANCE.md.</summary>
+    public float ExpectedLatencySeconds => Mod.Settings?.RerouteLatencySeconds ?? 1.0f;
+
+    /// <summary>Extra distance margin, in metres, on top of the modelled braking distance.</summary>
+    public float UncertaintyMargin => Mod.Settings?.RerouteUncertaintyMetres ?? 5f;
 
     public Entity DebugVehicle { get; set; } = Entity.Null;
     public Entity DebugTarget { get; set; } = Entity.Null;
@@ -496,7 +518,8 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
         m_Index = World.GetOrCreateSystemManaged<RestrictionIndexSystem>();
         m_SimulationSystem = World.GetOrCreateSystemManaged<SimulationSystem>();
         m_Evaluations = new NativeList<RerouteSafetyEvaluation>(64, Allocator.Persistent);
-        m_Observations = new NativeList<SafetyObservation>(128, Allocator.Persistent);
+        m_Observations = new NativeParallelHashMap<CanonicalApproachKey, SafetyObservation>(128, Allocator.Persistent);
+        m_ObservationOrder = new NativeList<CanonicalApproachKey>(128, Allocator.Persistent);
         m_Histograms = new NativeArray<uint>((int)LatencyMetric.Count * kHistogramBins, Allocator.Persistent);
         m_HistogramMaxima = new NativeArray<uint>((int)LatencyMetric.Count, Allocator.Persistent);
         m_Counters = new NativeArray<SafetyDiagnosticCounters>(1, Allocator.Persistent);
@@ -508,6 +531,7 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
         JobHandle.CombineDependencies(m_EvaluationHandle, m_ReaderHandle).Complete();
         m_Evaluations.Dispose();
         m_Observations.Dispose();
+        m_ObservationOrder.Dispose();
         m_Histograms.Dispose();
         m_HistogramMaxima.Dispose();
         m_Counters.Dispose();
@@ -555,6 +579,7 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
             WorkVehicles = GetComponentLookup<VehicleWork>(true),
             Evaluations = m_Evaluations,
             Observations = m_Observations,
+            ObservationOrder = m_ObservationOrder,
             Histograms = m_Histograms,
             HistogramMaxima = m_HistogramMaxima,
             Counters = m_Counters,
@@ -562,7 +587,9 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
             RestrictionRevision = m_Index.Revision,
             EvaluationFrame = m_SimulationSystem.frameIndex,
             SelectedSimulationSpeed = m_SimulationSystem.selectedSpeed,
-            SmoothSimulationSpeed = m_SimulationSystem.smoothSpeed
+            SmoothSimulationSpeed = m_SimulationSystem.smoothSpeed,
+            ExpectedLatencySeconds = ExpectedLatencySeconds,
+            UncertaintyMargin = UncertaintyMargin
         };
 
         m_EvaluationHandle = job.Schedule(JobHandle.CombineDependencies(Dependency, candidateDependency));
@@ -590,6 +617,7 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
         m_ReaderHandle = default;
         m_Evaluations.Clear();
         m_Observations.Clear();
+        m_ObservationOrder.Clear();
         for (var i = 0; i < m_Histograms.Length; i++) m_Histograms[i] = 0;
         for (var i = 0; i < m_HistogramMaxima.Length; i++) m_HistogramMaxima[i] = 0;
         for (var i = 0; i < m_Counters.Length; i++) m_Counters[i] = default;
@@ -610,13 +638,24 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
     public SafetyDiagnosticCounters GetLastCounters()
         => m_EvaluationPending ? default : m_Counters[0];
 
+    /// <summary>
+    /// Reads the last completed per-frame numbers. No JobHandle.Complete: the values are mirrored
+    /// from the native counters while the job was already complete, so a UI refresh can never
+    /// stall the simulation thread.
+    /// </summary>
     public void GetCategoryVerdicts(
         RoadVehicleCategory category,
         out int safe,
         out int unsafeCount,
         out int unknown)
     {
-        JobHandle.CombineDependencies(m_EvaluationHandle, m_ReaderHandle).Complete();
+        if (m_EvaluationPending)
+        {
+            safe = m_LastCategoryVerdicts[(int)category * 3 + (int)RerouteSafetyVerdict.Safe];
+            unsafeCount = m_LastCategoryVerdicts[(int)category * 3 + (int)RerouteSafetyVerdict.Unsafe];
+            unknown = m_LastCategoryVerdicts[(int)category * 3 + (int)RerouteSafetyVerdict.Unknown];
+            return;
+        }
         var offset = (int)category * 3;
         safe = m_CategoryVerdicts[offset + (int)RerouteSafetyVerdict.Safe];
         unsafeCount = m_CategoryVerdicts[offset + (int)RerouteSafetyVerdict.Unsafe];
@@ -625,7 +664,7 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
 
     public LatencyPercentiles GetLatencyPercentiles(LatencyMetric metric)
     {
-        JobHandle.CombineDependencies(m_EvaluationHandle, m_ReaderHandle).Complete();
+        if (m_EvaluationPending) return m_LastPercentiles[(int)metric];
         var offset = (int)metric * kHistogramBins;
         uint count = 0;
         for (var i = 0; i < kHistogramBins; i++) count += m_Histograms[offset + i];
@@ -670,6 +709,15 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
         m_ReportScans++;
         AccumulateDetailedDiagnostics();
         DumpFilteredEvaluations();
+
+        // Mirror the per-frame numbers into managed arrays. This is the only place the native
+        // counters are read outside a completed job, which is what lets every consumer above stay
+        // free of JobHandle.Complete().
+        m_LastEvaluationCount = m_Evaluations.Length;
+        for (var i = 0; i < m_LastCategoryVerdicts.Length; i++) m_LastCategoryVerdicts[i] = m_CategoryVerdicts[i];
+        for (var metric = 0; metric < (int)LatencyMetric.Count; metric++)
+            m_LastPercentiles[metric] = GetLatencyPercentiles((LatencyMetric)metric);
+
         if (m_ReportScans < 256) return;
         LogAggregate(m_ReportCounters);
         LogDetailedAggregate();

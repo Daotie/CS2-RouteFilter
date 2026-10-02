@@ -104,6 +104,12 @@ public sealed partial class RestrictionIndexSystem : GameSystemBase
 
     public bool ContainsRestrictedPrefab(Entity prefab) => m_Current.RestrictedPrefabs.Contains(prefab);
 
+    /// <summary>Number of targets with a non-empty forbidden list. Zero means the fast path.</summary>
+    public int ActiveTargetCount => m_Current.ActiveTargets.Count;
+
+    /// <summary>Gate records across all active targets. O(1).</summary>
+    public int ActiveGateCount => m_Current.GatesByEntryLane.Count;
+
     public bool TargetRestricts(Entity target, IReadOnlyCollection<Entity> prefabs)
     {
         if (target == Entity.Null || !m_Current.ActiveTargets.Contains(target) ||

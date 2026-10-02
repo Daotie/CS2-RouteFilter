@@ -34,6 +34,8 @@ public enum RejectedCandidateReason : byte
     Count = 21
 }
 
+/// <summary>Per-window work counters. Every field is a real, measured quantity.</summary>
+
 /// <summary>Read-only Phase 1B output. No field is consumed as an enforcement command.</summary>
 public struct CandidateMatch
 {
@@ -98,4 +100,6 @@ public struct CandidateDiagnosticCounters
     public int m_DeletedRejected;
     public int m_StaleLaneObjectRejected;
     public int m_StaleRevisionRejected;
+    /// <summary>Emergency vehicles dropped before any matching work. Emergency Protection.</summary>
+    public int m_EmergencyExempt;
 }

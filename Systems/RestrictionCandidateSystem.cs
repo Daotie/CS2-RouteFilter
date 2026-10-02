@@ -15,6 +15,10 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using VehicleLaneFlags = Game.Vehicles.CarLaneFlags;
+using VehicleAmbulance = Game.Vehicles.Ambulance;
+using VehicleFireEngine = Game.Vehicles.FireEngine;
+using VehicleHearse = Game.Vehicles.Hearse;
+using VehiclePoliceCar = Game.Vehicles.PoliceCar;
 
 namespace RouteFilter.Systems;
 
@@ -45,6 +49,19 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         public bool Equals(CandidateIdentity other)
             => Vehicle == other.Vehicle && EntryLane == other.EntryLane &&
                NextLane == other.NextLane && Target == other.Target;
+
+        public override bool Equals(object obj) => obj is CandidateIdentity other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = Vehicle.GetHashCode();
+                hash = (hash * 397) ^ EntryLane.GetHashCode();
+                hash = (hash * 397) ^ NextLane.GetHashCode();
+                return (hash * 397) ^ Target.GetHashCode();
+            }
+        }
     }
 
     private struct CandidateObservation
@@ -58,6 +75,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
     private struct CollectCandidatesJob : IJob
     {
         private const uint kObservationRetentionFrames = 1024;
+        /// <summary>Pruning is amortised: the observation list is swept once every N frames.</summary>
+        private const uint kPruneIntervalFrames = 256;
 
         [ReadOnly] public NativeList<Entity> WatchedEntryLanes;
         [ReadOnly] public NativeParallelMultiHashMap<Entity, DirectedEntryGateRuntime> GatesByEntryLane;
@@ -78,17 +97,29 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         [ReadOnly] public ComponentLookup<Curve> Curves;
         [ReadOnly] public ComponentLookup<MasterLane> MasterLanes;
         [ReadOnly] public ComponentLookup<CarData> PrefabCarData;
+        /// <summary>Emergency services are exempt; they are dropped before any further work.</summary>
+        [ReadOnly] public ComponentLookup<VehiclePoliceCar> VehiclePoliceCars;
+        [ReadOnly] public ComponentLookup<VehicleAmbulance> VehicleAmbulances;
+        [ReadOnly] public ComponentLookup<VehicleFireEngine> VehicleFireEngines;
+        [ReadOnly] public ComponentLookup<VehicleHearse> VehicleHearses;
 
         public NativeList<CandidateMatch> Matches;
         public NativeList<RejectedCandidate> DebugRejections;
-        public NativeList<Entity> CanonicalSeen;
-        public NativeList<CandidateObservation> Observations;
+        /// <summary>O(1) canonical-vehicle dedupe. A linear list here is quadratic in traffic.</summary>
+        public NativeParallelHashSet<Entity> CanonicalSeen;
+        /// <summary>O(1) "already matched this frame" dedupe across overlapping gates.</summary>
+        public NativeParallelHashSet<CandidateIdentity> Matched;
+        public NativeParallelHashMap<CandidateIdentity, CandidateObservation> Observations;
+        /// <summary>Insertion-ordered view of Observations, swept at kPruneIntervalFrames.</summary>
+        public NativeList<CandidateIdentity> ObservationOrder;
         public NativeArray<CandidateDiagnosticCounters> Counters;
         public NativeArray<int> RejectionReasons;
 
         public Entity DebugTarget;
         public int RestrictionRevision;
         public uint DetectionFrame;
+        /// <summary>Settings-driven master switch for Emergency Protection, evaluated per frame.</summary>
+        public bool EmergencyProtectionEnabled;
 
         public void Execute()
         {
@@ -99,7 +130,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 m_WatchedEntryLanes = WatchedEntryLanes.Length
             };
 
-            PruneObservations();
+            if (DetectionFrame % kPruneIntervalFrames == 0) PruneObservations();
 
             for (var laneIndex = 0; laneIndex < WatchedEntryLanes.Length; laneIndex++)
             {
@@ -165,11 +196,17 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                         continue;
                     }
 
-                    if (!ContainsEntity(CanonicalSeen, canonical))
+                    if (EmergencyProtectionEnabled && (IsEmergency(canonical) || IsEmergency(physical)))
                     {
-                        CanonicalSeen.Add(canonical);
-                        counters.m_CanonicalVehicles++;
+                        // Emergency Protection runs before any of the expensive matching work, not
+                        // after it: an exempt vehicle must not cost a gate walk, a prefab match and
+                        // a navigation validation just to be dropped afterwards.
+                        counters.m_EmergencyExempt++;
+                        continue;
                     }
+
+                    if (CanonicalSeen.Add(canonical))
+                        counters.m_CanonicalVehicles++;
 
                     var gate = firstGate;
                     var iterator = firstIterator;
@@ -249,11 +286,12 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 NextLane = gate.NextLane,
                 Target = gate.Target
             };
-            if (ContainsMatch(identity))
+            if (Matched.Contains(identity))
             {
                 counters.m_DuplicatesRemoved++;
                 return;
             }
+            Matched.Add(identity);
 
             var firstSeen = GetFirstSeenFrame(identity);
             var curveLength = Curves.TryGetComponent(gate.EntryLane, out var curve) ? curve.m_Length : 0f;
@@ -483,52 +521,40 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
             });
         }
 
-        private bool ContainsMatch(CandidateIdentity identity)
-        {
-            for (var i = 0; i < Matches.Length; i++)
-            {
-                var match = Matches[i];
-                if (match.m_Vehicle == identity.Vehicle && match.m_EntryLane == identity.EntryLane &&
-                    match.m_NextLane == identity.NextLane && match.m_Target == identity.Target)
-                    return true;
-            }
-            return false;
-        }
-
+        private bool IsEmergency(Entity vehicle)
+            => vehicle != Entity.Null &&
+               (VehiclePoliceCars.HasComponent(vehicle) || VehicleAmbulances.HasComponent(vehicle) ||
+                VehicleFireEngines.HasComponent(vehicle) || VehicleHearses.HasComponent(vehicle));
         private uint GetFirstSeenFrame(CandidateIdentity identity)
         {
-            for (var i = 0; i < Observations.Length; i++)
+            if (Observations.TryGetValue(identity, out var observation))
             {
-                var observation = Observations[i];
-                if (!observation.Identity.Equals(identity)) continue;
                 observation.LastSeenFrame = DetectionFrame;
-                Observations[i] = observation;
+                Observations[identity] = observation;
                 return observation.FirstSeenFrame;
             }
 
-            Observations.Add(new CandidateObservation
+            observation = new CandidateObservation
             {
                 Identity = identity,
                 FirstSeenFrame = DetectionFrame,
                 LastSeenFrame = DetectionFrame
-            });
+            };
+            Observations.Add(identity, observation);
+            ObservationOrder.Add(identity);
             return DetectionFrame;
         }
 
         private void PruneObservations()
         {
-            for (var i = Observations.Length - 1; i >= 0; i--)
+            for (var i = ObservationOrder.Length - 1; i >= 0; i--)
             {
-                if (DetectionFrame - Observations[i].LastSeenFrame > kObservationRetentionFrames)
-                    Observations.RemoveAtSwapBack(i);
+                var key = ObservationOrder[i];
+                if (!Observations.TryGetValue(key, out var observation)) continue;
+                if (DetectionFrame - observation.LastSeenFrame <= kObservationRetentionFrames) continue;
+                Observations.Remove(key);
+                ObservationOrder.RemoveAtSwapBack(i);
             }
-        }
-
-        private static bool ContainsEntity(NativeList<Entity> entities, Entity entity)
-        {
-            for (var i = 0; i < entities.Length; i++)
-                if (entities[i] == entity) return true;
-            return false;
         }
 
         private void AddDebugRejection(
@@ -563,8 +589,10 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
     private NativeParallelMultiHashMap<Entity, Entity> m_TargetPrefabs;
     private NativeList<CandidateMatch> m_Matches;
     private NativeList<RejectedCandidate> m_DebugRejections;
-    private NativeList<Entity> m_CanonicalSeen;
-    private NativeList<CandidateObservation> m_Observations;
+    private NativeParallelHashSet<Entity> m_CanonicalSeen;
+    private NativeParallelHashSet<CandidateIdentity> m_Matched;
+    private NativeParallelHashMap<CandidateIdentity, CandidateObservation> m_Observations;
+    private NativeList<CandidateIdentity> m_ObservationOrder;
     private NativeArray<CandidateDiagnosticCounters> m_Counters;
     private NativeArray<int> m_RejectionReasons;
     private JobHandle m_ScanHandle;
@@ -582,6 +610,10 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
     public int RuntimeRevision => m_RuntimeRevision;
     public bool HasWatchedGates => m_WatchedEntryLanes.IsCreated && m_WatchedEntryLanes.Length != 0;
     public uint ScanSequence => m_ScanSequence;
+    /// <summary>Watched road entry lanes. O(1). Zero is the release gate for "no road cost".</summary>
+    public int WatchedEntryLaneCount => m_WatchedEntryLanes.IsCreated ? m_WatchedEntryLanes.Length : 0;
+    /// <summary>Published gate records. O(1).</summary>
+    public int WatchedGateCount => m_GatesByEntryLane.IsCreated ? m_GatesByEntryLane.Count() : 0;
 
     protected override void OnCreate()
     {
@@ -593,8 +625,10 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         m_TargetPrefabs = new NativeParallelMultiHashMap<Entity, Entity>(128, Allocator.Persistent);
         m_Matches = new NativeList<CandidateMatch>(64, Allocator.Persistent);
         m_DebugRejections = new NativeList<RejectedCandidate>(32, Allocator.Persistent);
-        m_CanonicalSeen = new NativeList<Entity>(64, Allocator.Persistent);
-        m_Observations = new NativeList<CandidateObservation>(128, Allocator.Persistent);
+        m_CanonicalSeen = new NativeParallelHashSet<Entity>(64, Allocator.Persistent);
+        m_Matched = new NativeParallelHashSet<CandidateIdentity>(64, Allocator.Persistent);
+        m_Observations = new NativeParallelHashMap<CandidateIdentity, CandidateObservation>(128, Allocator.Persistent);
+        m_ObservationOrder = new NativeList<CandidateIdentity>(128, Allocator.Persistent);
         m_Counters = new NativeArray<CandidateDiagnosticCounters>(1, Allocator.Persistent);
         m_RejectionReasons = new NativeArray<int>((int)RejectedCandidateReason.Count, Allocator.Persistent);
     }
@@ -608,7 +642,9 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         m_Matches.Dispose();
         m_DebugRejections.Dispose();
         m_CanonicalSeen.Dispose();
+        m_Matched.Dispose();
         m_Observations.Dispose();
+        m_ObservationOrder.Dispose();
         m_Counters.Dispose();
         m_RejectionReasons.Dispose();
         base.OnDestroy();
@@ -627,6 +663,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         m_Matches.Clear();
         m_DebugRejections.Clear();
         m_CanonicalSeen.Clear();
+        m_Matched.Clear();
 
         var job = new CollectCandidatesJob
         {
@@ -649,15 +686,22 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
             Curves = GetComponentLookup<Curve>(true),
             MasterLanes = GetComponentLookup<MasterLane>(true),
             PrefabCarData = GetComponentLookup<CarData>(true),
+            VehiclePoliceCars = GetComponentLookup<VehiclePoliceCar>(true),
+            VehicleAmbulances = GetComponentLookup<VehicleAmbulance>(true),
+            VehicleFireEngines = GetComponentLookup<VehicleFireEngine>(true),
+            VehicleHearses = GetComponentLookup<VehicleHearse>(true),
             Matches = m_Matches,
             DebugRejections = m_DebugRejections,
             CanonicalSeen = m_CanonicalSeen,
+            Matched = m_Matched,
             Observations = m_Observations,
+            ObservationOrder = m_ObservationOrder,
             Counters = m_Counters,
             RejectionReasons = m_RejectionReasons,
             DebugTarget = DebugTarget,
             RestrictionRevision = m_RuntimeRevision,
-            DetectionFrame = m_SimulationSystem.frameIndex
+            DetectionFrame = m_SimulationSystem.frameIndex,
+            EmergencyProtectionEnabled = Mod.Settings?.EmergencyProtection ?? true
         };
 
         m_ScanHandle = job.Schedule(Dependency);
@@ -692,7 +736,9 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         m_Matches.Clear();
         m_DebugRejections.Clear();
         m_CanonicalSeen.Clear();
+        m_Matched.Clear();
         m_Observations.Clear();
+        m_ObservationOrder.Clear();
         for (var i = 0; i < m_Counters.Length; i++) m_Counters[i] = default;
         for (var i = 0; i < m_RejectionReasons.Length; i++) m_RejectionReasons[i] = 0;
         m_RuntimeRevision = -1;
@@ -737,6 +783,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         m_GatesByEntryLane.Clear();
         m_TargetPrefabs.Clear();
         m_Observations.Clear();
+        m_ObservationOrder.Clear();
 
         var uniqueLanes = new HashSet<Entity>();
         var gates = new List<DirectedEntryGateRuntime>();

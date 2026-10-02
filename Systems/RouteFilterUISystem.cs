@@ -56,6 +56,8 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private int m_LastTrainOrderVersion = int.MinValue;
     private bool m_ContentAvailabilityDirty;
     private bool m_PendingLoadRefresh;
+    private int m_CatalogPollTicks;
+    private const int kCatalogPollInterval = 30;
 
     public override GameMode gameMode => GameMode.GameOrEditor;
 
@@ -87,7 +89,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         AddBinding(new TriggerBinding<int, bool>(Mod.Id, "toggleAssetGroup", ToggleAssetGroup));
         AddBinding(new TriggerBinding<int>(Mod.Id, "setTargetMode", SetTargetMode));
         AddBinding(new TriggerBinding<string, bool>(Mod.Id, "setFilteredAssetSelection", SetFilteredAssetSelection));
-        AddBinding(new TriggerBinding(Mod.Id, "refreshAssets", () => { Mod.Log.Info("[RouteFilter.Binding] refreshAssets received"); RefreshAssetCatalog(); }));
+        AddBinding(new TriggerBinding(Mod.Id, "refreshAssets", () => { Mod.Log.Info("[RouteFilter.Binding] refreshAssets received"); m_CatalogPollTicks = 0; RefreshAssetCatalog(); }));
         AddBinding(new TriggerBinding(Mod.Id, "applySelection", () => { Mod.Log.Info("[RouteFilter.Binding] applySelection received"); m_RestrictionTool.ApplySelection(); PublishRestriction(); }));
         AddBinding(new TriggerBinding(Mod.Id, "clearSelectedRestriction", () => { Mod.Log.Info("[RouteFilter.Binding] clearSelectedRestriction received"); m_RestrictionTool.ClearSelectedRestriction(); LoadSelectedTargetAssets(m_RestrictionTool.SelectedTarget); PublishRestriction(); }));
         AddBinding(new TriggerBinding(Mod.Id, "cancelSelection", m_RestrictionTool.ClearSelection));
@@ -111,6 +113,35 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     private void HandleGameLoadingComplete(Purpose purpose, GameMode mode) => m_PendingLoadRefresh = true;
 
+    /// <summary>
+    /// Rebuilds the catalog once after a save finishes loading, and additionally whenever vehicle
+    /// prefabs or their CarData/TrainData actually change (for example asset packs that finish
+    /// streaming after the load-complete event). Nothing is rebuilt while the prefab world is
+    /// unchanged, and the panel opening never triggers a rebuild.
+    /// </summary>
+    private void PollAssetCatalog()
+    {
+        if (m_VehiclePrefabQuery.IsEmptyIgnoreFilter)
+        {
+            // Prefabs are not available (for example while loading); force a refresh once they appear.
+            m_LastQueryOrderVersion = int.MinValue;
+            m_LastVehicleOrderVersion = int.MinValue;
+            m_LastCarOrderVersion = int.MinValue;
+            m_LastTrainOrderVersion = int.MinValue;
+            return;
+        }
+
+        var queryVersion = m_VehiclePrefabQuery.GetCombinedComponentOrderVersion(true);
+        var vehicleVersion = EntityManager.GetComponentOrderVersion<VehicleData>();
+        var carVersion = EntityManager.GetComponentOrderVersion<CarData>();
+        var trainVersion = EntityManager.GetComponentOrderVersion<TrainData>();
+        if (m_AssetsById.Count != 0 && !m_PendingLoadRefresh && !m_ContentAvailabilityDirty &&
+            queryVersion == m_LastQueryOrderVersion && vehicleVersion == m_LastVehicleOrderVersion &&
+            carVersion == m_LastCarOrderVersion && trainVersion == m_LastTrainOrderVersion)
+            return;
+        RefreshAssetCatalog();
+    }
+
     protected override void OnUpdate()
     {
         // Game 1.6.0f1 can run mod OnLoad on a thread-pool continuation where the Input
@@ -118,31 +149,14 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         // main thread once so the shortcut key still works in that scenario.
         Mod.RetryKeyBindings();
 
-        // Rebuild the catalog once after a save finishes loading, and additionally whenever vehicle
-        // prefabs or their CarData/TrainData actually change (for example asset packs that finish
-        // loading after the load-complete event). The version checks are O(1) per frame and never
-        // rebuild anything while the prefab world is unchanged; the panel itself never triggers
-        // a rebuild when it opens.
-        if (!m_VehiclePrefabQuery.IsEmptyIgnoreFilter)
+        // The catalog check walks the prefab query, so it is sampled rather than run every
+        // frame. O(1) binding updates below are unchanged; only the archetype scan is gated.
+        // Thirty frames is well inside the window in which a player can notice a newly
+        // streamed asset pack, and every explicit refresh path still forces an immediate rebuild.
+        if (++m_CatalogPollTicks >= kCatalogPollInterval)
         {
-            var queryVersion = m_VehiclePrefabQuery.GetCombinedComponentOrderVersion(true);
-            var vehicleVersion = EntityManager.GetComponentOrderVersion<VehicleData>();
-            var carVersion = EntityManager.GetComponentOrderVersion<CarData>();
-            var trainVersion = EntityManager.GetComponentOrderVersion<TrainData>();
-            if (m_AssetsById.Count == 0 || m_PendingLoadRefresh || m_ContentAvailabilityDirty ||
-                queryVersion != m_LastQueryOrderVersion || vehicleVersion != m_LastVehicleOrderVersion ||
-                carVersion != m_LastCarOrderVersion || trainVersion != m_LastTrainOrderVersion)
-            {
-                RefreshAssetCatalog();
-            }
-        }
-        else
-        {
-            // Prefabs are not available (for example while loading); force a refresh once they appear.
-            m_LastQueryOrderVersion = int.MinValue;
-            m_LastVehicleOrderVersion = int.MinValue;
-            m_LastCarOrderVersion = int.MinValue;
-            m_LastTrainOrderVersion = int.MinValue;
+            m_CatalogPollTicks = 0;
+            PollAssetCatalog();
         }
         m_ToolActiveBinding.Update(m_ToolSystem.activeTool == m_RestrictionTool);
         m_TargetModeBinding.Update((int)Mod.SelectedTargetMode);

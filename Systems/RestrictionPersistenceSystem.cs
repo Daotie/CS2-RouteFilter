@@ -4,53 +4,160 @@ using Game;
 using Game.Net;
 using Game.Prefabs;
 using RouteFilter.Components;
+using RouteFilter.Persistence;
+using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 
 namespace RouteFilter.Systems;
 
 /// <summary>
-/// Owns the authoritative, versioned restriction payload that travels inside the save file.
-/// Forbidden vehicle assets are stored as stable prefab names (not raw entity references,
-/// which do not round-trip reliably for prefab entities) and re-resolved after loading,
-/// so the saved asset lists survive save/reload.
+/// Owns the only data RouteFilter puts in a save file: "these prefabs are forbidden at these
+/// targets". Everything else - topology, candidates, safety verdicts, leases, attempts, graph
+/// publication state, diagnostics - is derived at runtime and rebuilt from this configuration.
 ///
-/// Key invariant: saved prefab names are NEVER discarded merely because the corresponding
-/// prefab is not currently loaded. Unresolved names are retried every frame and after
-/// content-availability changes (mod loaded, asset pack finished streaming) so that
-/// delayed-loading modded vehicles are still restored correctly.
+/// Three properties are structural rather than best-effort:
+/// <list type="number">
+/// <item>The payload is framed with its own exact byte length, so the game's
+/// <c>ComponentSystemSerializer</c> size check always matches even when the body is corrupt.</item>
+/// <item>A payload written by a newer schema is copied verbatim and re-emitted verbatim. It is
+/// never reinterpreted and never overwritten.</item>
+/// <item>A payload whose header cannot be trusted disables enforcement and locks persistence, so
+/// a half-parsed save is never half-applied and never silently replaced.</item>
+/// </list>
 /// </summary>
 public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefaultSerializable
 {
-    private const int SaveVersion = 2;
-    private const int MaxRecordCount = 100000;
-    /// <summary>
-    /// Generous timeout: ~10 seconds at 60fps. Modded vehicle prefabs can take a while
-    /// to stream in after a save load, so we must not give up too early.
-    /// </summary>
     private const int MaxRestoreAttempts = 600;
+    private const int MaxUnresolvedPrefabRetries = 600;
 
-    private sealed class RestrictionRecord
+    private sealed class PendingRestore
     {
-        public Entity Target;
-        public bool IsNode;
-        /// <summary>All saved prefab names, including those not yet resolved.</summary>
+        public RestrictionTargetIdentity Identity;
         public readonly List<string> AssetNames = new();
-        /// <summary>Names that have been resolved and already applied to the target.</summary>
         public readonly HashSet<string> ResolvedNames = new();
+        public int Attempts;
+    }
+
+    private sealed class WriterSink : IRestrictionSaveSink
+    {
+        private readonly IWriter m_Writer;
+        internal WriterSink(IWriter writer) => m_Writer = writer;
+
+        public void WriteUInt(uint value) => m_Writer.Write(value);
+        public void WriteUShort(ushort value) => m_Writer.Write(value);
+        public void WriteInt(int value) => m_Writer.Write(value);
+        public void WriteFloat(float value) => m_Writer.Write(value);
+        public void WriteString(string value) => m_Writer.Write(value ?? string.Empty);
+
+        public void WriteBytes(byte[] value)
+        {
+            if (value == null || value.Length == 0) return;
+            using var native = new NativeArray<byte>(value, Allocator.Temp);
+            m_Writer.Write(native);
+        }
+    }
+
+    private sealed class ReaderSource : IRestrictionSaveSource
+    {
+        private readonly IReader m_Reader;
+        private long m_Consumed;
+        private long m_Total;
+
+        internal ReaderSource(IReader reader, long total)
+        {
+            m_Reader = reader;
+            m_Total = total;
+        }
+
+        public long Remaining => m_Total < 0 ? long.MaxValue : m_Total - m_Consumed;
+
+        public bool ReadUInt(out uint value)
+        {
+            if (Remaining < 4) { value = 0; return false; }
+            m_Reader.Read(out value);
+            m_Consumed += 4;
+            return true;
+        }
+
+        public bool ReadUShort(out ushort value)
+        {
+            if (Remaining < 2) { value = 0; return false; }
+            m_Reader.Read(out value);
+            m_Consumed += 2;
+            return true;
+        }
+
+        public bool ReadInt(out int value)
+        {
+            if (Remaining < 4) { value = 0; return false; }
+            m_Reader.Read(out value);
+            m_Consumed += 4;
+            return true;
+        }
+
+        public bool ReadString(out string value)
+        {
+            value = null;
+            if (Remaining < 4) return false;
+            m_Reader.Read(out int length);
+            m_Consumed += 4;
+            if (length < 0 || length > RouteFilterSaveData.MaxPrefabNameLength || Remaining < (long)length * 2)
+                return false;
+            m_Reader.Read(out value);
+            m_Consumed += (long)length * 2;
+            return value != null;
+        }
+
+        public bool SkipToEnd()
+        {
+            if (m_Total < 0) return false;
+            var remaining = (int)Remaining;
+            if (remaining <= 0) return true;
+            m_Reader.Skip(remaining);
+            m_Consumed = m_Total;
+            return true;
+        }
+
+        public bool ReadRemainingBytes(out byte[] value)
+        {
+            value = null;
+            if (m_Total < 0) return false;
+            var remaining = Remaining;
+            if (remaining <= 0 || remaining > int.MaxValue) return false;
+            using var native = new NativeArray<byte>((int)remaining, Allocator.Temp);
+            m_Reader.Read(native);
+            value = native.ToArray();
+            m_Consumed = m_Total;
+            return true;
+        }
     }
 
     private EntityQuery m_RestrictedNodes;
     private EntityQuery m_RestrictedSegments;
     private EntityQuery m_VehiclePrefabQuery;
+    private EntityQuery m_NodeQuery;
     private PrefabSystem m_PrefabSystem = null!;
-    private readonly List<RestrictionRecord> m_PendingRestore = new();
+
+    private readonly List<PendingRestore> m_PendingRestore = new();
     private readonly Dictionary<string, Entity> m_PrefabEntitiesByName = new();
+    private readonly Dictionary<RestrictionAnchor, Entity> m_NodeIndex = new();
     private readonly List<Entity> m_ResolvedAssets = new();
-    private bool m_NameMapBuilt;
-    private int m_RestoreAttempts;
+
     private bool m_NameMapStale = true;
+    private bool m_NodeIndexBuilt;
+    private byte[] m_ForeignPayload;
+    private ushort m_ForeignSchema;
+    private bool m_PersistenceLocked;
+    private string m_LockReason = string.Empty;
+
+    /// <summary>True while the payload must be re-emitted byte for byte instead of re-encoded.</summary>
+    public bool PersistenceLocked => m_PersistenceLocked;
+
+    /// <summary>True when the stored payload cannot be trusted, so enforcement must stay off.</summary>
+    public bool DataTrusted { get; private set; } = true;
 
     protected override void OnCreate()
     {
@@ -61,12 +168,13 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
             ComponentType.ReadOnly<NodeAssetRestrictionV1>(),
             ComponentType.ReadOnly<RestrictedVehicleAssetV1>());
         m_RestrictedSegments = GetEntityQuery(
-            ComponentType.ReadOnly<Game.Net.Edge>(),
+            ComponentType.ReadOnly<Edge>(),
             ComponentType.ReadOnly<SegmentAssetRestrictionV1>(),
             ComponentType.ReadOnly<RestrictedVehicleAssetV1>());
         m_VehiclePrefabQuery = GetEntityQuery(
             ComponentType.ReadOnly<VehicleData>(),
             ComponentType.ReadOnly<PrefabData>());
+        m_NodeQuery = GetEntityQuery(ComponentType.ReadOnly<Node>());
     }
 
     protected override void OnDestroy()
@@ -77,10 +185,8 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
 
     private void OnContentAvailabilityChanged()
     {
-        // New vehicle prefabs may have loaded (modded assets, streaming packs).
-        // Force a name-map rebuild so the next restore attempt can resolve them.
         m_NameMapStale = true;
-        Mod.Log.Info("[RouteFilter.Persistence] Content availability changed; name map will be rebuilt");
+        Mod.Log.Info("[RouteFilter.Persistence] Content availability changed; prefab name map will be rebuilt");
     }
 
     protected override void OnUpdate()
@@ -89,217 +195,422 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
         TryRestorePendingRestrictions();
     }
 
-    public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
-    {
-        using var nodes = m_RestrictedNodes.ToEntityArray(Allocator.Temp);
-        using var segments = m_RestrictedSegments.ToEntityArray(Allocator.Temp);
-
-        writer.Write(SaveVersion);
-        writer.Write(nodes.Length);
-        foreach (var target in nodes) WriteRestrictedTarget(writer, target);
-        writer.Write(segments.Length);
-        foreach (var target in segments) WriteRestrictedTarget(writer, target);
-
-        Mod.Log.Info($"Persistence serialize: {nodes.Length} restricted nodes, {segments.Length} restricted segments");
-    }
-
-    public void Deserialize<TReader>(TReader reader) where TReader : IReader
-    {
-        m_PendingRestore.Clear();
-        m_NameMapBuilt = false;
-        m_RestoreAttempts = 0;
-        reader.Read(out int version);
-        if (version != SaveVersion)
-        {
-            Mod.Log.Warn($"Persistence deserialize: unsupported save data version {version}; keeping per-entity data only");
-            return;
-        }
-
-        reader.Read(out int nodeCount);
-        var nodes = ReadRestrictedTargets(reader, nodeCount, true, out var nodeTruncated);
-        reader.Read(out int segmentCount);
-        var segments = ReadRestrictedTargets(reader, segmentCount, false, out var segmentTruncated);
-
-        m_PendingRestore.AddRange(nodes);
-        m_PendingRestore.AddRange(segments);
-        Mod.Log.Info($"Persistence deserialize: queued restore of {m_PendingRestore.Count} targets " +
-            $"({nodes.Count} nodes, {segments.Count} segments; truncation: node={nodeTruncated}, segment={segmentTruncated})");
-    }
-
     public void SetDefaults(Context context)
     {
-        m_PendingRestore.Clear();
-        m_NameMapBuilt = false;
-        m_RestoreAttempts = 0;
+        ClearTransientState();
+        m_PersistenceLocked = false;
+        m_LockReason = string.Empty;
+        DataTrusted = true;
     }
 
     public void ResetRuntimeState()
     {
+        ClearTransientState();
+        m_NameMapStale = true;
+        m_NodeIndexBuilt = false;
+        m_NodeIndex.Clear();
+    }
+
+    private void ClearTransientState()
+    {
         m_PendingRestore.Clear();
         m_PrefabEntitiesByName.Clear();
-        m_ResolvedAssets.Clear();
-        m_NameMapBuilt = false;
         m_NameMapStale = true;
-        m_RestoreAttempts = 0;
+        m_NodeIndexBuilt = false;
+        m_NodeIndex.Clear();
+        m_ForeignPayload = null;
+        m_ForeignSchema = 0;
+        DataTrusted = true;
     }
 
-    private void WriteRestrictedTarget<TWriter>(TWriter writer, Entity target) where TWriter : IWriter
+    public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
     {
-        writer.Write(target);
-        if (!EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets))
+        // Always frame our own payload. The game asserts that exactly `payloadLength` bytes were
+        // consumed on load, and this is what makes a corrupt body a skipped restriction instead
+        // of a failed city load.
+        var block = writer.Begin();
+        if (m_PersistenceLocked && m_ForeignPayload != null)
         {
-            writer.Write(0);
+            // Verbatim re-emission. No interpretation, no re-encoding, no data loss.
+            var sink = new WriterSink(writer);
+            sink.WriteBytes(m_ForeignPayload);
+            writer.End(block);
+            Mod.Log.Warn($"[RouteFilter.Persistence] Payload preserved verbatim: {m_LockReason}");
             return;
         }
-        writer.Write(assets.Length);
-        foreach (var asset in assets)
-            writer.Write(m_PrefabSystem.GetPrefabName(asset.m_Prefab));
+
+        var data = CaptureCurrentConfiguration();
+        RouteFilterSaveCodec.Encode(data, new WriterSink(writer));
+        writer.End(block);
+        Mod.Log.Info($"[RouteFilter.Persistence] serialize schema={RouteFilterSaveData.SchemaVersion} " +
+                     $"targets={data.Restrictions.Count} prefabNames={data.PrefabNames.Count}");
     }
 
-    private List<RestrictionRecord> ReadRestrictedTargets<TReader>(TReader reader, int count, bool isNode, out bool truncated)
-        where TReader : IReader
+    public void Deserialize<TReader>(TReader reader) where TReader : IReader
     {
-        var records = new List<RestrictionRecord>();
-        truncated = false;
-        if (count < 0 || count > MaxRecordCount)
+        ClearTransientState();
+        m_PersistenceLocked = false;
+        m_LockReason = string.Empty;
+        DataTrusted = true;
+
+        // Our own length prefix. Present for every payload RouteFilter has written since schema 3.
+        var block = reader.Begin(out var payloadSize);
+
+        if (!DecodeCurrentSchema(reader, payloadSize))
         {
-            Mod.Log.Warn($"Persistence deserialize: suspicious target count {count}; clamping to {MaxRecordCount}");
-            count = MaxRecordCount;
-            truncated = true;
+            // Not a schema-3 payload. The legacy layout has no length prefix, so the reader is
+            // recreated with an unknown total and exactness relies on the legacy layout itself.
+            reader.End(block);
+            DecodeLegacyPayload(reader);
         }
 
-        for (var i = 0; i < count; i++)
+        Mod.Log.Info($"[RouteFilter.Persistence] deserialize queued={m_PendingRestore.Count} " +
+                     $"locked={m_PersistenceLocked} trusted={DataTrusted}");
+    }
+
+    private bool DecodeCurrentSchema<TReader>(TReader reader, int payloadSize) where TReader : IReader
+    {
+        var probe = reader;
+        var source = new ReaderSource(probe, payloadSize);
+        var result = RouteFilterSaveCodec.Decode(source);
+        if (result.Status == SaveDecodeStatus.NotRouteFilterData) return false;
+
+        switch (result.Status)
         {
-            var record = new RestrictionRecord { IsNode = isNode };
-            reader.Read(out record.Target);
-            reader.Read(out int assetCount);
-            if (assetCount < 0 || assetCount > MaxRecordCount)
-            {
-                Mod.Log.Warn($"Persistence deserialize: suspicious asset count {assetCount} for target {record.Target.Index}:{record.Target.Version}; clamping");
-                assetCount = MaxRecordCount;
-                truncated = true;
-            }
-            for (var j = 0; j < assetCount; j++)
-            {
-                reader.Read(out string name);
-                record.AssetNames.Add(name ?? string.Empty);
-            }
-            records.Add(record);
+            case SaveDecodeStatus.FutureSchema:
+                m_ForeignPayload = result.ForeignPayload;
+                m_ForeignSchema = result.ForeignSchema;
+                m_PersistenceLocked = true;
+                m_LockReason = result.Detail;
+                DataTrusted = false;
+                Mod.Log.Warn($"[RouteFilter.Persistence] {result.Detail}. " +
+                             "RouteFilter enforcement stays disabled for this save and the payload is preserved unchanged.");
+                return true;
+
+            case SaveDecodeStatus.Corrupt:
+                // The header parsed but the body is not usable. Enforce nothing, rewrite nothing:
+                // half-applying a damaged payload and then overwriting it destroys the only copy.
+                m_PersistenceLocked = true;
+                m_LockReason = result.Detail;
+                DataTrusted = false;
+                Mod.Log.Error($"[RouteFilter.Persistence] corrupt payload ({result.Detail}). " +
+                              "Enforcement disabled and payload left untouched; use Reset to clear it deliberately.");
+                return true;
+
+            case SaveDecodeStatus.PartiallyRecovered:
+                Mod.Log.Warn($"[RouteFilter.Persistence] {result.Detail}");
+                QueueRestrictions(result.Data);
+                return true;
+
+            default:
+                QueueRestrictions(result.Data);
+                return true;
         }
-        return records;
+    }
+
+    private void DecodeLegacyPayload<TReader>(TReader reader) where TReader : IReader
+    {
+        // Nothing in this stream is length-framed, so Remaining is unknown and SkipToEnd is a
+        // no-op. A malformed legacy payload therefore still has to be read exactly; the clamps in
+        // LegacyRouteFilterSaveCodec are what keep that true for every count that can occur.
+        var source = new ReaderSource(reader, -1);
+        var legacy = LegacyRouteFilterSaveCodec.Decode(source);
+        if (legacy.Status == LegacyDecodeStatus.NotLegacyPayload)
+        {
+            Mod.Log.Warn($"[RouteFilter.Persistence] unrecognised payload ({legacy.Detail}); " +
+                         "RouteFilter enforcement stays disabled until the configuration is rebuilt.");
+            m_PersistenceLocked = true;
+            m_LockReason = legacy.Detail;
+            DataTrusted = false;
+            return;
+        }
+        if (legacy.Status == LegacyDecodeStatus.Corrupt)
+        {
+            Mod.Log.Error($"[RouteFilter.Persistence] legacy payload corrupt ({legacy.Detail}); nothing applied.");
+            m_PersistenceLocked = true;
+            m_LockReason = legacy.Detail;
+            DataTrusted = false;
+            return;
+        }
+
+        var tool = World.GetOrCreateSystemManaged<RestrictionToolSystem>();
+        var resolved = 0;
+        var skipped = 0;
+        foreach (var record in legacy.Data.Records)
+        {
+            var entity = new Entity { Index = record.EntityIndex, Version = record.EntityVersion };
+            if (!EntityManager.Exists(entity))
+            {
+                skipped++;
+                continue;
+            }
+            var isNode = EntityManager.HasComponent<Node>(entity);
+            var isSegment = EntityManager.HasComponent<Edge>(entity);
+            if ((record.Kind == 0 && !isNode) || (record.Kind == 1 && !isSegment) ||
+                record.PrefabNames.Count == 0)
+            {
+                skipped++;
+                continue;
+            }
+            var assets = new List<Entity>(record.PrefabNames.Count);
+            foreach (var name in record.PrefabNames)
+                if (m_PrefabEntitiesByName.Count != 0 && m_PrefabEntitiesByName.TryGetValue(name, out var prefab))
+                    assets.Add(prefab);
+            tool.RestoreRestriction(entity, record.Kind == 0, assets);
+            resolved++;
+        }
+        Mod.Log.Info($"[RouteFilter.Persistence] migrated {legacy.Detail}; applied={resolved} skipped={skipped}");
+    }
+
+    private void QueueRestrictions(RouteFilterSaveData data)
+    {
+        if (data == null || data.Restrictions.Count == 0) return;
+        for (var i = 0; i < data.Restrictions.Count; i++)
+        {
+            var restriction = data.Restrictions[i];
+            var pending = new PendingRestore { Identity = restriction.Target };
+            var indices = restriction.PrefabIndices;
+            if (indices != null)
+                for (var j = 0; j < indices.Length; j++)
+                {
+                    var index = indices[j];
+                    if (index < 0 || index >= data.PrefabNames.Count) continue;
+                    var name = data.PrefabNames[index];
+                    if (!string.IsNullOrEmpty(name)) pending.AssetNames.Add(name);
+                }
+            if (pending.AssetNames.Count == 0) continue;
+            m_PendingRestore.Add(pending);
+        }
+    }
+
+    private RouteFilterSaveData CaptureCurrentConfiguration()
+    {
+        var data = RouteFilterSaveData.CreateEmpty();
+        var nameIndices = new Dictionary<string, int>(64);
+
+        using var nodes = m_RestrictedNodes.ToEntityArray(Allocator.Temp);
+        for (var i = 0; i < nodes.Length; i++)
+            CaptureTarget(data, nameIndices, nodes[i], 0);
+
+        using var segments = m_RestrictedSegments.ToEntityArray(Allocator.Temp);
+        for (var i = 0; i < segments.Length; i++)
+            CaptureTarget(data, nameIndices, segments[i], 1);
+        return data;
+    }
+
+    private void CaptureTarget(
+        RouteFilterSaveData data,
+        Dictionary<string, int> nameIndices,
+        Entity target,
+        byte kind)
+    {
+        if (target == Entity.Null || !EntityManager.Exists(target)) return;
+        if (!EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets) ||
+            assets.Length == 0) return;
+
+        if (!TryDescribeTarget(target, kind, out var identity)) return;
+
+        var indices = new List<int>(assets.Length);
+        for (var i = 0; i < assets.Length; i++)
+        {
+            var prefab = assets[i].m_Prefab;
+            if (prefab == Entity.Null) continue;
+            var name = m_PrefabSystem.GetPrefabName(prefab);
+            if (string.IsNullOrEmpty(name)) continue;
+            if (!nameIndices.TryGetValue(name, out var index))
+            {
+                index = data.PrefabNames.Count;
+                data.PrefabNames.Add(name);
+                nameIndices.Add(name, index);
+            }
+            indices.Add(index);
+        }
+        if (indices.Count == 0) return;
+
+        data.Restrictions.Add(new PersistentRestriction
+        {
+            Target = identity,
+            PrefabIndices = indices.ToArray()
+        });
+    }
+
+    private bool TryDescribeTarget(Entity target, byte kind, out RestrictionTargetIdentity identity)
+    {
+        identity = default;
+        if (kind == 0)
+        {
+            if (!EntityManager.TryGetComponent(target, out Node node)) return false;
+            identity.Kind = 0;
+            identity.Anchor = RestrictionAnchor.Quantize(node.m_Position.x, node.m_Position.y, node.m_Position.z);
+            return true;
+        }
+
+        if (!EntityManager.TryGetComponent(target, out Edge edge)) return false;
+        if (!EntityManager.TryGetComponent(target, out Curve curve)) return false;
+        if (!EntityManager.HasComponent<Node>(edge.m_Start) || !EntityManager.HasComponent<Node>(edge.m_End)) return false;
+        var start = EntityManager.GetComponentData<Node>(edge.m_Start);
+        var end = EntityManager.GetComponentData<Node>(edge.m_End);
+        identity.Kind = 1;
+        identity.Anchor = RestrictionAnchor.Quantize(start.m_Position.x, start.m_Position.y, start.m_Position.z);
+        identity.EndAnchor = RestrictionAnchor.Quantize(end.m_Position.x, end.m_Position.y, end.m_Position.z);
+        identity.LengthCentimetres = (int)System.Math.Round(curve.m_Length * 100f, System.MidpointRounding.AwayFromZero);
+        return true;
     }
 
     private void TryRestorePendingRestrictions()
     {
         var tool = World.GetOrCreateSystemManaged<RestrictionToolSystem>();
 
-        // Rebuild the name→entity map whenever content changes so that delayed-loading
-        // modded vehicle prefabs become resolvable without restarting the game.
-        if (m_NameMapStale || !m_NameMapBuilt)
+        if (m_NameMapStale || m_PrefabEntitiesByName.Count == 0) BuildPrefabNameMap();
+        if (!m_NodeIndexBuilt) BuildNodeIndex();
+
+        var applied = 0;
+        var waitingTarget = 0;
+        var unresolvedPrefab = 0;
+        var droppedTarget = 0;
+        var remaining = new List<PendingRestore>(m_PendingRestore.Count);
+
+        for (var i = 0; i < m_PendingRestore.Count; i++)
         {
-            BuildPrefabNameMap();
-            m_NameMapBuilt = true;
-            m_NameMapStale = false;
-        }
-        m_RestoreAttempts++;
+            var record = m_PendingRestore[i];
+            record.Attempts++;
 
-        var restored = 0;
-        var skipped = 0;
-        var waiting = 0;
-        var unresolvedCount = 0;
-        var remaining = new List<RestrictionRecord>(m_PendingRestore.Count);
-
-        foreach (var record in m_PendingRestore)
-        {
-            // Target entity not yet available (world still loading): keep for retry.
-            if (!EntityManager.Exists(record.Target))
+            if (!TryResolveTarget(record.Identity, out var target))
             {
-                waiting++;
-                remaining.Add(record);
+                if (record.Attempts < MaxRestoreAttempts) { waitingTarget++; remaining.Add(record); }
+                else droppedTarget++;
                 continue;
             }
 
-            var isNode = EntityManager.HasComponent<Node>(record.Target);
-            var isSegment = EntityManager.HasComponent<Game.Net.Edge>(record.Target);
-            if (!isNode && !isSegment)
-            {
-                skipped++;
-                continue;
-            }
-            if (record.IsNode != isNode)
-            {
-                skipped++;
-                continue;
-            }
-
-            // Resolve any names that have become available since the last attempt.
-            var newResolutions = false;
-            foreach (var name in record.AssetNames)
-            {
-                if (name.Length == 0 || record.ResolvedNames.Contains(name)) continue;
-                if (m_PrefabEntitiesByName.TryGetValue(name, out var prefab))
-                {
-                    record.ResolvedNames.Add(name);
-                    newResolutions = true;
-                }
-            }
-
+            var resolvedAny = false;
             var allResolved = true;
             m_ResolvedAssets.Clear();
-            foreach (var name in record.AssetNames)
+            for (var j = 0; j < record.AssetNames.Count; j++)
             {
-                if (name.Length == 0) continue;
-                if (record.ResolvedNames.Contains(name) && m_PrefabEntitiesByName.TryGetValue(name, out var prefab))
-                    m_ResolvedAssets.Add(prefab);
-                else
+                var name = record.AssetNames[j];
+                if (!m_PrefabEntitiesByName.TryGetValue(name, out var prefab))
+                {
                     allResolved = false;
+                    continue;
+                }
+                resolvedAny = true;
+                m_ResolvedAssets.Add(prefab);
             }
 
-            if (allResolved && record.AssetNames.Count > 0)
+            if (!resolvedAny)
             {
-                // Every saved name resolved — apply the full restriction.
-                tool.RestoreRestriction(record.Target, record.IsNode, m_ResolvedAssets);
-                restored++;
-                if (newResolutions)
-                    Mod.Log.Info($"Persistence restore: fully restored {record.AssetNames.Count} assets for target {record.Target.Index}:{record.Target.Version}");
+                // Every forbidden prefab for this target is unavailable, most often because an
+                // asset pack is not installed. Skipping is the only honest option: a restriction
+                // with no items is not a restriction, and guessing a similarly named prefab would
+                // ban the wrong vehicles.
+                if (record.Attempts < MaxUnresolvedPrefabRetries) unresolvedPrefab += record.AssetNames.Count;
+                continue;
             }
-            else if (record.AssetNames.Count > 0)
+
+            if (!allResolved && record.Attempts < MaxUnresolvedPrefabRetries)
             {
-                // NOT all resolved yet — keep the record intact for retry.
-                // Do NOT call RestoreRestriction with partial results, as it would
-                // overwrite the buffer and lose the unresolved asset names.
+                // Partially resolvable. Applying now would overwrite the buffer and lose the
+                // unresolved names, so the record waits until it is complete.
+                unresolvedPrefab += record.AssetNames.Count;
                 remaining.Add(record);
-                unresolvedCount += record.AssetNames.Count - record.ResolvedNames.Count;
-                if (newResolutions)
-                    Mod.Log.Info($"Persistence restore: {record.ResolvedNames.Count}/{record.AssetNames.Count} resolved for target {record.Target.Index}:{record.Target.Version}; waiting for remaining");
+                continue;
             }
-            else
-            {
-                // No saved asset names at all — skip.
-                skipped++;
-            }
+
+            // A missing prefab costs that item only; the remaining items still apply.
+            tool.RestoreRestriction(target, record.Identity.Kind == 0, m_ResolvedAssets);
+            applied++;
+            if (!allResolved)
+                Mod.Log.Warn($"[RouteFilter.Persistence] target {target.Index}:{target.Version}: " +
+                             $"{record.AssetNames.Count - m_ResolvedAssets.Count} forbidden prefab(s) could not be " +
+                             "resolved and were not applied to this target");
         }
 
         m_PendingRestore.Clear();
         m_PendingRestore.AddRange(remaining);
-        Mod.Log.Info($"Persistence restore (attempt {m_RestoreAttempts}): applied {restored}, waiting {waiting} targets, unresolved asset names {unresolvedCount}, skipped {skipped}");
+        if (applied != 0 || droppedTarget != 0 || m_PendingRestore.Count != 0)
+            Mod.Log.Info($"[RouteFilter.Persistence] restore applied={applied} waitingTargets={waitingTarget} " +
+                         $"unresolvedPrefabs={unresolvedPrefab} droppedTargets={droppedTarget} pending={m_PendingRestore.Count}");
+    }
 
-        if (m_PendingRestore.Count != 0 && m_RestoreAttempts >= MaxRestoreAttempts)
+    /// <summary>
+    /// Exact identity resolution. A target that cannot be matched uniquely is reported as
+    /// unresolved; RouteFilter never falls back to the nearest node or the nearest segment,
+    /// because a restriction on the wrong intersection is worse than no restriction.
+    /// </summary>
+    private bool TryResolveTarget(in RestrictionTargetIdentity identity, out Entity target)
+    {
+        target = Entity.Null;
+        if (m_NodeIndex.Count == 0) return false;
+
+        if (identity.Kind == 0)
+            return TryFindNode(identity.Anchor, out target);
+
+        if (!TryFindNode(identity.Anchor, out var start) || !TryFindNode(identity.EndAnchor, out var end))
+            return false;
+
+        if (!EntityManager.TryGetBuffer(start, true, out DynamicBuffer<ConnectedEdge> edges)) return false;
+        var matches = 0;
+        var match = Entity.Null;
+        for (var i = 0; i < edges.Length; i++)
         {
-            Mod.Log.Warn($"Persistence restore: dropping {m_PendingRestore.Count} targets with unresolved assets after {m_RestoreAttempts} attempts");
-            m_PendingRestore.Clear();
+            var edge = edges[i].m_Edge;
+            if (edge == Entity.Null || !EntityManager.HasComponent<Edge>(edge)) continue;
+            if (!EntityManager.TryGetComponent(edge, out Edge data)) continue;
+            var matchesOrientation =
+                (data.m_Start == start && data.m_End == end) || (data.m_Start == end && data.m_End == start);
+            if (!matchesOrientation) continue;
+            if (!EntityManager.TryGetComponent(edge, out Curve curve)) continue;
+            if ((int)math.round(curve.m_Length * 100f) != identity.LengthCentimetres) continue;
+            matches++;
+            match = edge;
         }
+        if (matches != 1) return false;
+        target = match;
+        return true;
+    }
+
+    private bool TryFindNode(RestrictionAnchor anchor, out Entity node)
+    {
+        node = Entity.Null;
+        return m_NodeIndex.TryGetValue(anchor, out node) && node != Entity.Null;
+    }
+
+    /// <summary>
+    /// Builds the anchor -> node lookup used for exact identity resolution. Anchors that appear
+    /// more than once are stored as <see cref="Entity.Null"/> so an ambiguous position can never
+    /// resolve to an arbitrary one of its candidates.
+    /// </summary>
+    private void BuildNodeIndex()
+    {
+        m_NodeIndex.Clear();
+        using var nodes = m_NodeQuery.ToEntityArray(Allocator.Temp);
+        for (var i = 0; i < nodes.Length; i++)
+        {
+            if (!EntityManager.TryGetComponent(nodes[i], out Node data)) continue;
+            var anchor = RestrictionAnchor.Quantize(data.m_Position.x, data.m_Position.y, data.m_Position.z);
+            if (m_NodeIndex.TryGetValue(anchor, out var existing))
+            {
+                if (existing == Entity.Null) continue;
+                m_NodeIndex[anchor] = Entity.Null;
+                continue;
+            }
+            m_NodeIndex[anchor] = nodes[i];
+        }
+        m_NodeIndexBuilt = true;
     }
 
     private void BuildPrefabNameMap()
     {
         m_PrefabEntitiesByName.Clear();
         using var prefabEntities = m_VehiclePrefabQuery.ToEntityArray(Allocator.Temp);
-        foreach (var entity in prefabEntities)
+        for (var i = 0; i < prefabEntities.Length; i++)
         {
-            var name = m_PrefabSystem.GetPrefabName(entity);
+            var name = m_PrefabSystem.GetPrefabName(prefabEntities[i]);
             if (string.IsNullOrEmpty(name)) continue;
-            m_PrefabEntitiesByName[name] = entity;
+            // First match wins, matching the behaviour the legacy restore path relied on.
+            if (!m_PrefabEntitiesByName.ContainsKey(name)) m_PrefabEntitiesByName.Add(name, prefabEntities[i]);
         }
+        m_NameMapStale = false;
+        Mod.Log.Info($"[RouteFilter.Persistence] prefab name map rebuilt with {m_PrefabEntitiesByName.Count} entries");
     }
 }

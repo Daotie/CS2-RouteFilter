@@ -1,0 +1,364 @@
+using RouteFilter.Persistence;
+using SaveFormatTests;
+
+// Offline contract fixtures for the RouteFilter save format. These exercise the byte-level
+// format, migration and corruption containment. They do NOT exercise Unity serialization,
+// ECS entity remapping, the game's size check, or anything that needs the game running.
+
+var failures = new List<string>();
+var passed = 0;
+
+void Check(bool condition, string name)
+{
+    if (condition) { passed++; return; }
+    failures.Add(name);
+}
+
+void Section(string name) => Console.WriteLine($"--- {name}");
+
+// ---------------------------------------------------------------- V2 / legacy fixtures
+
+// Legacy layout is two groups: nodes, then segments. Encoding both correctly is the point of
+// this helper, because a fixture that lies about the layout would "prove" the wrong thing.
+static byte[] LegacyPayload(int version,
+    (int index, int ver, string[] assets)[] nodes,
+    (int index, int ver, string[] assets)[] segments = null)
+{
+    segments ??= Array.Empty<(int, int, string[])>();
+    var sink = new MemorySink();
+    sink.WriteInt(version);
+    sink.WriteInt(nodes.Length);
+    foreach (var record in nodes)
+    {
+        sink.WriteInt(record.index);
+        sink.WriteInt(record.ver);
+        sink.WriteInt(record.assets.Length);
+        foreach (var asset in record.assets) sink.WriteString(asset);
+    }
+    sink.WriteInt(segments.Length);
+    foreach (var record in segments)
+    {
+        sink.WriteInt(record.index);
+        sink.WriteInt(record.ver);
+        sink.WriteInt(record.assets.Length);
+        foreach (var asset in record.assets) sink.WriteString(asset);
+    }
+    return sink.ToArray();
+}
+
+Section("legacy migration");
+{
+    var bytes = LegacyPayload(2, new[] { (10, 1, new[] { "car.a", "car.b" }) },
+        new[] { (11, 2, new[] { "train.x" }) });
+    var result = LegacyRouteFilterSaveCodec.Decode(new MemorySource(bytes));
+    Check(result.Status == LegacyDecodeStatus.Ok, "legacy v2 normal decodes");
+    Check(result.Data.Records.Count == 2, "legacy v2 record count");
+    Check(result.Data.Records[0].EntityIndex == 10 && result.Data.Records[0].EntityVersion == 1,
+        "legacy v2 keeps entity reference for the ECS identity step");
+    Check(result.Data.Records[0].Kind == 0, "legacy v2 first group is nodes");
+    Check(result.Data.Records[1].Kind == 1, "legacy v2 second group is segments");
+    Check(result.Data.Records[0].PrefabNames.Count == 2, "legacy v2 asset names");
+}
+
+{
+    var bytes = LegacyPayload(1, new[] { (7, 3, new[] { "train.x" }) });
+    var result = LegacyRouteFilterSaveCodec.Decode(new MemorySource(bytes));
+    Check(result.Status == LegacyDecodeStatus.Ok, "legacy v1 decodes");
+    Check(result.Data.Records.Count == 1, "legacy v1 record kept");
+}
+
+{
+    var bytes = LegacyPayload(2, Array.Empty<(int, int, string[])>());
+    var result = LegacyRouteFilterSaveCodec.Decode(new MemorySource(bytes));
+    Check(result.Status == LegacyDecodeStatus.Ok, "legacy v2 empty decodes");
+    Check(result.Data.Records.Count == 0, "legacy v2 empty has no records");
+}
+
+{
+    // Unknown legacy version: refuse rather than guess a layout.
+    var bytes = LegacyPayload(7, new[] { (1, 1, Array.Empty<string>()) });
+    var result = LegacyRouteFilterSaveCodec.Decode(new MemorySource(bytes));
+    Check(result.Status == LegacyDecodeStatus.NotLegacyPayload, "unknown legacy version refused");
+}
+
+{
+    // Truncated legacy payload: nothing applied.
+    var bytes = LegacyPayload(2, new[] { (1, 1, new[] { "car.a" }) });
+    Array.Resize(ref bytes, bytes.Length - 4);
+    var result = LegacyRouteFilterSaveCodec.Decode(new MemorySource(bytes));
+    Check(result.Status == LegacyDecodeStatus.Corrupt, "truncated legacy payload is corrupt");
+}
+
+{
+    // A record whose asset count is impossible costs that record, not the stream position,
+    // because the record's own length is still fully determined by its asset count.
+    var bytes = LegacyPayload(2, new[] { (1, 1, new[] { "car.a" }), (2, 1, new[] { "car.b" }) });
+    var result = LegacyRouteFilterSaveCodec.Decode(new MemorySource(bytes));
+    Check(result.Status == LegacyDecodeStatus.Ok && result.Data.Records.Count == 2,
+        "well-formed multi-record legacy payload decodes completely");
+}
+
+{
+    // Implausible record count must not attempt a giant loop; the remainder is ignored and reported.
+    var sink = new MemorySink();
+    sink.WriteInt(2);
+    sink.WriteInt(int.MaxValue);
+    sink.WriteInt(0);
+    var result = LegacyRouteFilterSaveCodec.Decode(new MemorySource(sink.ToArray()));
+    Check(result.DroppedRecords > 0 && result.Detail.Contains("implausible"),
+        "implausible legacy record count is clamped and reported, not executed");
+}
+
+// ---------------------------------------------------------------- current schema round trip
+
+Section("current schema round trip");
+{
+    var data = RouteFilterSaveData.CreateEmpty();
+    data.PrefabNames.Add("car.a");
+    data.PrefabNames.Add("car.b");
+    data.Restrictions.Add(new PersistentRestriction
+    {
+        Target = new RestrictionTargetIdentity
+        {
+            Kind = 0,
+            Anchor = RestrictionAnchor.Quantize(12.5f, 0f, -7.25f)
+        },
+        PrefabIndices = new[] { 0, 1 }
+    });
+    data.Restrictions.Add(new PersistentRestriction
+    {
+        Target = new RestrictionTargetIdentity
+        {
+            Kind = 1,
+            Anchor = RestrictionAnchor.Quantize(1f, 2f, 3f),
+            EndAnchor = RestrictionAnchor.Quantize(4f, 5f, 6f),
+            LengthCentimetres = 12345
+        },
+        PrefabIndices = new[] { 1 }
+    });
+
+    var sink = new MemorySink();
+    RouteFilterSaveCodec.Encode(data, sink);
+    var bytes = sink.ToArray();
+
+    var decoded = RouteFilterSaveCodec.Decode(new MemorySource(bytes));
+    Check(decoded.Status == SaveDecodeStatus.Ok, "round trip is clean");
+    Check(decoded.Data.Restrictions.Count == 2, "round trip keeps both restrictions");
+    Check(decoded.Data.PrefabNames.Count == 2, "round trip keeps both prefab names");
+    Check(decoded.Data.Restrictions[0].Target.Matches(data.Restrictions[0].Target), "node identity round trips");
+    Check(decoded.Data.Restrictions[1].Target.Matches(data.Restrictions[1].Target), "segment identity round trips");
+    Check(decoded.Data.Restrictions[0].PrefabIndices.Length == 2, "node prefab indices round trip");
+    Check(decoded.Data.Restrictions[1].PrefabIndices[0] == 1, "segment prefab index round trips");
+}
+
+{
+    var data = RouteFilterSaveData.CreateEmpty();
+    var sink = new MemorySink();
+    RouteFilterSaveCodec.Encode(data, sink);
+    var decoded = RouteFilterSaveCodec.Decode(new MemorySource(sink.ToArray()));
+    Check(decoded.Status == SaveDecodeStatus.Ok, "empty payload round trips");
+    Check(decoded.Data.Restrictions.Count == 0, "empty payload has no restrictions");
+}
+
+// ---------------------------------------------------------------- future schema protection
+
+Section("future schema protection");
+{
+    var sink = new MemorySink();
+    sink.WriteUInt(RouteFilterSaveData.Magic);
+    sink.WriteUShort(99);
+    sink.WriteUShort(0);
+    for (var i = 0; i < 64; i++) sink.WriteByte((byte)(i * 7));
+    var bytes = sink.ToArray();
+
+    var decoded = RouteFilterSaveCodec.Decode(new MemorySource(bytes));
+    Check(decoded.Status == SaveDecodeStatus.FutureSchema, "future schema is recognised, not parsed");
+    Check(decoded.ForeignPayload != null && decoded.ForeignPayload.Length == bytes.Length - 8,
+        "future schema payload is preserved byte for byte");
+
+    // Re-emitting the preserved payload must reproduce the original bytes exactly.
+    var reemit = new MemorySink();
+    reemit.WriteBytes(decoded.ForeignPayload);
+    var reemitted = reemit.ToArray();
+    var expected = new byte[bytes.Length - 8];
+    Array.Copy(bytes, 8, expected, 0, expected.Length);
+    Check(reemitted.Length == expected.Length, "re-emitted future payload has the same length");
+    var identical = true;
+    for (var i = 0; i < expected.Length; i++) if (reemitted[i] != expected[i]) { identical = false; break; }
+    Check(identical, "re-emitted future payload is byte identical");
+}
+
+// ---------------------------------------------------------------- corruption containment
+
+Section("corruption containment");
+{
+    // Not a RouteFilter payload at all.
+    var decoded = RouteFilterSaveCodec.Decode(new MemorySource(new byte[] { 1, 2, 3, 4, 5 }));
+    Check(decoded.Status == SaveDecodeStatus.NotRouteFilterData, "foreign magic is not ours");
+}
+
+{
+    // Header present, body truncated: corrupt, and the caller must disable enforcement.
+    var data = RouteFilterSaveData.CreateEmpty();
+    data.PrefabNames.Add("car.a");
+    data.Restrictions.Add(new PersistentRestriction
+    {
+        Target = new RestrictionTargetIdentity { Kind = 0, Anchor = RestrictionAnchor.Quantize(1f, 1f, 1f) },
+        PrefabIndices = new[] { 0 }
+    });
+    var sink = new MemorySink();
+    RouteFilterSaveCodec.Encode(data, sink);
+    var bytes = sink.ToArray();
+    Array.Resize(ref bytes, bytes.Length - 3);
+    var decoded = RouteFilterSaveCodec.Decode(new MemorySource(bytes));
+    Check(decoded.Status == SaveDecodeStatus.PartiallyRecovered, "truncated record is isolated, not fatal");
+    Check(decoded.DroppedRecords == 1, "the truncated record is the only one dropped");
+    Check(decoded.Data.Restrictions.Count == 0, "nothing half-applied from the truncated record");
+}
+
+{
+    // Truncated header: the payload cannot be trusted at all, so nothing is offered to apply.
+    var sink = new MemorySink();
+    sink.WriteUInt(RouteFilterSaveData.Magic);
+    var decoded = RouteFilterSaveCodec.Decode(new MemorySource(sink.ToArray()));
+    Check(decoded.Status == SaveDecodeStatus.Corrupt, "truncated header is corrupt");
+    Check(!decoded.IsApplicable, "a corrupt payload is never applicable");
+    Check(decoded.Data is null, "a corrupt payload exposes no data");
+}
+
+{
+    // One bad record must cost one record, not the file.
+    var sink = new MemorySink();
+    sink.WriteUInt(RouteFilterSaveData.Magic);
+    sink.WriteUShort(RouteFilterSaveData.SchemaVersion);
+    sink.WriteUShort(0);
+    sink.WriteInt(1);
+    sink.WriteString("car.a");
+    sink.WriteInt(2);
+
+    // good record
+    sink.WriteInt(0);
+    var good = RestrictionAnchor.Quantize(5f, 0f, 0f);
+    sink.WriteInt(good.X); sink.WriteInt(good.Y); sink.WriteInt(good.Z);
+    sink.WriteInt(0); sink.WriteInt(0); sink.WriteInt(0);
+    sink.WriteInt(0);
+    sink.WriteInt(1);
+
+    // bad record: impossible kind
+    sink.WriteInt(77);
+    sink.WriteInt(0); sink.WriteInt(0); sink.WriteInt(0);
+    sink.WriteInt(0); sink.WriteInt(0); sink.WriteInt(0);
+    sink.WriteInt(0);
+
+    var decoded = RouteFilterSaveCodec.Decode(new MemorySource(sink.ToArray()));
+    Check(decoded.Status == SaveDecodeStatus.PartiallyRecovered, "bad record yields partial recovery");
+    Check(decoded.DroppedRecords == 1, "exactly one record dropped");
+    Check(decoded.Data.Restrictions.Count == 1, "the good record survives");
+}
+
+{
+    // Out-of-range prefab indices are dropped individually; the restriction survives.
+    var sink = new MemorySink();
+    sink.WriteUInt(RouteFilterSaveData.Magic);
+    sink.WriteUShort(RouteFilterSaveData.SchemaVersion);
+    sink.WriteUShort(0);
+    sink.WriteInt(1);
+    sink.WriteString("car.a");
+    sink.WriteInt(1);
+    sink.WriteInt(0);
+    var anchor = RestrictionAnchor.Quantize(9f, 9f, 9f);
+    sink.WriteInt(anchor.X); sink.WriteInt(anchor.Y); sink.WriteInt(anchor.Z);
+    sink.WriteInt(0); sink.WriteInt(0); sink.WriteInt(0);
+    sink.WriteInt(0);
+    sink.WriteInt(3);
+    sink.WriteInt(0);
+    sink.WriteInt(-5);
+    sink.WriteInt(9999);
+
+    var decoded = RouteFilterSaveCodec.Decode(new MemorySource(sink.ToArray()));
+    Check(decoded.Status == SaveDecodeStatus.Ok, "invalid indices do not corrupt the record");
+    Check(decoded.Data.Restrictions.Count == 1, "restriction kept despite bad indices");
+    Check(decoded.Data.Restrictions[0].PrefabIndices.Length == 1, "only the valid index survives");
+    Check(decoded.Data.Restrictions[0].PrefabIndices[0] == 0, "valid index preserved");
+}
+
+{
+    // Implausible prefab table size must be rejected, not allocated.
+    var sink = new MemorySink();
+    sink.WriteUInt(RouteFilterSaveData.Magic);
+    sink.WriteUShort(RouteFilterSaveData.SchemaVersion);
+    sink.WriteUShort(0);
+    sink.WriteInt(int.MaxValue);
+    var decoded = RouteFilterSaveCodec.Decode(new MemorySource(sink.ToArray()));
+    Check(decoded.Status == SaveDecodeStatus.Corrupt, "implausible prefab table rejected");
+}
+
+{
+    // A restriction whose prefab list is empty is dropped by the queue step, not by the codec.
+    var data = RouteFilterSaveData.CreateEmpty();
+    data.Restrictions.Add(new PersistentRestriction
+    {
+        Target = new RestrictionTargetIdentity { Kind = 0, Anchor = RestrictionAnchor.Quantize(3f, 3f, 3f) },
+        PrefabIndices = Array.Empty<int>()
+    });
+    var sink = new MemorySink();
+    RouteFilterSaveCodec.Encode(data, sink);
+    var decoded = RouteFilterSaveCodec.Decode(new MemorySource(sink.ToArray()));
+    Check(decoded.Status == SaveDecodeStatus.Ok && decoded.Data.Restrictions.Count == 1,
+        "empty prefab list survives the codec and is filtered by the queue step");
+}
+
+// ---------------------------------------------------------------- duplicate records
+
+Section("duplicate records");
+{
+    var data = RouteFilterSaveData.CreateEmpty();
+    data.PrefabNames.Add("car.a");
+    var identity = new RestrictionTargetIdentity { Kind = 0, Anchor = RestrictionAnchor.Quantize(2f, 4f, 6f) };
+    data.Restrictions.Add(new PersistentRestriction { Target = identity, PrefabIndices = new[] { 0 } });
+    data.Restrictions.Add(new PersistentRestriction { Target = identity, PrefabIndices = new[] { 0 } });
+    var sink = new MemorySink();
+    RouteFilterSaveCodec.Encode(data, sink);
+    var decoded = RouteFilterSaveCodec.Decode(new MemorySource(sink.ToArray()));
+    Check(decoded.Status == SaveDecodeStatus.Ok && decoded.Data.Restrictions.Count == 2,
+        "duplicate targets are decoded; deduplication is the runtime's job");
+    Check(decoded.Data.Restrictions[0].Target.Matches(decoded.Data.Restrictions[1].Target),
+        "duplicates carry identical identity so the runtime can dedupe exactly");
+}
+
+// ---------------------------------------------------------------- quantization stability
+
+Section("target identity quantization");
+{
+    var a = RestrictionAnchor.Quantize(100f, 0f, -100f);
+    var b = RestrictionAnchor.Quantize(100f, 0f, -100f);
+    Check(a.Equals(b), "identical positions quantize identically");
+    var c = RestrictionAnchor.Quantize(100.01f, 0f, -100f);
+    Check(!a.Equals(c), "a 1 cm difference is a different anchor, not a near match");
+
+    var node = new RestrictionTargetIdentity { Kind = 0, Anchor = a };
+    var segment = new RestrictionTargetIdentity { Kind = 1, Anchor = a, EndAnchor = b, LengthCentimetres = 5 };
+    Check(!node.Matches(segment), "kind is part of identity");
+    Check(segment.Matches(segment), "segment identity is self-consistent");
+    Check(!segment.Matches(new RestrictionTargetIdentity
+    { Kind = 1, Anchor = a, EndAnchor = b, LengthCentimetres = 6 }),
+        "segment length is part of identity");
+}
+
+// ---------------------------------------------------------------- report
+
+Console.WriteLine();
+Console.WriteLine($"checks passed: {passed}");
+if (failures.Count == 0)
+{
+    Console.WriteLine("PASS: save schema round trip, legacy V1/V2 migration, future-schema preservation, " +
+                      "corruption containment, per-record isolation, out-of-range indices, duplicate " +
+                      "records and target identity quantization.");
+    Console.WriteLine("NOT TESTED HERE: Unity IWriter/IReader framing, the game's payload size check, " +
+                      "ECS entity remapping, and live target resolution against a real city.");
+    return 0;
+}
+
+Console.WriteLine("FAIL:");
+foreach (var failure in failures) Console.WriteLine("  - " + failure);
+return 1;

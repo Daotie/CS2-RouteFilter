@@ -18,20 +18,6 @@ public enum SafetyConfidence : byte
     Calibrated = 2
 }
 
-public enum RoadVehicleCategory : byte
-{
-    Personal = 0,
-    DummyTraffic = 1,
-    Taxi = 2,
-    PublicTransport = 3,
-    Cargo = 4,
-    Delivery = 5,
-    Emergency = 6,
-    MunicipalService = 7,
-    WorkVehicle = 8,
-    Other = 9
-}
-
 [Flags]
 public enum SafetyReason : ulong
 {

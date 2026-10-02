@@ -24,14 +24,36 @@ public sealed class Setting : ModSetting
 
     [SettingsUISection(kSection, kGeneralGroup)] public bool EnableRestrictionBadges { get; set; }
 
+    /// <summary>Master switch for the road enforcement backend.</summary>
+    [SettingsUISection(kSection, kGeneralGroup)] public bool EnableRoadEnforcement { get; set; }
+
+    /// <summary>Master switch for the rail enforcement backend.</summary>
+    [SettingsUISection(kSection, kGeneralGroup)] public bool EnableRailEnforcement { get; set; }
+
+    /// <summary>
+    /// Emergency services never get rerouted. Connected to both backends through
+    /// <c>EnforcementPolicy.IsExempt</c>, filtered before the expensive matching pipeline.
+    /// </summary>
+    [SettingsUISection(kSection, kGeneralGroup)] public bool EmergencyProtection { get; set; }
+
+    /// <summary>
+    /// Conservative budget, in seconds, for vanilla to enqueue, run and apply one pathfind plus the
+    /// vehicle's own reaction. Larger values refuse more often; the safe direction is to refuse.
+    /// </summary>
+    [SettingsUISlider(min = 0.2f, max = 3f, step = 0.1f, unit = "float")]
+    public float RerouteLatencySeconds { get; set; }
+
+    /// <summary>Extra distance margin in metres added to the modelled braking distance.</summary>
+    [SettingsUISlider(min = 0f, max = 40f, step = 0.5f, unit = "float")]
+    public float RerouteUncertaintyMetres { get; set; }
+
+    /// <summary>Logs one aggregated RouteFilter statistics line per interval.</summary>
+    [SettingsUISection(kSection, kGeneralGroup)] public bool VerboseDiagnostics { get; set; }
+
     [SettingsUIButton]
     [SettingsUIDisableByCondition(typeof(Setting), nameof(ResetUnavailable))]
     [SettingsUISection(kSection, kGeneralGroup)]
-    public bool RunLeaseProbe { set => Mod.RequestLeaseProbe(1); }
-
-    [SettingsUIButton]
-    [SettingsUISection(kSection, kGeneralGroup)]
-    public bool ReportLeaseProbe { set => Mod.RequestLeaseProbe(2); }
+    public bool LogDiagnostics { set => Mod.RequestDiagnosticsReport(); }
 
     [SettingsUIButton]
     [SettingsUIConfirmation("RouteFilter.Settings.ResetConfirmation")]
@@ -57,6 +79,12 @@ public sealed class Setting : ModSetting
     public override void SetDefaults()
     {
         EnableRestrictionBadges = true;
+        EnableRoadEnforcement = true;
+        EnableRailEnforcement = true;
+        EmergencyProtection = true;
+        RerouteLatencySeconds = 1.0f;
+        RerouteUncertaintyMetres = 5f;
+        VerboseDiagnostics = false;
     }
 }
 
@@ -75,10 +103,20 @@ internal abstract class LocaleBase : IDictionarySource
             [Setting.GetOptionGroupLocaleID(Setting.kGeneralGroup)] = Chinese ? "常规" : "General",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "限制标记" : "Restriction badges",
             [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "在受限目标上方显示视觉标记。" : "Shows visual badges above restricted targets.",
-            [Setting.GetOptionLabelLocaleID(nameof(Setting.RunLeaseProbe))] = Chinese ? "1D：对选中目标尝试一次 lease" : "1D: attempt one lease on selected target",
-            [Setting.GetOptionDescLocaleID(nameof(Setting.RunLeaseProbe))] = Chinese ? "仅供小规模测试。先选择目标并应用限制，再取消暂停。只接受当帧已校准的 Safe；Unknown/Unsafe 不修改车道，不重试，不请求绕行。" : "Small-scale test only. Select a target, apply restrictions, then unpause. Accepts only a fresh calibrated Safe verdict; Unknown/Unsafe leave lanes unchanged. No retries or reroute requests.",
-            [Setting.GetOptionLabelLocaleID(nameof(Setting.ReportLeaseProbe))] = Chinese ? "1D：记录 lease 测试计数" : "1D: log lease probe counters",
-            [Setting.GetOptionDescLocaleID(nameof(Setting.ReportLeaseProbe))] = Chinese ? "按需记录创建、恢复、恢复冲突与拒绝计数；不会强制等待未完成的任务。" : "Logs admissions, restorations, restore conflicts and rejections on request; does not force unfinished jobs to complete.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "道路通行筛选" : "Road enforcement",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "让受禁行车辆在进入受限目标之前重新规划路线。没有安全替代路线时车辆照常通行。" : "Reroute forbidden vehicles before they enter a restricted target. When there is no safe alternative the vehicle is let through.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRailEnforcement))] = Chinese ? "轨道通行筛选" : "Rail enforcement",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRailEnforcement))] = Chinese ? "对列车、地铁和有轨电车执行同样的重新规划。固定线路不会被改动。" : "Applies the same reroute rule to trains, subways and trams. Fixed lines are never redrawn.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.EmergencyProtection))] = Chinese ? "紧急车辆豁免" : "Emergency vehicle exemption",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.EmergencyProtection))] = Chinese ? "警车、消防车、救护车和灵车永不被重新规划。" : "Police, fire, ambulance and hearse vehicles are never rerouted.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.RerouteLatencySeconds))] = Chinese ? "绕行延迟预算（秒）" : "Reroute latency budget (seconds)",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.RerouteLatencySeconds))] = Chinese ? "重新规划被允许时必须剩余的距离，按此时间预算计算。数值越大越保守，越常放行车辆。" : "Distance a vehicle must still have left, derived from this time budget. Higher values are more conservative and let more vehicles through.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.RerouteUncertaintyMetres))] = Chinese ? "安全余量（米）" : "Safety margin (metres)",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.RerouteUncertaintyMetres))] = Chinese ? "在制动距离之外额外保留的距离。" : "Extra distance kept in addition to the modelled braking distance.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.VerboseDiagnostics))] = Chinese ? "详细诊断日志" : "Verbose diagnostics",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.VerboseDiagnostics))] = Chinese ? "每秒记录一条聚合统计行。仅用于排查问题，游戏中保持关闭。" : "Logs one aggregated statistics line per second. Intended for troubleshooting; keep it off during play.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.LogDiagnostics))] = Chinese ? "记录当前统计" : "Log current statistics",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.LogDiagnostics))] = Chinese ? "按需记录一次工作负载、候选、安全判定、绕行请求与车道修改计数。不会强制等待未完成的任务。" : "Logs workload, candidate, safety, reroute and lane mutation counters on request; never force-finishes a running job.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.ResetRouteFilter))] = Chinese ? "重置 RouteFilter" : "Reset RouteFilter",
             [Setting.GetOptionDescLocaleID(nameof(Setting.ResetRouteFilter))] = Chinese ? "清除 RouteFilter 保存的限制、选择和运行时缓存。不会清除游戏或其他模组创建的道路阻塞。" : "Clears RouteFilter restrictions, selections, and runtime caches. It does not clear road blockages created by the game or other mods.",
             ["RouteFilter.Settings.ResetConfirmation"] = Chinese ? "这将移除当前城市中的所有 RouteFilter 通行限制，以及能够安全识别的 RouteFilter 运行时状态。此操作无法撤销。无法确认归属的游戏原生或其他模组状态不会被修改。" : "This removes all RouteFilter restrictions and safely identifiable RouteFilter runtime state in this city. This cannot be undone. Vanilla or other mod state with uncertain ownership will not be modified.",
