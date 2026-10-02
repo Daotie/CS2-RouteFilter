@@ -5,6 +5,7 @@ Thank you for helping improve RouteFilter. For substantial behavior or save-form
 ## Development standards
 
 - Keep changes focused and avoid unrelated formatting churn.
+- Commit source, build configuration, maintained user documentation and necessary developer documentation only. Keep internal game-test checklists, temporary diagnostics, session notes, recovery/deployment backups and unfinished reports local. Review the staged file list before every push.
 - Use Conventional Commits: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `perf:`, or `chore:`.
 - Preserve save compatibility or document the migration plan.
 - Add English and Simplified Chinese text for player-facing UI changes.
@@ -20,6 +21,7 @@ By submitting a contribution, you agree to license it under GPL-3.0-only.
 ## 开发规范
 
 - 改动应保持聚焦，避免无关格式调整。
+- 仅提交源码、构建配置、持续维护的用户说明和必要的二次开发文档。内部游戏测试清单、临时诊断、会话笔记、恢复/部署备份和未定稿报告保留在本地，每次推送前检查暂存文件列表。
 - 使用 Conventional Commits：`feat:`、`fix:`、`docs:`、`test:`、`refactor:`、`perf:` 或 `chore:`。
 - 保持存档兼容，或明确说明迁移方案。
 - 面向玩家的 UI 改动必须同时提供英文和简体中文文本。

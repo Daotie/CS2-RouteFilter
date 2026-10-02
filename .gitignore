@@ -11,3 +11,11 @@ Library/
 tools/ApiInspector/bin/
 tools/ApiInspector/obj/
 *.user
+
+# Local development records; keep these outside the public repository.
+internal-notes/
+recovery-backup-*/
+deployment-backups/
+PHASE1D_GAME_TEST.md
+NATIVE_UI_ROUTES_TEST.md
+NATIVE_PANEL_TEST.md
