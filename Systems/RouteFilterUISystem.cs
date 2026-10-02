@@ -86,8 +86,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         AddBinding(new TriggerBinding<int>(Mod.Id, "toggleAsset", ToggleAsset));
         AddBinding(new TriggerBinding<int, bool>(Mod.Id, "toggleAssetGroup", ToggleAssetGroup));
         AddBinding(new TriggerBinding<int>(Mod.Id, "setTargetMode", SetTargetMode));
-        AddBinding(new TriggerBinding<int>(Mod.Id, "selectAllAssets", SelectAllAssets));
-        AddBinding(new TriggerBinding<int>(Mod.Id, "selectNoAssets", SelectNoAssets));
+        AddBinding(new TriggerBinding<string, bool>(Mod.Id, "setFilteredAssetSelection", SetFilteredAssetSelection));
         AddBinding(new TriggerBinding(Mod.Id, "refreshAssets", () => { Mod.Log.Info("[RouteFilter.Binding] refreshAssets received"); RefreshAssetCatalog(); }));
         AddBinding(new TriggerBinding(Mod.Id, "applySelection", () => { Mod.Log.Info("[RouteFilter.Binding] applySelection received"); m_RestrictionTool.ApplySelection(); PublishRestriction(); }));
         AddBinding(new TriggerBinding(Mod.Id, "clearSelectedRestriction", () => { Mod.Log.Info("[RouteFilter.Binding] clearSelectedRestriction received"); m_RestrictionTool.ClearSelectedRestriction(); LoadSelectedTargetAssets(m_RestrictionTool.SelectedTarget); PublishRestriction(); }));
@@ -348,21 +347,18 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         Mod.Log.Debug($"Asset group {id} toggled (children: {includeChildren}); {Mod.SelectedVehicleAssets.Count} forbidden assets selected");
     }
 
-    private void SelectAllAssets(int mode)
+    // UI-only, user-triggered O(submitted IDs); never scans the city or expands groups.
+    private void SetFilteredAssetSelection(string assetIds, bool forbidden)
     {
-        Mod.Log.Info("[RouteFilter.Binding] selectAllAssets received");
-        foreach (var pair in m_AssetsById)
-            if (mode == 0 || m_ModeByAsset[pair.Value] == mode) Mod.SelectedVehicleAssets.Add(pair.Value);
+        if (string.IsNullOrEmpty(assetIds)) return;
+        foreach (var token in assetIds.Split(','))
+        {
+            if (!int.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out var id)
+                || !m_AssetsById.TryGetValue(id, out var entity)) continue;
+            if (forbidden) Mod.SelectedVehicleAssets.Add(entity);
+            else Mod.SelectedVehicleAssets.Remove(entity);
+        }
         UpdateSelectedBinding();
-        Mod.Log.Debug($"All {m_AssetsById.Count} catalog assets selected as forbidden");
-    }
-
-    private void SelectNoAssets(int mode)
-    {
-        Mod.Log.Info("[RouteFilter.Binding] selectNoAssets received");
-        Mod.SelectedVehicleAssets.RemoveWhere(entity => mode == 0 || (m_ModeByAsset.TryGetValue(entity, out var assetMode) && assetMode == mode));
-        UpdateSelectedBinding();
-        Mod.Log.Debug("All catalog assets set to allowed");
     }
 
     private void UpdateSelectedBinding()

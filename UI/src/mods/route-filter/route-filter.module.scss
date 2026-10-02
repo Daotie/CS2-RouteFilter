@@ -90,7 +90,7 @@ $rfDanger: #e07b73;
 .searchBox:focus-within { border-color: var(--menuText1Normal); }
 .searchBox img { flex: 0 0 16rem; width: 16rem; height: 16rem; margin-left: 9rem; object-fit: contain; opacity: .82; }
 .searchInput { position: relative; flex: 1 1 auto; min-width: 0; }
-.searchInput input { width: 100%; min-width: 0; height: 30rem; padding: 0 10rem; border: 0; color: $rfText; background: transparent; font-size: 12rem; }
+.searchInput input { width: 100%; min-width: 0; height: 32rem; padding: 5rem 10rem; line-height: 20rem; box-sizing: border-box; border: 0; color: $rfText; background: transparent; font-size: 12rem; }
 .searchPlaceholder { position: absolute; top: 0; bottom: 0; left: 10rem; display: flex; align-items: center; color: $rfMuted; font-size: 12rem; pointer-events: none; }
 
 

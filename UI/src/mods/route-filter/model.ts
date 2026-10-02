@@ -31,3 +31,17 @@ export const parseCatalog = (raw: string): VehicleAsset[] => raw.split("\n").red
   });
   return result;
 }, []);
+
+// Bulk scope follows the filtered list, including collapsed children when not searching.
+export const filteredAssetIds = (roots: VehicleAsset[], childrenByParent: Map<number, VehicleAsset[]>, searchTerm: string): number[] => {
+  const ids = new Set<number>();
+  const visit = (asset: VehicleAsset) => {
+    if (ids.has(asset.id)) return;
+    ids.add(asset.id);
+    for (const child of childrenByParent.get(asset.id) ?? []) {
+      if (!searchTerm || child.name.toLocaleLowerCase().includes(searchTerm)) visit(child);
+    }
+  };
+  roots.forEach(visit);
+  return [...ids];
+};

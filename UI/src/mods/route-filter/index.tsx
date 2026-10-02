@@ -4,7 +4,7 @@ import { useLocalization } from "cs2/l10n";
 import mod from "mod.json";
 import { FloatingButton } from "./components/FloatingButton";
 import { RouteFilterPanel } from "./components/RouteFilterPanel";
-import { parseCatalog, VehicleAsset } from "./model";
+import { filteredAssetIds, parseCatalog, VehicleAsset } from "./model";
 
 const toolActive$ = bindValue<boolean>(mod.id, "toolActive", false);
 const targetMode$ = bindValue<number>(mod.id, "targetMode", 0);
@@ -53,6 +53,8 @@ export const RouteFilterShell = () => {
     return asset.name.toLocaleLowerCase().includes(normalizedSearch)
       || (childrenByParent.get(asset.id) ?? []).some(child => child.name.toLocaleLowerCase().includes(normalizedSearch));
   }), [relevant, assetIds, childrenByParent, normalizedSearch]);
+
+  const bulkAssetIds = useMemo(() => filteredAssetIds(roots, childrenByParent, normalizedSearch).join(","), [roots, childrenByParent, normalizedSearch]);
 
   useEffect(() => {
     if (!active) trigger(mod.id, "setPointerOverUi", false);
@@ -173,8 +175,8 @@ export const RouteFilterShell = () => {
         else trigger(mod.id, "toggleAsset", asset.id);
       }}
       onExpandAsset={toggleExpanded}
-      onAllowAll={() => { trigger(mod.id, "selectNoAssets", 0); }}
-      onForbidAll={() => { trigger(mod.id, "selectAllAssets", 0); }}
+      onAllowAll={() => { trigger(mod.id, "setFilteredAssetSelection", bulkAssetIds, false); }}
+      onForbidAll={() => { trigger(mod.id, "setFilteredAssetSelection", bulkAssetIds, true); }}
       onApply={() => { if (selectedTargetKind !== 0) trigger(mod.id, "applySelection"); }}
       onClear={() => { if (selectedTargetKind !== 0) trigger(mod.id, "clearSelectedRestriction"); }}
       onRefresh={() => { trigger(mod.id, "refreshAssets"); }}
