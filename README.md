@@ -198,6 +198,10 @@ For reproducible bugs, performance issues, compatibility problems, and feature r
 - Release history: [CHANGELOG.md](CHANGELOG.md)
 - Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 
+## AI-assisted development
+
+The complete source is available on GitHub under **GPL-3.0**. RouteFilter has been developed with the help of **AI**, and I prefer being transparent about that involvement. However, development is not simply a matter of generating code until it compiles. I review the core logic and remain responsible for design and release decisions. The work includes observing game behavior, decompiling and studying relevant game systems, investigating failures, and testing approaches to vehicle restrictions, pathfinding, performance, and save compatibility. AI assists with implementation, debugging, documentation, and UI assets; a successful build alone does not establish that a change works correctly in the game.
+
 ## Development
 
 RouteFilter is open source and contributions are welcome.

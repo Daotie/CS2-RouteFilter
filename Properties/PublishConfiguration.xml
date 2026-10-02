@@ -35,6 +35,10 @@ Rebuilding a network segment can replace its game entity and remove restrictions
 
 RouteFilter cannot redraw a fixed public-transport line; when no valid detour exists, the affected vehicle stops and may retry.
 
+## AI-assisted development
+
+The complete source is available on GitHub under **GPL-3.0**. RouteFilter has been developed with the help of **AI**, and I prefer being transparent about that involvement. However, development is not simply a matter of generating code until it compiles. I review the core logic and remain responsible for design and release decisions. The work includes observing game behavior, decompiling and studying relevant game systems, investigating failures, and testing approaches to vehicle restrictions, pathfinding, performance, and save compatibility. AI assists with implementation, debugging, documentation, and UI assets; a successful build alone does not establish that a change works correctly in the game.
+
 ## Support, discussion, and issue reports
 
 For general discussion, usage questions, feedback, and community support, you can use the following channels:
@@ -90,6 +94,10 @@ RouteFilter 为《都市天际线 II》玩家提供了精细控制能力，可�
 重建某一路段可能会替换其游戏实体，从而导致附加到原始路段上的限制被移除。
 
 RouteFilter 无法重新绘制固定的公共交通线路；当不存在有效绕行路线时，受影响的车辆会停止并可能反复尝试。
+
+## AI 辅助开发说明
+
+完整源代码已在 GitHub 上以 **GPL-3.0** 开源。RouteFilter 使用了 **AI 辅助开发**，我选择公开说明这一点。但开发并不是让 AI 不断生成代码，直到能够编译为止。我仍会审查核心逻辑，并对设计和发布决定负责。开发过程包括观察游戏行为、反编译并研究相关游戏系统、调查失败原因，以及测试车辆限制、寻路、性能和存档兼容方案。AI 用于辅助实现、调试、文档和 UI 素材制作；仅仅构建成功，并不能证明修改在游戏内正确运行。
 
 ## 支持、讨论与问题反馈
 
