@@ -1,0 +1,28 @@
+import React from "react";
+import { Button, Tooltip } from "cs2/ui";
+import styles from "../route-filter.module.scss";
+import { icons } from "../assets";
+
+type Props = {
+  title: string;
+  version: string;
+  buildId: string;
+  closeLabel: string;
+  onClose: () => void;
+};
+
+export const PanelHeader = ({ title, version, buildId, closeLabel, onClose }: Props) => (
+  <div className={styles.panelHeader}>
+    <span className={styles.brandIcon}><img className={styles.toolGlyph} src={icons.prohibition} alt="" /></span>
+    <div className={styles.brandText}>
+      <strong>{title}</strong>
+      <span>{version}</span>
+      <span className={styles.buildMarker} title={`RouteFilter build ${buildId}`} aria-hidden="true" />
+    </div>
+    <Tooltip tooltip={closeLabel} direction="down" alignment="end">
+      <Button variant="flat" className={styles.closeButton} onSelect={onClose} aria-label={closeLabel}>
+        <img className={styles.closeGlyph} src={icons.close} alt="" />
+      </Button>
+    </Tooltip>
+  </div>
+);

@@ -1,8 +1,8 @@
 import { ModRegistrar } from "cs2/modding";
-import { RouteFilterUI } from "./routeFilterUI";
+import { RouteFilterShell } from "./mods/route-filter";
 
 const register: ModRegistrar = (moduleRegistry) => {
-  moduleRegistry.append("GameTopLeft", RouteFilterUI);
+  moduleRegistry.append("GameTopLeft", RouteFilterShell);
 };
 
 export default register;
