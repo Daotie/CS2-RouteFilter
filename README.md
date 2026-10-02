@@ -30,6 +30,8 @@
 
 ---
 
+**v2 development branch:** Road and Rail request-local exclusion are enabled in the 2.0 test build. Actual gameplay, native hook compatibility and performance are **NOT GAME VERIFIED**. No-alternative and late approaches are grandfathered. See [architecture](ARCHITECTURE.md), [performance](PERFORMANCE.md) and [rail design](RAIL_ENFORCEMENT_DESIGN.md). The release overview below describes the published 1.x version; this test build has not been published to Paradox Mods.
+
 RouteFilter lets you decide which exact vehicle assets may pass through one network node or an entire road, tram, train, or subway segment.
 
 A matching vehicle is stopped before crossing the restricted target and is asked to find another route when the network provides one.

@@ -41,14 +41,19 @@ public static class SafeToAttemptRerouteEvaluator
         if (!input.m_EntryDirectionMatches) reasons |= SafetyReason.EntryDirectionChanged;
         if (!input.m_NextDirectionMatches) reasons |= SafetyReason.NextDirectionChanged;
         if (input.m_AtOrPastGateAnchor) reasons |= SafetyReason.AtOrPastGateAnchor;
-        if (!input.m_HasCurve) reasons |= SafetyReason.CurveUnavailable;
+        if (!input.m_HasCurve || !math.isfinite(input.m_Speed) || input.m_Speed < 0 ||
+            !math.isfinite(input.m_CurveLength) || input.m_CurveLength <= 0 ||
+            !math.isfinite(input.m_DistanceToGateAnchor) ||
+            !math.isfinite(input.m_Calibration.m_DistanceToLastSafeDecisionPoint))
+            reasons |= SafetyReason.CurveUnavailable;
         if (!(input.m_Braking > 0f) || !math.isfinite(input.m_Braking))
             reasons |= SafetyReason.BrakingUnavailable;
 
         var calibration = input.m_Calibration;
         if (!calibration.m_HasLastSafeDecisionPoint)
             reasons |= SafetyReason.LastSafeDecisionPointUnknown;
-        if (calibration.m_Confidence != SafetyConfidence.Calibrated ||
+        if ((calibration.m_Confidence != SafetyConfidence.Calibrated &&
+             calibration.m_Confidence != SafetyConfidence.ConservativeInitial) ||
             !(calibration.m_ExpectedLatencySeconds >= 0f) ||
             !math.isfinite(calibration.m_ExpectedLatencySeconds))
             reasons |= SafetyReason.LatencyUncalibrated;
@@ -130,6 +135,7 @@ public static class SafeToAttemptRerouteEvaluator
             m_Target = candidate.m_Target,
             m_EntryLane = candidate.m_EntryLane,
             m_NextLane = candidate.m_NextLane,
+            m_ViaLane = candidate.m_ViaLane,
             m_MatchedPrefab = candidate.m_MatchedPrefab,
             m_Verdict = verdict,
             m_Confidence = calibration.m_Confidence,

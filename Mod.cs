@@ -19,7 +19,7 @@ public sealed class Mod : IMod
     public const string Version = "2.0.0-dev";
     // Bump this for every deployable build so the in-game panel and log identify
     // exactly which compiled payload is loaded by the active playset.
-    public const string BuildId = "RF2-20261002-SETTINGS-NAME-09";
+    public const string BuildId = "RF2-20261002-ROAD-RAIL-CLOSURE-10";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";
@@ -68,6 +68,8 @@ public sealed class Mod : IMod
     {
         m_RuntimeWorld = updateSystem.World;
         Log.Info($"{nameof(OnLoad)} build={BuildId}");
+        try { RestrictionPathfindHook.Install(m_RuntimeWorld); }
+        catch (Exception error) { Log.Error($"[RouteFilter.QueryExclusion] hook installation FAILED: {error}"); }
 
         try
         {
@@ -107,8 +109,7 @@ public sealed class Mod : IMod
         updateSystem.UpdateAfter<RestrictionSafetySystem, RestrictionCandidateSystem>(SystemUpdatePhase.GameSimulation);
         updateSystem.UpdateAfter<RoadEnforcementCoordinator, RestrictionSafetySystem>(SystemUpdatePhase.GameSimulation);
         updateSystem.UpdateAfter<RailEnforcementBackend, RestrictionSafetySystem>(SystemUpdatePhase.GameSimulation);
-        // CarLane is ISerializable and writes its blockage interval, and PathOwner is ISerializable
-        // and writes its flags. Both owned-mutation releases must therefore complete before the
+        // PathOwner serializes its flags. Owned Obsolete undo and query completion must precede the
         // game's SerializerSystem runs, not merely before RouteFilter's own callback.
         updateSystem.UpdateBefore<RoadEnforcementCoordinator, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
         updateSystem.UpdateBefore<RailEnforcementBackend, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
@@ -164,6 +165,7 @@ public sealed class Mod : IMod
 
     public void OnDispose()
     {
+        RestrictionPathfindHook.Uninstall();
         if (m_RuntimeWorld != null && m_RuntimeWorld.IsCreated)
         {
             m_RuntimeWorld.GetExistingSystemManaged<RoadEnforcementCoordinator>()?.ReleaseAll();

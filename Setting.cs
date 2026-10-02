@@ -87,7 +87,7 @@ public sealed class Setting : ModSetting
         EnableRoadEnforcement = true;
         EnableRailEnforcement = true;
         EmergencyProtection = true;
-        RerouteLatencySeconds = 1.0f;
+        RerouteLatencySeconds = 2.4f;
         RerouteUncertaintyMetres = 5f;
         VerboseDiagnostics = false;
     }
@@ -108,10 +108,10 @@ internal abstract class LocaleBase : IDictionarySource
             [Setting.GetOptionGroupLocaleID(Setting.kGeneralGroup)] = Chinese ? "常规" : "General",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "限制标记" : "Restriction badges",
             [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "在受限目标上方显示视觉标记。" : "Shows visual badges above restricted targets.",
-            [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "道路禁行实验管线" : "Experimental road enforcement",
-            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "当前尚未通过图发布与安全延迟校准，不会基于未经验证的判断修改车辆。" : "Graph publication and safety latency are not validated. Unverified verdicts never mutate vehicles.",
-            [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRailEnforcement))] = Chinese ? "轨道候选诊断" : "Rail candidate diagnostics",
-            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRailEnforcement))] = Chinese ? "只识别受限列车编组。尚无经过验证的轨道排除机制，不修改车道或车辆寻路。" : "Observe restricted consists only. No validated track exclusion mechanism exists; lanes and vehicle paths are left unchanged.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "道路禁行（测试版）" : "Road enforcement (test build)",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "为距离足够且导航明确的指定车辆请求一次原生绕行，仅在该请求中排除受限目标；无替代路线时放行。实际游戏行为仍待验证。" : "Requests one native reroute for a sufficiently distant, unambiguous restricted vehicle. Excludes the target only for that request; falls back when no alternative exists. Gameplay verification pending.",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRailEnforcement))] = Chinese ? "轨道禁行（测试版）" : "Rail enforcement (test build)",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRailEnforcement))] = Chinese ? "按编组请求一次原生绕行，在该轨道寻路请求中排除受限目标。保持原生目的地与线路站点；无法绕行时放行，不修改 TrackLane 阻塞。实际游戏行为仍待验证。" : "Requests one native reroute per consist, excluding the target within that track query. Preserves native destinations and line stops; falls back if no detour exists. No TrackLane blockage writes. Gameplay verification pending.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EmergencyProtection))] = Chinese ? "紧急车辆豁免" : "Emergency vehicle exemption",
             [Setting.GetOptionDescLocaleID(nameof(Setting.EmergencyProtection))] = Chinese ? "警车、消防车、救护车和灵车永不被重新规划。" : "Police, fire, ambulance and hearse vehicles are never rerouted.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.RerouteLatencySeconds))] = Chinese ? "绕行延迟预算（秒）" : "Reroute latency budget (seconds)",

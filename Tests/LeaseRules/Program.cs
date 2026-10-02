@@ -14,11 +14,11 @@ Check(RoadLeaseRules.CanAcquire(255, 0), "empty lane can be leased");
 Check(RoadLeaseRules.CanAcquire(10, 3), "inverted interval counts as empty");
 Check(!RoadLeaseRules.CanAcquire(0, 255), "occupied lane must never be taken over");
 
-Check(!RoadLeaseRules.HasExpired(99, 100), "before expiry");
-Check(RoadLeaseRules.HasExpired(100, 100), "absolute expiry inclusive");
-Check(RoadLeaseRules.HasExpired(101, 100), "after expiry");
-Check(!RoadLeaseRules.HasExpired(uint.MaxValue, 1), "frame wrap before expiry");
-Check(RoadLeaseRules.HasExpired(1, 1), "frame wrap expiry");
+Check(!EnforcementPolicy.HasExpired(99, 100), "before expiry");
+Check(EnforcementPolicy.HasExpired(100, 100), "absolute expiry inclusive");
+Check(EnforcementPolicy.HasExpired(101, 100), "after expiry");
+Check(!EnforcementPolicy.HasExpired(uint.MaxValue, 1), "frame wrap before expiry");
+Check(EnforcementPolicy.HasExpired(1, 1), "frame wrap expiry");
 
 var lease = new RoadLaneLease
 {
@@ -74,6 +74,11 @@ for (var state = 0; state < 65536; state++)
     Check(owns == ((PathFlags)state == attempt.WrittenPathState), "full flags snapshot required");
     Check(!EnforcementPolicy.OwnsRequest(attempt, (PathFlags)state, 8), "changed path element never restored");
 }
+var setup = new EnforcementAttempt { OriginalPathState = 0, WrittenPathState = PathFlags.Obsolete };
+Check(EnforcementPolicy.IsExpectedSetup(setup, PathFlags.Pending), "native consumes Obsolete then clears navigation");
+Check(!EnforcementPolicy.IsExpectedSetup(setup, PathFlags.Pending | PathFlags.Updated), "replacement result is not our setup");
+Check(!EnforcementPolicy.IsExpectedSetup(setup, PathFlags.Pending | PathFlags.Append), "append is not our setup");
+Check(!EnforcementPolicy.IsExpectedSetup(setup, PathFlags.Obsolete), "query has not consumed our request");
 
 Console.WriteLine("PASS: 65,536 lane ownership pairs, vanilla empty interval, exact expiry, frame wrap, " +
                   "ended ownership, acquire-only-on-empty, reroute admission against every PathFlags " +

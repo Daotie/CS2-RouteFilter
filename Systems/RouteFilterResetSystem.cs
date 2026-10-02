@@ -85,6 +85,7 @@ public sealed partial class RouteFilterResetSystem : GameSystemBase
 
         road.ResetRuntimeState();
         rail.ResetRuntimeState();
+        RestrictionPathfindHook.ResetCounters();
 
         Mod.Log.Info(
             $"[RouteFilter.Reset] targetsCleared={targets.Count} " +

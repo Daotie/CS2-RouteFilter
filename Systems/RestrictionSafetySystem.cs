@@ -136,24 +136,26 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
                 var navigation = default(DynamicBuffer<CarNavigationLane>);
                 var hasNavigation = vehicleValid && NavigationLanes.TryGetBuffer(candidate.m_Vehicle, out navigation) &&
                                     navigation.Length != 0;
-                var next = hasNavigation ? navigation[0] : default;
-                var immediateMatches = hasNavigation && next.m_Lane == candidate.m_NextLane;
-                var entryDelta = hasCurrent ? current.m_CurvePosition.x - current.m_CurvePosition.z : 0f;
+                var nextIndex = candidate.m_ViaLane == Entity.Null ? 0 : 1;
+                var next = hasNavigation && navigation.Length > nextIndex ? navigation[nextIndex] : default;
+                var immediateMatches = hasNavigation && navigation.Length > nextIndex && next.m_Lane == candidate.m_NextLane &&
+                    (nextIndex == 0 || navigation[0].m_Lane == candidate.m_ViaLane);
+                var entryDelta = hasCurrent ? current.m_CurvePosition.z - current.m_CurvePosition.x : 0f;
                 var nextDelta = hasNavigation ? next.m_CurvePosition.y - next.m_CurvePosition.x : 0f;
                 var entryDirectionMatches = hasCurrent && DirectionMatches(candidate.m_EntryDirection, entryDelta);
                 var nextDirectionMatches = hasNavigation && nextDelta != 0f &&
                                            DirectionMatches(candidate.m_NextDirection, nextDelta);
                 var atOrPastAnchor = hasCurrent &&
                     (candidate.m_EntryDirection == LaneTraversalDirection.Forward
-                        ? current.m_CurvePosition.z >= current.m_CurvePosition.x
-                        : current.m_CurvePosition.z <= current.m_CurvePosition.x);
+                        ? current.m_CurvePosition.x >= current.m_CurvePosition.z
+                        : current.m_CurvePosition.x <= current.m_CurvePosition.z);
 
                 var curve = default(Curve);
                 var hasCurve = EntityStorage.Exists(candidate.m_EntryLane) &&
                                Curves.TryGetComponent(candidate.m_EntryLane, out curve);
                 var curveLength = hasCurve ? curve.m_Length : 0f;
                 var gateDistance = hasCurrent && hasCurve
-                    ? curveLength * math.abs(current.m_CurvePosition.x - current.m_CurvePosition.z)
+                    ? GateApproachDistance.Remaining(curve, current.m_CurvePosition.x, current.m_CurvePosition.z)
                     : float.NaN;
                 var speed = vehicleValid && MovingData.TryGetComponent(candidate.m_Vehicle, out var moving)
                     ? math.length(moving.m_Velocity)
@@ -166,11 +168,11 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
                 var pathState = hasPathOwner ? pathOwner.m_State : 0;
                 var category = Classify(candidate.m_Vehicle);
 
-                // These measurements are observational. No latency bound or graph-publication
-                // calibration has been verified; do not promote assumptions to Safe admission.
+                // CurrentLane.x = present position, .z = traversal endpoint (vanilla navigation
+                // initializes it from next.xy as xxy). Bootstrap is explicit, not measured calibration.
                 var calibration = new RerouteSafetyCalibration
                 {
-                    m_Confidence = SafetyConfidence.Instrumenting,
+                    m_Confidence = SafetyConfidence.ConservativeInitial,
                     m_HasLastSafeDecisionPoint = hasCurrent && hasCurve,
                     m_DistanceToLastSafeDecisionPoint = gateDistance,
                     m_ExpectedLatencySeconds = ExpectedLatencySeconds,
@@ -209,7 +211,7 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
                 });
 
                 Evaluations.Add(evaluation);
-                UpdateObservation(candidate, hasCurrent ? current.m_CurvePosition.z : float.NaN, pathState);
+                UpdateObservation(candidate, hasCurrent ? current.m_CurvePosition.x : float.NaN, pathState);
                 Record(LatencyMetric.CandidatePipeline, evaluation.m_CandidatePipelineFrames);
                 CountEvaluation(evaluation, ref counters);
             }
@@ -501,7 +503,10 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
     public int EvaluationCount => m_EvaluationPending ? 0 : m_Evaluations.Length;
 
     /// <summary>Conservative reroute latency budget in seconds. See PERFORMANCE.md.</summary>
-    public float ExpectedLatencySeconds => Mod.Settings?.RerouteLatencySeconds ?? 1.0f;
+    // 16-frame AI cadence + 64-frame vanilla setup queue + another 64-frame query/adoption
+    // allowance, at the 60 Hz simulation basis used by navigation's 16/60 time step.
+    // This is an initial test budget, not an observed upper bound on native pathfinding.
+    public float ExpectedLatencySeconds => math.clamp(Mod.Settings?.RerouteLatencySeconds ?? 2.4f, 2.4f, 4f);
 
     /// <summary>Extra distance margin, in metres, on top of the modelled braking distance.</summary>
     public float UncertaintyMargin => Mod.Settings?.RerouteUncertaintyMetres ?? 5f;

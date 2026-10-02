@@ -6,6 +6,8 @@
     <Version>2.0.0-dev</Version>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <FileVersion>2.0.0.0</FileVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <HarmonyPath Condition="'$(HarmonyPath)' == ''">$(MSBuildProjectDirectory)\tools\dependencies\0Harmony.dll</HarmonyPath>
     <Authors>Daotie</Authors>
     <Description>Asset-level vehicle access restrictions for road and rail nodes or segments in Cities: Skylines II.</Description>
     <Title>RouteFilter</Title>
@@ -30,6 +32,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Reference Include="0Harmony" Condition="Exists('$(HarmonyPath)')"><HintPath>$(HarmonyPath)</HintPath><Private>true</Private></Reference>
+    <PackageReference Include="Lib.Harmony" Version="2.2.2" Condition="!Exists('$(HarmonyPath)')" />
     <Reference Include="Game"><HintPath>$(ManagedPath)\Game.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Colossal.Core"><HintPath>$(ManagedPath)\Colossal.Core.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Colossal.Logging"><HintPath>$(ManagedPath)\Colossal.Logging.dll</HintPath><Private>false</Private></Reference>

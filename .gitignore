@@ -19,3 +19,5 @@ deployment-backups/
 PHASE1D_GAME_TEST.md
 NATIVE_UI_ROUTES_TEST.md
 NATIVE_PANEL_TEST.md
+
+tools/dependencies/

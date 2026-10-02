@@ -1,32 +1,49 @@
-# Rail enforcement design / 轨道禁行设计
+# Rail enforcement / 轨道禁行
 
-## Verified facts / 已核对事实
-Game 1.6.0f1 TrackLane has no CarLane-style blockage interval. GetTrackDriveSpecification does
-not publish HasBlockage. PathOwner IS serialized: zero TrackLane writes alone never proves save
-safety. Obsolete by itself does not make a pathfinder avoid a target.
-TrackLane 无道路式 blockage 字段；轨道图不发布 HasBlockage。PathOwner 会序列化；只不写
-TrackLane 不能证明存档安全。仅设置 Obsolete 不能提供目标绕行约束。
+## Native facts / 原生依据
 
-## Current backend / 当前实现
-Independent directed track gates watch relevant LaneObjects. Physical members canonicalize to
-the consist path owner through controller/layout information; a consist is detected once per scan.
-Train navigation validates the immediate gate. Tram is excluded from the road candidate backend.
-The rail backend performs ZERO TrackLane and ZERO PathOwner writes. Candidate diagnostics only.
-独立有向轨道门监视相关对象，车厢归一为编组所有者；验证下一门，有轨电车不进入道路后端。
-当前轨道后端仅诊断，不修改 TrackLane 或 PathOwner。
+Game 1.6.0f1 TrackLane has no CarLane blockage interval and GetTrackDriveSpecification emits no
+HasBlockage. Native PathfindJobs.DisallowConnection rejects an edge whose method mask has no
+intersection with the request. This includes Track. Lack of physical blockage is not a rail blocker.
+TrackLane 无道路阻塞字段，但原生寻路会拒绝方法掩码不匹配的边，包括 Track；因此仍能逐请求排除。
+The native queue's private generic graph modification scheduler joins all graph readers/writers.
+The test build uses that exclusive transaction boundary, not shared cost/rule edits or CarLane writes.
+测试构建使用原生图独占读写边界，不使用共享成本修改或道路阻塞。
 
-## Unresolved mechanism / 尚未解决的机制
-A safe, bounded, preferably request-specific exclusion primitive has not been demonstrated.
-Native graph UpdateAction exists, but changes affect shared seekers and are asynchronous;
-ownership, publication acknowledgement, vanilla rebuild conflicts and release must be proven.
-Absence of CarLane blockage does NOT prove that every rail approach is impossible.
-尚未证明安全的、最好逐请求的排除机制。原生图更新存在，但影响共享寻路并异步执行，需要
-证明归属、发布确认、原生重建冲突和释放。缺少道路 blockage 不代表所有轨道方案均不可能。
+## Executable backend / 实际执行后端
 
-Fixed-line passenger/freight/subway/tram failure behavior, station approach, reversing,
-alternative routes, target deletion, track rebuild and mixed ownership need actual game tests.
-固定线路、车站、折返、替代路径、目标删除、轨道重建与混合归属仍需真实游戏测试。
+Directed TrackLane gates watch relevant LaneObjects. Controller chains and LayoutElement[0] identify
+one authoritative consist head; members cannot independently reroute. Road explicitly excludes Train.
+只监视相关轨道对象，以控制器链和 LayoutElement[0] 找到编组所有者，整列只请求一次；道路排除 Train。
+Navigation must confirm the next target lane or the exact endpoint-connector/target sequence.
+Current train front position is float4.y; traversal endpoint is float4.w. Remaining distance uses
+a Bezier chord lower bound. Admission requires finite speed/braking, consist length, clean PathOwner
+and distance beyond initial latency + braking + consist geometry + uncertainty margin.
+列车当前位置为前端 float4.y、终点为 w，以曲线弦长保守估算；核对导航、制动、编组长度和剩余距离。
+One Obsolete requests the original vanilla query. The shared bridge uses a rail-specific target lane
+set, temporarily removes Track eligibility under exclusive ownership, runs the original native query,
+verifies its returned path avoids those lanes and compare-restores the method snapshots.
+只置一次 Obsolete；以独立轨道集合执行临时排除，原生查询结束后核对结果并比较恢复。
 
-STATUS: observation implemented; safe avoidance primitive UNRESOLVED; enforcement NOT IMPLEMENTED;
-game/save/performance verification NOT TESTED. Do not report reroute-only as working rail restriction.
-状态：观测已实现；安全排除机制未解决；轨道禁行未实现；游戏、存档和性能未测试。
+## Fixed lines and failure / 固定线路与失败
+
+Passenger/freight trains, subway and tram retain native stops/destinations. A detour is possible only
+if an alternative connects the SAME native origin and destination. RouteFilter does not redraw lines,
+skip stations, reverse, teleport or inject custom routes. A restricted stop/end target may have no
+detour and must be grandfathered. Already committed/late approaches are likewise grandfathered.
+保持原生目的地和站点；仅绕行同一起终点，不改线路、跳站、折返、传送或注入路线。无路或过晚则放行。
+No alternative triggers at most one unexcluded query in the same action after full overlay release.
+No repeated Obsolete, pending retry or custom train recovery exists. Admission deadline is 240 frames;
+terminal dedupe records remain within a 64-record bound until the approach ends.
+无路时恢复排除层，在同请求内最多查询一次放行路径；无重复请求或自定义恢复。
+
+## Ownership, resources and verification / 归属、资源与验证
+
+No TrackLane ECS field is written. PathOwner undo uses an exact full-state/element comparison.
+Graph overlay and all transaction data are runtime-only. Reset, Clear, Apply, target deletion,
+save and unload close or cancel owned work; other mod/vanilla fields are not reset globally.
+不写 TrackLane，寻路撤销严格匹配快照；排除层不保存，重置等边界释放自身状态，不清全城原生字段。
+See ARCHITECTURE and PERFORMANCE for native hook compatibility and concurrency limits.
+**Status: actual exclusion and one-shot reroute IMPLEMENTED; gameplay/scheduling compatibility,
+train/subway/tram detours, fixed-line behavior, profiler and save/reload NOT GAME VERIFIED.**
+**状态：实际排除与一次绕行已实现；游戏调度、各轨道类别绕行、固定线路、性能和存档未游戏验证。**

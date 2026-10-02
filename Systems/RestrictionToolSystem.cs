@@ -213,6 +213,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
     {
         if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
         World.GetOrCreateSystemManaged<RoadEnforcementCoordinator>().ReleaseAll();
+        World.GetOrCreateSystemManaged<RailEnforcementBackend>().ReleaseAll();
         var isNode = EntityManager.HasComponent<Node>(target);
         var isSegment = EntityManager.HasComponent<Edge>(target);
         if (!isNode && !isSegment) return;
@@ -245,6 +246,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
         World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ForgetPending(target);
         World.GetOrCreateSystemManaged<RoadEnforcementCoordinator>().ReleaseAll();
+        World.GetOrCreateSystemManaged<RailEnforcementBackend>().ReleaseAll();
         Mod.RestrictionsDirty = true;
         if (EntityManager.HasComponent<NodeAssetRestrictionV1>(target)) EntityManager.RemoveComponent<NodeAssetRestrictionV1>(target);
         if (EntityManager.HasComponent<SegmentAssetRestrictionV1>(target)) EntityManager.RemoveComponent<SegmentAssetRestrictionV1>(target);

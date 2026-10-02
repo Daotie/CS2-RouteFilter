@@ -1,4 +1,5 @@
 using Game;
+using Colossal.Entities;
 using Game.Common;
 using Game.Net;
 using Game.Objects;
@@ -32,6 +33,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
     {
         public Entity EntryLane;
         public Entity NextLane;
+        public Entity ViaLane;
         public Entity Target;
         public RestrictionTopologyTargetType TargetType;
         public LaneTraversalDirection EntryDirection;
@@ -302,13 +304,11 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
             var firstSeen = GetFirstSeenFrame(identity);
             var curveLength = Curves.TryGetComponent(gate.EntryLane, out var curve) ? curve.m_Length : 0f;
             var remainingDistance = curveLength * math.abs(currentLane.m_CurvePosition.z - currentLane.m_CurvePosition.x);
-            // CarCurrentLane.x is the current traversal's destination anchor; z is the
-            // vehicle's current anchor. Keep the actual anchor rather than replacing it
-            // with a normalized lane endpoint, because partial traversals need not end at 0/1.
-            var endpoint = currentLane.m_CurvePosition.x;
+            // Vanilla initializes current.xy from the next traversal start, .z from its end.
+            var endpoint = currentLane.m_CurvePosition.z;
             var atOrPastAnchor = gate.EntryDirection == LaneTraversalDirection.Forward
-                ? currentLane.m_CurvePosition.z >= currentLane.m_CurvePosition.x
-                : currentLane.m_CurvePosition.z <= currentLane.m_CurvePosition.x;
+                ? currentLane.m_CurvePosition.x >= currentLane.m_CurvePosition.z
+                : currentLane.m_CurvePosition.x <= currentLane.m_CurvePosition.z;
             var velocity = MovingData.TryGetComponent(canonical, out var moving)
                 ? moving.m_Velocity
                 : MovingData.TryGetComponent(physical, out moving) ? moving.m_Velocity : default;
@@ -323,6 +323,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 m_PhysicalVehicle = physical,
                 m_EntryLane = gate.EntryLane,
                 m_NextLane = gate.NextLane,
+                m_ViaLane = gate.ViaLane,
                 m_Target = gate.Target,
                 m_RestrictedPrefab = matchedPrefab,
                 m_MatchedPrefab = matchedPrefab,
@@ -458,7 +459,10 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 return false;
             }
 
-            var next = navigation[0];
+            var nextIndex = gate.ViaLane == Entity.Null ? 0 : 1;
+            if (navigation.Length <= nextIndex || (nextIndex == 1 && navigation[0].m_Lane != gate.ViaLane))
+            { reason = RejectedCandidateReason.ImmediateLaneMismatch; return false; }
+            var next = navigation[nextIndex];
             observedNextLane = next.m_Lane;
             if (next.m_Lane != gate.NextLane)
             {
@@ -466,7 +470,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 return false;
             }
 
-            var entryDelta = currentLane.m_CurvePosition.x - currentLane.m_CurvePosition.z;
+            var entryDelta = currentLane.m_CurvePosition.z - currentLane.m_CurvePosition.x;
             if ((gate.EntryDirection == LaneTraversalDirection.Forward && entryDelta < 0f) ||
                 (gate.EntryDirection == LaneTraversalDirection.Reverse && entryDelta > 0f))
             {
@@ -503,8 +507,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 ? moving.m_Velocity
                 : MovingData.TryGetComponent(physical, out moving) ? moving.m_Velocity : default;
             var atOrPastAnchor = gate.EntryDirection == LaneTraversalDirection.Forward
-                ? currentLane.m_CurvePosition.z >= currentLane.m_CurvePosition.x
-                : currentLane.m_CurvePosition.z <= currentLane.m_CurvePosition.x;
+                ? currentLane.m_CurvePosition.x >= currentLane.m_CurvePosition.z
+                : currentLane.m_CurvePosition.x <= currentLane.m_CurvePosition.z;
 
             if (DebugRejections.Length >= 256) return;
             DebugRejections.Add(new RejectedCandidate
@@ -815,6 +819,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                     NextDirection = gate.m_NextDirection,
                     TargetEndpoint = gate.m_TargetEndpoint
                 });
+                if (targetType == RestrictionTopologyTargetType.Segment)
+                    AddUpstreamSegmentWatches(gate, targetType, uniqueLanes, gates);
             }
         }
 
@@ -836,6 +842,38 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                     m_TargetPrefabs.Add(pair.Key, prefab);
 
         m_RuntimeRevision = m_Index.Revision;
+    }
+
+    // Retain directed topology unchanged. Observation extends one hop behind its short endpoint
+    // connector, and requires the exact connector + target lane sequence in navigation.
+    // Work is local connected-edge lanes, only when a restriction revision changes.
+    private void AddUpstreamSegmentWatches(DirectedEntryGate gate, RestrictionTopologyTargetType type,
+        HashSet<Entity> watched, List<DirectedEntryGateRuntime> gates)
+    {
+        if (!EntityManager.TryGetComponent(gate.m_EntryLane, out Lane connector) ||
+            !EntityManager.TryGetComponent(gate.m_EntryLane, out Owner connectorOwner) ||
+            !EntityManager.TryGetBuffer(connectorOwner.m_Owner, true, out DynamicBuffer<ConnectedEdge> edges)) return;
+        var start = gate.m_EntryDirection == LaneTraversalDirection.Forward ? connector.m_StartNode : connector.m_EndNode;
+        foreach (var edge in edges)
+        {
+            if (edge.m_Edge == gate.m_Target || !EntityManager.TryGetBuffer(edge.m_Edge, true, out DynamicBuffer<Game.Net.SubLane> lanes)) continue;
+            foreach (var sub in lanes)
+            {
+                var entity = sub.m_SubLane;
+                if (!EntityManager.TryGetComponent(entity, out Lane lane) ||
+                    !EntityManager.TryGetComponent(entity, out Game.Net.CarLane car)) continue;
+                var direction = LaneTraversalDirection.Forward;
+                if (!lane.m_EndNode.Equals(start))
+                {
+                    if ((car.m_Flags & Game.Net.CarLaneFlags.Twoway) == 0 || !lane.m_StartNode.Equals(start)) continue;
+                    direction = LaneTraversalDirection.Reverse;
+                }
+                watched.Add(entity);
+                gates.Add(new DirectedEntryGateRuntime { EntryLane = entity, ViaLane = gate.m_EntryLane,
+                    NextLane = gate.m_NextLane, Target = gate.m_Target, TargetType = type,
+                    EntryDirection = direction, NextDirection = gate.m_NextDirection, TargetEndpoint = gate.m_TargetEndpoint });
+            }
+        }
     }
 
     private void ProcessCompletedDiagnostics()

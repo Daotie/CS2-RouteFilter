@@ -196,5 +196,13 @@ public sealed partial class RouteFilterDiagnosticsSystem : GameSystemBase
            $"railWatchedLanes={value.RailWatchedEntryLanes} railLaneObjects={value.RailLaneObjectsScanned} " +
            $"railReroutes={value.RailReroutesRequested} railRefusedFixedRoute={value.RailRefusedFixedRoute} " +
            $"railRefusedTooLate={value.RailRefusedNotSafe} railActiveAttempts={value.ActiveRailAttempts} " +
-           $"persistenceLocked={value.PersistenceLocked}";
+           $"persistenceLocked={value.PersistenceLocked} build={Mod.BuildId} " +
+           $"queryHook={RestrictionPathfindHook.Available} " +
+           $"excludedQueries={RestrictionPathfindHook.Queries} roadQueries={RestrictionPathfindHook.RoadQueries} " +
+           $"railQueries={RestrictionPathfindHook.RailQueries} alternatives={RestrictionPathfindHook.Alternatives} " +
+           $"fallbacks={RestrictionPathfindHook.Fallbacks} roadAlternatives={RestrictionPathfindHook.RoadAlternatives} " +
+           $"railAlternatives={RestrictionPathfindHook.RailAlternatives} roadFallbacks={RestrictionPathfindHook.RoadFallbacks} " +
+           $"railFallbacks={RestrictionPathfindHook.RailFallbacks} appliedEdges={RestrictionPathfindHook.Applied} " +
+           $"restoredEdges={RestrictionPathfindHook.Restored} restoreConflicts={RestrictionPathfindHook.Conflicts} " +
+           $"activeQueries={RestrictionPathfindHook.ActiveTransactions}";
 }

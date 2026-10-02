@@ -84,18 +84,25 @@ public struct EnforcementAttempt
     public Entity Vehicle;
     public Entity Target;
     public Entity GateEntryLane;
-    /// <summary>Lane whose blockage interval RouteFilter owns, or Entity.Null when unbacked.</summary>
+    public Entity ViaLane;
+    /// <summary>Imminent forbidden lane required in the query exclusion set. No physical blockage.</summary>
     public Entity OwnedLane;
+    public Entity NativeDestination;
+    public float Braking, GeometryLength;
+    public float TraversalEnd;
+    public bool Forward;
     public int RestrictionRevision;
     public Game.Pathfind.PathFlags OriginalPathState, WrittenPathState;
     public int OriginalElementIndex;
     public uint RequestedFrame;
-    /// <summary>Hard deadline. No attempt may be extended; the record simply ends.</summary>
+    /// <summary>Hard admission deadline, never extended. A terminal dedupe record may outlive it.</summary>
     public uint AbsoluteDeadlineFrame;
     public EnforcementBackend Backend;
     public EnforcementAttemptState State;
     public EnforcementRefusalReason LastRefusal;
     public RoadVehicleCategory Category;
+    /// <summary>Native query exclusion was consumed once for this approach.</summary>
+    public bool QueryIntercepted;
 }
 
 /// <summary>
@@ -123,8 +130,16 @@ public struct CanonicalApproachKey : IEquatable<CanonicalApproachKey>
 /// </summary>
 public static class EnforcementPolicy
 {
+    /// <summary>Wrap-safe expiry; no pending native request may extend the absolute deadline.</summary>
+    public static bool HasExpired(uint frame, uint deadline) => unchecked((int)(frame - deadline)) >= 0;
+
     public static bool OwnsRequest(in EnforcementAttempt attempt, Game.Pathfind.PathFlags state, int elementIndex)
         => state == attempt.WrittenPathState && elementIndex == attempt.OriginalElementIndex;
+
+    // VehicleUtils.SetupPathfind consumes our Obsolete, sets Pending and preserves all other
+    // clean flags. Navigation buffers may then be cleared by vanilla before CompleteSetup.
+    public static bool IsExpectedSetup(in EnforcementAttempt attempt, Game.Pathfind.PathFlags state)
+        => state == (attempt.OriginalPathState | Game.Pathfind.PathFlags.Pending);
 
     // Conservative admission, not a claim of equivalence to every vanilla AI.
     // Do not interrupt an append request or an unconsumed result.
@@ -132,6 +147,7 @@ public static class EnforcementPolicy
         => (state & (Game.Pathfind.PathFlags.Obsolete | Game.Pathfind.PathFlags.DivertObsolete)) == 0 &&
            (state & (Game.Pathfind.PathFlags.Pending | Game.Pathfind.PathFlags.Scheduled |
                      Game.Pathfind.PathFlags.Append | Game.Pathfind.PathFlags.Updated |
+                     Game.Pathfind.PathFlags.Divert | Game.Pathfind.PathFlags.CachedObsolete |
                      Game.Pathfind.PathFlags.Failed | Game.Pathfind.PathFlags.Stuck)) == 0;
 
     /// <summary>

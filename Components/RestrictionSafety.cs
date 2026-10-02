@@ -15,7 +15,8 @@ public enum SafetyConfidence : byte
 {
     None = 0,
     Instrumenting = 1,
-    Calibrated = 2
+    Calibrated = 2,
+    ConservativeInitial = 3
 }
 
 [Flags]
@@ -54,8 +55,8 @@ public enum SafetyReason : ulong
 }
 
 /// <summary>
-/// Optional calibrated inputs for the pure evaluator. Phase 1C deliberately supplies an
-/// uncalibrated value until game measurements establish these quantities.
+/// Calibration inputs for the pure evaluator. ConservativeInitial is an explicit bootstrap
+/// policy; it is not a claim that queue/adoption latency has been measured in the game.
 /// </summary>
 public struct RerouteSafetyCalibration
 {
@@ -105,6 +106,7 @@ public struct RerouteSafetyEvaluation
     public Entity m_Target;
     public Entity m_EntryLane;
     public Entity m_NextLane;
+    public Entity m_ViaLane;
     public Entity m_MatchedPrefab;
     public RerouteSafetyVerdict m_Verdict;
     public SafetyConfidence m_Confidence;
