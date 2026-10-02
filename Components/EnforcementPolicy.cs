@@ -126,15 +126,12 @@ public static class EnforcementPolicy
     public static bool OwnsRequest(in EnforcementAttempt attempt, Game.Pathfind.PathFlags state, int elementIndex)
         => state == attempt.WrittenPathState && elementIndex == attempt.OriginalElementIndex;
 
-    /// <summary>
-    /// Vanilla turns <c>PathFlags.Obsolete</c> into an actual path request only through
-    /// <c>Game.Vehicles.VehicleUtils.RequireNewPath</c>, which refuses while the owner is
-    /// Pending, Failed or Stuck. Writing Obsolete in those states would be a silent no-op that
-    /// still marks the vehicle as handled, so RouteFilter must not write it at all.
-    /// </summary>
+    // Conservative admission, not a claim of equivalence to every vanilla AI.
+    // Do not interrupt an append request or an unconsumed result.
     public static bool CanRequestReroute(Game.Pathfind.PathFlags state)
         => (state & (Game.Pathfind.PathFlags.Obsolete | Game.Pathfind.PathFlags.DivertObsolete)) == 0 &&
            (state & (Game.Pathfind.PathFlags.Pending | Game.Pathfind.PathFlags.Scheduled |
+                     Game.Pathfind.PathFlags.Append | Game.Pathfind.PathFlags.Updated |
                      Game.Pathfind.PathFlags.Failed | Game.Pathfind.PathFlags.Stuck)) == 0;
 
     /// <summary>
@@ -144,41 +141,4 @@ public static class EnforcementPolicy
     /// </summary>
     public static bool IsExempt(RoadVehicleCategory category) => category == RoadVehicleCategory.Emergency;
 
-    /// <summary>
-    /// Distances required before a reroute request is issued. The latency term is a deliberate
-    /// conservative assumption, not a measurement: it is the budget for vanilla to enqueue,
-    /// run and apply one car pathfind plus the vehicle's own reaction. It is deliberately far
-    /// larger than the typical case so that a busy city fails toward grandfathering rather than
-    /// toward a too-late reroute.
-    /// </summary>
-    public static float RequiredDistance(
-        float speed,
-        float braking,
-        float expectedLatencySeconds,
-        float vehicleLength,
-        float uncertaintyMargin)
-    {
-        if (!(speed >= 0f) || !(braking > 0f) || !IsFinite(speed) || !IsFinite(braking))
-            return float.PositiveInfinity;
-        if (!(expectedLatencySeconds > 0f) || !(uncertaintyMargin >= 0f)) return float.PositiveInfinity;
-        var brakingDistance = 0.5f * speed * speed / braking + speed * 4f / 15f;
-        return speed * expectedLatencySeconds + brakingDistance + (vehicleLength > 0f ? vehicleLength : 0f) + uncertaintyMargin;
-    }
-
-    /// <summary>
-    /// A request is only issued when the vehicle still has room to act before it commits to the
-    /// restricted target. Strictly greater than, never greater-or-equal, so a vehicle exactly at
-    /// the decision point is treated as too late.
-    /// </summary>
-    public static bool HasRoomToAct(float distanceToGateAnchor, float requiredDistance)
-        => IsFinite(distanceToGateAnchor) && IsFinite(requiredDistance) &&
-           distanceToGateAnchor > requiredDistance;
-
-    /// <summary>
-    /// A token is a monotonic, never-reused counter. It exists so a released lease can never be
-    /// confused with a later lease on the same lane, without any reference counting.
-    /// </summary>
-    public static uint NextToken(uint current) => current + 1u;
-
-    private static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
 }

@@ -45,6 +45,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private ValueBinding<string> m_SelectedAssetsBinding = null!;
     private ValueBinding<int> m_ResetCompletedBinding = null!;
     private ValueBinding<string> m_BuildIdBinding = null!;
+    private ValueBinding<bool> m_ConfigurationEditableBinding = null!;
     private int m_ResetCompleted;
     private ValueBinding<string> m_SelectedTargetBinding = null!;
     private ValueBinding<int> m_RestrictionRevisionBinding = null!;
@@ -77,6 +78,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         m_SelectedAssetsBinding = CreateValue("selectedAssetIds", string.Empty);
         m_ResetCompletedBinding = CreateValue("resetCompleted", 0);
         m_BuildIdBinding = CreateValue("buildId", Mod.BuildId);
+        m_ConfigurationEditableBinding = CreateValue("configurationEditable", true);
         AddBinding(new TriggerBinding(Mod.Id, "openSettings", () => World.GetOrCreateSystemManaged<RouteFilterSettingsUISystem>().OpenSettings()));
         m_SelectedTargetBinding = CreateValue("selectedTarget", string.Empty);
         m_RestrictionRevisionBinding = CreateValue("restrictionRevision", 0);
@@ -148,6 +150,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         // System's Temp allocator fails; retry the key binding registration here on the
         // main thread once so the shortcut key still works in that scenario.
         Mod.RetryKeyBindings();
+        m_ConfigurationEditableBinding.Update(World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable);
 
         // The catalog check walks the prefab query, so it is sampled rather than run every
         // frame. O(1) binding updates below are unchanged; only the archetype scan is gated.

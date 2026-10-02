@@ -60,51 +60,21 @@ internal struct RailCandidate
 }
 
 /// <summary>
-/// Rail enforcement backend.
-///
-/// WORKLOAD GROWS WITH: watched rail entry lanes plus the LaneObjects on them, plus new candidates
-/// plus active attempts. It never scans trains, consists or track lanes by archetype.
-/// FAST PATH: no watched rail entry lanes means the topology snapshot is empty and both jobs return
-/// before touching anything.
-/// COMPLEXITY: O(watched rail entry lanes + their LaneObjects + new candidates + active attempts).
-/// ALLOCATIONS: none after construction.
-/// JOB DEPENDENCIES: one detect job and one enforce job per frame, chained.
-/// MAIN THREAD SYNC: none per frame.
-/// STRUCTURAL CHANGES: none. This backend performs no ECS structural change at all.
-///
-/// BLOCKED BY VERIFIED TECHNICAL LIMITATION - no graph primitive.
-/// <c>Game.Net.TrackLane</c> has no blockage interval and
-/// <c>Game.Pathfind.PathUtils.GetTrackDriveSpecification</c> never emits
-/// <c>RuleFlags.HasBlockage</c>, so there is no road-equivalent way to make the vanilla rail
-/// pathfinder avoid a lane. The only mutable TrackLane fields are flags, speed limit and access
-/// restriction, all of which are either recomputed by <c>Game.Pathfind.LaneDataSystem</c> or are
-/// serialised. RouteFilter therefore mutates no TrackLane state at all, the observation backend performs zero PathOwner or TrackLane writes.
-/// Rail avoidance remains unsupported until an independent safe primitive is proven. See RAIL_ENFORCEMENT_DESIGN.md.
+/// Independent rail observation backend. No rail or vehicle mutation is enabled until an
+/// exclusion mechanism, graph acknowledgement and bounded recovery are actually validated.
+/// WORKLOAD GROWS WITH: watched entry lanes + relevant LaneObjects, controller/layout resolution
+/// and target-prefab matching. Canonical consists are deduplicated per scan.
+/// FAST PATH: no watched track lanes => no detection job.
+/// COMPLEXITY: indexed relevant objects/gates; output capped at 4096.
+/// ALLOCATIONS: preallocated scan output; topology allocation only on dirty revisions.
+/// JOB DEPENDENCIES: one read-only detect job; no speculative reroute job.
+/// MAIN THREAD SYNC: retire only completed work; Reset/unload/Dispose complete owned work.
+/// STRUCTURAL CHANGES: none.
+/// VERIFIED LIMIT: TrackLane has no road-style interval; that is not proof that all independent
+/// track exclusion mechanisms are impossible. See RAIL_ENFORCEMENT_DESIGN.md.
 /// </summary>
 public sealed partial class RailEnforcementBackend : GameSystemBase
 {
-    private const int kMaxConsists = 32;
-    private const int kMaxAttempts = 64;
-    /// <summary>Absolute attempt deadline. Never extended and never retried.</summary>
-    private const uint kAttemptDeadlineFrames = 600;
-
-    private const int rLeasesAcquired = 0;   // slot reuse: rail has no lease, kept for symmetry
-    private const int rReroutesRequested = 5;
-    private const int rAttemptsOpened = 6;
-    private const int rAttemptsResolved = 7;
-    private const int rAttemptsUnresolved = 8;
-    private const int rRefusedNotSafe = 9;
-    private const int rRefusedAlreadyActive = 10;
-    private const int rRefusedPathBusy = 11;
-    private const int rRefusedExempt = 12;
-    private const int rRefusedFixedRoute = 13;
-    private const int rRefusedTopology = 14;
-    private const int rRefusedBudget = 15;
-    private const int rRefusedStoreFull = 17;
-    private const int rRefusedStaleRevision = 18;
-    private const int rGrandfathered = 19;
-    private const int rCounterCount = 20;
-
     [BurstCompile]
     private struct DetectConsistsJob : IJob
     {
@@ -310,7 +280,8 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
     private NativeList<RailCandidate> m_Candidates;
     private NativeParallelHashSet<Entity> m_ConsistSeen;
     private NativeArray<int> m_WorkCounters;
-    private NativeArray<uint> m_Counters;
+    private int m_LastLaneObjectsScanned;
+    public int LastCandidateCount { get; private set; }
     private JobHandle m_Work;
     private JobHandle m_DetectHandle;
     private bool m_DetectPending;
@@ -344,7 +315,6 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         m_Candidates = new NativeList<RailCandidate>(4096, Allocator.Persistent);
         m_ConsistSeen = new NativeParallelHashSet<Entity>(4096, Allocator.Persistent);
         m_WorkCounters = new NativeArray<int>(3, Allocator.Persistent);
-        m_Counters = new NativeArray<uint>(rCounterCount, Allocator.Persistent);
     }
 
     protected override void OnDestroy()
@@ -356,7 +326,6 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         m_Candidates.Dispose();
         m_ConsistSeen.Dispose();
         m_WorkCounters.Dispose();
-        m_Counters.Dispose();
         base.OnDestroy();
     }
 
@@ -391,7 +360,13 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         }
 
         if (m_DetectPending && !m_DetectHandle.IsCompleted) return;
-        if (m_DetectPending) { m_DetectHandle.Complete(); m_DetectPending = false; }
+        if (m_DetectPending)
+        {
+            m_DetectHandle.Complete();
+            m_DetectPending = false;
+            m_LastLaneObjectsScanned = m_WorkCounters[0];
+            LastCandidateCount = m_Candidates.Length;
+        }
 
         m_Candidates.Clear();
         m_ConsistSeen.Clear();
@@ -441,6 +416,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         m_Work.Complete();
         m_DetectHandle.Complete();
         Dependency.Complete();
+        m_DetectPending = false;
     }
 
     public void ResetRuntimeState()
@@ -448,19 +424,28 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         ReleaseAll();
         m_Candidates.Clear();
         m_ConsistSeen.Clear();
-        for (var i = 0; i < m_Counters.Length; i++) m_Counters[i] = 0;
+        m_WatchedEntryLanes.Clear();
+        m_GatesByEntryLane.Clear();
+        m_TargetPrefabs.Clear();
+        m_LaneSet.Clear();
+        m_GateList.Clear();
+        m_PrefabTargets.Clear();
+        m_InternalTraversals.Clear();
+        m_AdjacentTraversals.Clear();
+        m_RuntimeRevision = -1;
+        for (var i = 0; i < m_WorkCounters.Length; i++) m_WorkCounters[i] = 0;
+        m_LastLaneObjectsScanned = 0;
+        LastCandidateCount = 0;
     }
 
+    // Rail is observation-only: no mutation/attempt counters exist to synchronize.
     public void CopyCounters(NativeArray<uint> destination)
     {
-        if (!destination.IsCreated || destination.Length < rCounterCount) return;
-        if (!m_Work.IsCompleted) return;
-        m_Work.Complete();
-        for (var i = 0; i < rCounterCount; i++) destination[i] = m_Counters[i];
+        if (!destination.IsCreated) return;
+        for (var i = 0; i < destination.Length; i++) destination[i] = 0;
     }
 
-    /// <summary>LaneObjects scanned per frame. Zero is the release gate for "no rail cost".</summary>
-    public int LaneObjectsScanned => m_WorkCounters.IsCreated && !m_DetectPending ? m_WorkCounters[0] : 0;
+    public int LaneObjectsScanned => m_LastLaneObjectsScanned;
 
     private readonly Dictionary<Entity, HashSet<Entity>> m_PrefabTargets = new();
     private readonly List<DirectedTrackGate> m_GateList = new();

@@ -53,8 +53,8 @@ Check(!EnforcementPolicy.CanRequestReroute(PathFlags.Scheduled), "scheduled path
 // Writing Obsolete again would be a duplicate request for the same vehicle.
 Check(!EnforcementPolicy.CanRequestReroute(PathFlags.Obsolete), "already obsolete is not re-requested");
 Check(!EnforcementPolicy.CanRequestReroute(PathFlags.DivertObsolete), "divert-obsolete is not re-requested");
-Check(EnforcementPolicy.CanRequestReroute(PathFlags.Updated | PathFlags.Append),
-    "append/updated is still requestable");
+Check(!EnforcementPolicy.CanRequestReroute(PathFlags.Updated | PathFlags.Append),
+    "append or unconsumed result is not a supported reroute state");
 
 // ---------------------------------------------------------------- category exemption
 
@@ -64,47 +64,6 @@ foreach (RoadVehicleCategory category in Enum.GetValues(typeof(RoadVehicleCatego
     if (category == RoadVehicleCategory.Emergency) continue;
     Check(!EnforcementPolicy.IsExempt(category), $"{category} must not be exempt");
 }
-
-// ---------------------------------------------------------------- distance model
-
-var required = EnforcementPolicy.RequiredDistance(10f, 5f, 1f, 4.5f, 5f);
-Check(required > 0f && float.IsFinite(required), "required distance is a finite positive number");
-// required = speed*latency + 0.5*v^2/braking + speed*(4/15) + length + margin
-var expected = 10f * 1f + 0.5f * 100f / 5f + 10f * 4f / 15f + 4.5f + 5f;
-Check(System.Math.Abs(required - expected) < 1e-4f, "required distance follows the documented model");
-Check(required > 10f * 1f, "latency term is included");
-Check(required > 0.5f * 100f / 5f, "braking term is included");
-Check(required > 4.5f, "vehicle length is included");
-Check(required > 5f, "uncertainty margin is included");
-
-Check(float.IsPositiveInfinity(EnforcementPolicy.RequiredDistance(10f, 0f, 1f, 4f, 5f)),
-    "unknown braking must refuse rather than under-estimate");
-Check(float.IsPositiveInfinity(EnforcementPolicy.RequiredDistance(10f, 5f, 0f, 4f, 5f)),
-    "non-positive latency must refuse");
-Check(float.IsPositiveInfinity(EnforcementPolicy.RequiredDistance(float.NaN, 5f, 1f, 4f, 5f)),
-    "non-finite speed must refuse");
-Check(float.IsPositiveInfinity(EnforcementPolicy.RequiredDistance(0f, 5f, 1f, 4f, -1f)),
-    "negative margin must refuse");
-
-// A larger latency budget must never make a vehicle look safer.
-var shortBudget = EnforcementPolicy.RequiredDistance(20f, 4f, 0.5f, 5f, 2f);
-var longBudget = EnforcementPolicy.RequiredDistance(20f, 4f, 3f, 5f, 2f);
-Check(longBudget > shortBudget, "a longer latency budget requires more room");
-Check(longBudget / 20f > shortBudget / 20f, "the latency term dominates at speed");
-
-// Strictly greater than, so a vehicle exactly at the decision point is treated as too late.
-Check(EnforcementPolicy.HasRoomToAct(required + 0.01f, required), "just enough room acts");
-Check(!EnforcementPolicy.HasRoomToAct(required, required), "exactly at the decision point does not act");
-Check(!EnforcementPolicy.HasRoomToAct(required - 0.01f, required), "too little room does not act");
-Check(!EnforcementPolicy.HasRoomToAct(float.NaN, required), "unmeasurable distance does not act");
-Check(!EnforcementPolicy.HasRoomToAct(required, float.PositiveInfinity), "infinite requirement does not act");
-Check(!EnforcementPolicy.HasRoomToAct(0f, 0f), "a stopped vehicle at the anchor does not act");
-
-// ---------------------------------------------------------------- token monotonicity
-
-var token = 0u;
-for (var i = 0; i < 1000; i++) token = EnforcementPolicy.NextToken(token);
-Check(token == 1000u, "tokens are monotonic and never reused");
 
 // Actual runtime compare-before-restore contract, including native changes to unrelated flags.
 var attempt = new EnforcementAttempt { OriginalPathState = PathFlags.Updated,
@@ -118,7 +77,6 @@ for (var state = 0; state < 65536; state++)
 
 Console.WriteLine("PASS: 65,536 lane ownership pairs, vanilla empty interval, exact expiry, frame wrap, " +
                   "ended ownership, acquire-only-on-empty, reroute admission against every PathFlags " +
-                  "combination that matters, emergency exemption, exact PathOwner ownership, distance model " +
-                  "monotonicity and frame-wrap behaviour.");
+                  "combination that matters, emergency exemption, exact PathOwner ownership and frame-wrap behaviour.");
 Console.WriteLine("NOT TESTED HERE: Unity jobs, ECS scheduling, the game's SerializerSystem, and live " +
                   "pathfinding. Those need the game running.");

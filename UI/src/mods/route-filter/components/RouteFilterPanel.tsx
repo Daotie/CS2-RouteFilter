@@ -15,6 +15,7 @@ import { icons } from "../assets";
 type Props = {
   resetCompleted: number;
   buildId: string;
+  configurationEditable: boolean;
   targetMode: number;
   selectedTargetKind: number;
   selectedCount: number;
@@ -48,6 +49,7 @@ export const RouteFilterPanel = (props: Props) => {
   return <Portal>
     <Panel id="routefilter-panel" data-build-id={props.buildId} className={styles.panel} contentClassName={styles.panelContent} onMouseEnter={props.onPointerEnter} onMouseLeave={props.onPointerLeave}>
       <PanelHeader title={props.labels.title} version={mod.version} buildId={props.buildId} closeLabel={props.labels.close} onClose={props.onClose} />
+      {!props.configurationEditable && <div className={styles.resetStatus} role="status">{tr("RouteFilter.UI.PersistenceLocked", "Save data is incompatible or damaged. Editing is locked; Reset removes RouteFilter configuration.")}</div>}
       <TargetSelector mode={props.targetMode} nodeLabel={props.labels.node} segmentLabel={props.labels.segment} status={props.labels.targetStatus} targetReady={targetReady} onModeChange={props.onTargetModeChange} />
       <div className={styles.listHeading}>
         <div><strong>{props.labels.assetTitle}</strong><span>{props.labels.assetSubtitle}</span></div>
@@ -55,7 +57,7 @@ export const RouteFilterPanel = (props: Props) => {
       </div>
       <AssetSearch value={props.search} placeholder={props.labels.search} onChange={props.onSearchChange} />
       <AssetList roots={props.roots} childrenByParent={props.childrenByParent} selected={props.selected} expanded={props.expanded} searchTerm={props.search.trim().toLocaleLowerCase()} emptyLabel={props.labels.empty} trailerLabel={props.labels.trailer} expandLabel={props.labels.expand} collapseLabel={props.labels.collapse} roadGroupLabel={props.labels.roadGroup} railGroupLabel={props.labels.railGroup} onToggle={props.onToggleAsset} onExpand={props.onExpandAsset} />
-      <ActionBar allowAllLabel={props.labels.allowAll} forbidAllLabel={props.labels.forbidAll} applyLabel={props.labels.apply} clearLabel={props.labels.clear} refreshLabel={props.labels.refresh} targetReady={targetReady} onAllowAll={props.onAllowAll} onForbidAll={props.onForbidAll} onApply={props.onApply} onClear={props.onClear} onRefresh={props.onRefresh} />
+      <ActionBar allowAllLabel={props.labels.allowAll} forbidAllLabel={props.labels.forbidAll} applyLabel={props.labels.apply} clearLabel={props.labels.clear} refreshLabel={props.labels.refresh} targetReady={targetReady && props.configurationEditable} onAllowAll={props.onAllowAll} onForbidAll={props.onForbidAll} onApply={props.onApply} onClear={props.onClear} onRefresh={props.onRefresh} />
       <div className={styles.utilityFooter}>
         <Tooltip tooltip={props.buildId}><span className={styles.buildLabel}>{props.buildId.split("-").slice(-4).join("-")}</span></Tooltip>
         <Button variant="flat" className={styles.utilityAction} onSelect={() => setConfirmReset(true)}>

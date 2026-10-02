@@ -149,6 +149,7 @@ public sealed partial class RouteFilterDiagnosticsSystem : GameSystemBase
             ActiveRoadAttempts = m_Road.ActiveAttempts,
             RailWatchedEntryLanes = m_Rail.WatchedEntryLanes,
             RailLaneObjectsScanned = m_Rail.LaneObjectsScanned,
+            RailCandidates = m_Rail.LastCandidateCount,
             RailReroutesRequested = Delta(m_RailCounters, m_RailPrevious, 5),
             RailRefusedFixedRoute = Delta(m_RailCounters, m_RailPrevious, 13),
             RailRefusedNotSafe = Delta(m_RailCounters, m_RailPrevious, 9),

@@ -14,6 +14,7 @@ const assetCatalog$ = bindValue<string>(mod.id, "assetCatalog", "");
 const selectedAssetIds$ = bindValue<string>(mod.id, "selectedAssetIds", "");
 const resetCompleted$ = bindValue<number>(mod.id, "resetCompleted", 0);
 const buildId$ = bindValue<string>(mod.id, "buildId", "unknown");
+const configurationEditable$ = bindValue<boolean>(mod.id, "configurationEditable", true);
 
 export const RouteFilterShell = () => {
   const [search, setSearch] = useState("");
@@ -28,6 +29,7 @@ export const RouteFilterShell = () => {
   const selectedRaw = useValue(selectedAssetIds$);
   const resetCompleted = useValue(resetCompleted$);
   const buildId = useValue(buildId$);
+  const configurationEditable = useValue(configurationEditable$);
   useEffect(() => {
     if (!resetCompleted) return;
     setSearch("");
@@ -149,6 +151,7 @@ export const RouteFilterShell = () => {
     {panelOpen && <RouteFilterPanel
       resetCompleted={resetCompleted}
       buildId={buildId}
+      configurationEditable={configurationEditable}
       targetMode={targetMode}
       selectedTargetKind={selectedTargetKind}
       selectedCount={relevant.filter(asset => selected.has(asset.id)).length}

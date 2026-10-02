@@ -92,6 +92,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         [ReadOnly] public ComponentLookup<Deleted> Deleted;
         [ReadOnly] public ComponentLookup<Temp> Temporary;
         [ReadOnly] public ComponentLookup<CarCurrentLane> CurrentLanes;
+        [ReadOnly] public ComponentLookup<Controller> Controllers;
         [ReadOnly] public BufferLookup<CarNavigationLane> Navigation;
         [ReadOnly] public BufferLookup<LaneObject> LaneObjects;
         [ReadOnly] public ComponentLookup<Updated> UpdatedLanes;
@@ -227,9 +228,14 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         private bool TryRequest(in RerouteSafetyEvaluation evaluation)
         {
             if (evaluation.m_Confidence != SafetyConfidence.Calibrated ||
+                !IsCanonical(evaluation.m_PhysicalVehicle, evaluation.m_Vehicle) ||
                 Frame - evaluation.m_EvaluationFrame > 1 ||
                 !CurrentLanes.TryGetComponent(evaluation.m_Vehicle, out var currentLane) ||
                 currentLane.m_Lane != evaluation.m_EntryLane ||
+                currentLane.m_ChangeLane != Entity.Null || currentLane.m_ChangeProgress != 0 ||
+                (currentLane.m_LaneFlags & (Game.Vehicles.CarLaneFlags.TransformTarget |
+                    Game.Vehicles.CarLaneFlags.ParkingSpace | Game.Vehicles.CarLaneFlags.EnteringRoad |
+                    Game.Vehicles.CarLaneFlags.Obsolete | Game.Vehicles.CarLaneFlags.Area)) != 0 ||
                 !Navigation.TryGetBuffer(evaluation.m_Vehicle, out var navigation) || navigation.Length == 0 ||
                 navigation[0].m_Lane != evaluation.m_NextLane) return false;
             if (evaluation.m_RestrictionRevision != Revision)
@@ -340,6 +346,20 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
             Counters[cReroutesRequested]++;
             Counters[cAttemptsOpened]++;
             return true;
+        }
+
+        private bool IsCanonical(Entity physical, Entity expected)
+        {
+            var entity = physical;
+            for (var depth = 0; depth < 4; depth++)
+            {
+                if (!Valid(entity)) return false;
+                if (!Controllers.TryGetComponent(entity, out var controller) ||
+                    controller.m_Controller == Entity.Null || controller.m_Controller == entity)
+                    return entity == expected;
+                entity = controller.m_Controller;
+            }
+            return false;
         }
 
         private bool TryAcquireLease(in RerouteSafetyEvaluation evaluation, out int leaseIndex)
@@ -495,6 +515,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
             Deleted = GetComponentLookup<Deleted>(true),
             Temporary = GetComponentLookup<Temp>(true),
             CurrentLanes = GetComponentLookup<CarCurrentLane>(true),
+            Controllers = GetComponentLookup<Controller>(true),
             Navigation = GetBufferLookup<CarNavigationLane>(true),
             LaneObjects = GetBufferLookup<LaneObject>(true),
             UpdatedLanes = GetComponentLookup<Updated>(true),

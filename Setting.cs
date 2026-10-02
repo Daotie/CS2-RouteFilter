@@ -148,6 +148,7 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.SegmentSelected"] = Chinese ? "已选中路段" : "Segment selected",
             ["RouteFilter.UI.SelectTarget"] = Chinese ? "请在地图上选择节点或路段" : "Select a node or segment on the map",
             ["RouteFilter.UI.ApplyToTarget"] = Chinese ? "应用" : "Apply",
+            ["RouteFilter.UI.PersistenceLocked"] = Chinese ? "存档数据不兼容或损坏，编辑已锁定。重置将清除 RouteFilter 配置。" : "Save data is incompatible or damaged. Editing is locked; Reset removes RouteFilter configuration.",
             ["RouteFilter.UI.ClearTarget"] = Chinese ? "清除" : "Clear",
             ["RouteFilter.UI.CancelTarget"] = Chinese ? "取消选中" : "Cancel selection",
             ["RouteFilter.UI.Close"] = Chinese ? "关闭" : "Close",
