@@ -19,7 +19,7 @@
 .warning { flex: 0 0 auto; margin-top: 8rem; padding: 9rem 11rem; border-left: 3rem solid #ff5e42; background: rgba(255,94,66,.12); }
 .warning strong, .warning span { display: block; }
 .warning span { margin-top: 3rem; opacity: .82; font-size: 12rem; }
-.actions button, .modes button, .expand, .pager button, .applyActions button {
+.actions button, .modes button, .expand, .pager button, .applyActions button, .catalogControls button {
   display: flex; align-items: center; justify-content: center;
   border: 0; border-radius: 6rem; color: white; background: rgba(255,255,255,.09); cursor: pointer;
 }
@@ -34,6 +34,12 @@
 .assetHeader { display: flex; flex: 0 0 auto; justify-content: space-between; align-items: center; margin-top: 10rem; }
 .assetHeader small { opacity: .72; }
 .search { width: 100%; margin-top: 7rem; padding: 8rem 10rem; border: 1rem solid rgba(255,255,255,.18); border-radius: 6rem; color: white; background: rgba(0,0,0,.22); }
+.catalogControls { display: flex; flex: 0 0 auto; align-items: center; margin-top: 7rem; }
+.catalogControls label { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; font-size: 11rem; }
+.catalogControls label > span { flex: 0 0 auto; margin-right: 6rem; opacity: .75; }
+.catalogControls select { flex: 1 1 auto; min-width: 0; height: 28rem; padding: 0 7rem; border: 1rem solid rgba(255,255,255,.18); border-radius: 6rem; color: white; background: #26333b; }
+.catalogControls label + label { margin-left: 7rem; }
+.catalogControls .sortDirection { flex: 0 0 30rem; width: 30rem; height: 28rem; margin-left: 7rem; font-size: 16rem; }
 .details { flex: 0 0 58rem; margin-top: 7rem; padding: 7rem 9rem; border-radius: 6rem; background: rgba(0,0,0,.2); font-size: 12rem; overflow: hidden; }
 .details div { display: flex; align-items: center; margin-bottom: 5rem; }
 .details span { display: inline-block; margin-right: 12rem; opacity: .82; }
@@ -47,8 +53,10 @@
 .assetRow.child { margin-left: 24rem; width: auto; }
 .assetRow.forbidden { background-color: rgba(190, 58, 40, .78); }
 .assetRow.partial { background-color: rgba(202, 125, 35, .62); }
+.assetRow.contextOnly { opacity: .72; background-color: rgba(255,255,255,.035); }
 .expand, .expandSpacer { flex: 0 0 25rem; width: 25rem; margin-right: 5rem; }
 .expand { font-size: 20rem; line-height: 30rem; }
+.checkSpacer { flex: 0 0 20rem; width: 20rem; height: 20rem; }
 .check { flex: 0 0 20rem; display: flex; align-items: center; justify-content: center; width: 20rem; height: 20rem; padding: 0; border: 1rem solid #a9b3b9; border-radius: 10rem; color: white; background-color: rgba(0,0,0,.2); }
 .checked { border-color: white; background-color: #a93428; }
 .partialCheck { background-color: #a96a23; }
