@@ -1,9 +1,10 @@
-using RouteFilter.Persistence;
+using System;
+using System.Collections.Generic;
 
-namespace SaveFormatTests;
+namespace RouteFilter.Persistence;
 
 /// <summary>Byte-array implementations of the codec's sink and source, with exact bookkeeping.</summary>
-internal sealed class MemorySink : IRestrictionSaveSink
+public sealed class RestrictionByteSink : IRestrictionSaveSink
 {
     private readonly List<byte> m_Bytes = new();
 
@@ -31,13 +32,13 @@ internal sealed class MemorySink : IRestrictionSaveSink
     private void Write(byte[] chunk) => m_Bytes.AddRange(chunk);
 }
 
-internal sealed class MemorySource : IRestrictionSaveSource
+public sealed class RestrictionByteSource : IRestrictionSaveSource
 {
     private readonly byte[] m_Bytes;
     private int m_Position;
     private readonly int m_Total;
 
-    public MemorySource(byte[] bytes, int total = -1)
+    public RestrictionByteSource(byte[] bytes, int total = -1)
     {
         m_Bytes = bytes;
         m_Total = total < 0 ? bytes.Length : total;

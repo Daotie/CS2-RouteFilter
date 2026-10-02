@@ -84,7 +84,7 @@ public struct RestrictionAnchor : IEquatable<RestrictionAnchor>
 /// floats unchanged. Positions are stored as fixed-point integers so that identity comparison is
 /// exact integer equality instead of floating-point tolerance.
 /// </summary>
-public struct RestrictionTargetIdentity
+public struct RestrictionTargetIdentity : IEquatable<RestrictionTargetIdentity>
 {
     /// <summary>0 = Node, 1 = Segment. Matches <c>RestrictionTargetMode</c>.</summary>
     public byte Kind;
@@ -99,6 +99,17 @@ public struct RestrictionTargetIdentity
         => Kind == other.Kind && Anchor.Equals(other.Anchor) &&
            (Kind == 0 || (EndAnchor.Equals(other.EndAnchor) &&
                           LengthCentimetres == other.LengthCentimetres));
+
+    public bool Equals(RestrictionTargetIdentity other) => Matches(other);
+    public override bool Equals(object value) => value is RestrictionTargetIdentity other && Matches(other);
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hash = Anchor.GetHashCode() * 397 ^ Kind;
+            return Kind == 0 ? hash : (hash * 397 ^ EndAnchor.GetHashCode()) * 397 ^ LengthCentimetres;
+        }
+    }
 }
 /// <summary>
 /// One persistent restriction: "these prefabs are forbidden at this target".
@@ -125,7 +136,7 @@ public sealed class RouteFilterSaveData
     public const ushort SchemaVersion = 3;
 
     /// <summary>Older schemas this build can still read and migrate.</summary>
-    public const ushort OldestSupportedSchema = 1;
+    public const ushort OldestSupportedSchema = 3;
 
     /// <summary>
     /// Hard sanity bounds. These are not "expected values"; they exist so that a corrupt count
@@ -264,13 +275,19 @@ public static class RouteFilterSaveCodec
         _ = flags;
 
         result.ForeignSchema = schema;
-        if (schema > RouteFilterSaveData.SchemaVersion)
+        if (schema > RouteFilterSaveData.SchemaVersion || flags != 0)
         {
             // Protect the future: keep the bytes, refuse to interpret them, refuse to rewrite them.
-            if (source.ReadRemainingBytes(out var raw))
+            byte[] raw = Array.Empty<byte>();
+            if (source.Remaining == 0 || source.ReadRemainingBytes(out raw))
             {
                 result.Status = SaveDecodeStatus.FutureSchema;
-                result.ForeignPayload = raw;
+                var preserved = new RestrictionByteSink();
+                preserved.WriteUInt(magic);
+                preserved.WriteUShort(schema);
+                preserved.WriteUShort(flags);
+                preserved.WriteBytes(raw);
+                result.ForeignPayload = preserved.ToArray();
                 result.Detail = $"payload schema {schema} is newer than supported {RouteFilterSaveData.SchemaVersion}";
                 return result;
             }
@@ -309,11 +326,11 @@ public static class RouteFilterSaveCodec
             if (!source.ReadString(out var name) || name.Length > RouteFilterSaveData.MaxPrefabNameLength)
             {
                 result.Detail = $"truncated or oversized prefab name at {i}";
-                result.DroppedPrefabNames++;
-                continue;
+                result.Status = SaveDecodeStatus.Corrupt;
+                result.Data = null;
+                return result;
             }
-            if (name.Length == 0) continue;
-            data.PrefabNames.Add(name);
+            data.PrefabNames.Add(name); // Keep table slots, including empty names: indices must not shift.
         }
 
         if (!source.ReadInt(out var restrictionCount))
@@ -343,6 +360,13 @@ public static class RouteFilterSaveCodec
             }
         }
 
+        if (!corrupted && source.Remaining != 0)
+        {
+            result.Status = SaveDecodeStatus.Corrupt;
+            result.Data = null;
+            result.Detail = "unrecognized trailing bytes";
+            return result;
+        }
         result.Status = corrupted ? SaveDecodeStatus.PartiallyRecovered : SaveDecodeStatus.Ok;
         if (corrupted)
             result.Detail = $"recovered {data.Restrictions.Count} of {restrictionCount} restrictions, " +

@@ -9,6 +9,7 @@
   <ItemGroup>
     <!-- The format layer is deliberately free of Unity and ECS types so the whole on-disk
          contract, including migration and corruption containment, is verifiable without the game. -->
+    <Compile Include="../../Components/RestrictionByteCodec.cs" Link="RestrictionByteCodec.cs" />
     <Compile Include="../../Components/RouteFilterSaveData.cs" Link="RouteFilterSaveData.cs" />
     <Compile Include="../../Components/LegacyRouteFilterSaveData.cs" Link="LegacyRouteFilterSaveData.cs" />
   </ItemGroup>

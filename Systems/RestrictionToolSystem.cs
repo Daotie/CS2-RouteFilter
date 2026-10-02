@@ -192,6 +192,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
     public void ApplySelection()
     {
+        if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
         if (SelectedTarget == Entity.Null)
         {
             Mod.Log.Warn("Apply ignored: no node or segment selected");
@@ -230,6 +231,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
             return;
         }
 
+        World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ForgetPending(target);
         if (isNode) SetNodeRestriction(target, compatibleAssets);
         else SetSegmentRestriction(target, compatibleAssets);
 
@@ -238,6 +240,8 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
     public void ClearRestriction(Entity target)
     {
+        if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
+        World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ForgetPending(target);
         World.GetOrCreateSystemManaged<RoadEnforcementCoordinator>().ReleaseAll();
         Mod.RestrictionsDirty = true;
         if (EntityManager.HasComponent<NodeAssetRestrictionV1>(target)) EntityManager.RemoveComponent<NodeAssetRestrictionV1>(target);
@@ -252,6 +256,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
     /// </summary>
     public void RestoreRestriction(Entity target, bool isNode, IReadOnlyCollection<Entity> vehicleAssets)
     {
+        if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
         if (isNode) SetNodeRestriction(target, vehicleAssets);
         else SetSegmentRestriction(target, vehicleAssets);
         Mod.RestrictionsDirty = true;

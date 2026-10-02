@@ -13,8 +13,7 @@ namespace RouteFilter.Persistence;
 /// </summary>
 public sealed class LegacyRestrictionRecord
 {
-    public int EntityIndex;
-    public int EntityVersion;
+    public int EntityTableIndex;
     /// <summary>0 = node, 1 = segment, as written by the legacy writer.</summary>
     public byte Kind;
     public readonly List<string> PrefabNames = new();
@@ -78,10 +77,12 @@ public static class LegacyRouteFilterSaveCodec
         if (!source.ReadInt(out var nodeCount))
             return Fail(result, LegacyDecodeStatus.Corrupt, "truncated node count");
         ReadGroup(source, data, nodeCount, 0, result);
+        if (result.Status == LegacyDecodeStatus.Corrupt) return result;
 
         if (!source.ReadInt(out var segmentCount))
             return Fail(result, LegacyDecodeStatus.Corrupt, "truncated segment count");
         ReadGroup(source, data, segmentCount, 1, result);
+        if (result.Status == LegacyDecodeStatus.Corrupt) return result;
 
         result.Status = LegacyDecodeStatus.Ok;
         result.Detail += $"legacy v{version}: {data.Records.Count} records, {result.DroppedRecords} dropped";
@@ -98,6 +99,7 @@ public static class LegacyRouteFilterSaveCodec
         if (count < 0 || count > MaxLegacyRecordCount)
         {
             // The stream cannot be resynchronised from here, so stop rather than misparse.
+            result.Status = LegacyDecodeStatus.Corrupt;
             result.DroppedRecords += count < 0 ? 0 : count;
             result.Detail += $"; implausible {kind} record count {count}, remainder ignored";
             source.SkipToEnd();
@@ -108,8 +110,10 @@ public static class LegacyRouteFilterSaveCodec
         {
             if (!TryReadRecord(source, kind, out var record))
             {
+                result.Status = LegacyDecodeStatus.Corrupt;
                 result.DroppedRecords++;
-                continue;
+                source.SkipToEnd();
+                return;
             }
             data.Records.Add(record);
         }
@@ -118,14 +122,13 @@ public static class LegacyRouteFilterSaveCodec
     private static bool TryReadRecord(IRestrictionSaveSource source, byte kind, out LegacyRestrictionRecord record)
     {
         record = null;
-        if (!source.ReadInt(out var index) || !source.ReadInt(out var version)) return false;
+        if (!source.ReadInt(out var index)) return false;
         if (!source.ReadInt(out var assetCount)) return false;
         if (assetCount < 0 || assetCount > RouteFilterSaveData.MaxPrefabsPerRestriction) return false;
 
         var parsed = new LegacyRestrictionRecord
         {
-            EntityIndex = index,
-            EntityVersion = version,
+            EntityTableIndex = index,
             Kind = kind
         };
         for (var i = 0; i < assetCount; i++)
