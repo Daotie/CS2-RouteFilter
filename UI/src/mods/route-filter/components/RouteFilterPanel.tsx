@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, ConfirmationDialog, Panel, Portal } from "cs2/ui";
+import { Button, ConfirmationDialog, Panel, Portal, Tooltip } from "cs2/ui";
 import { trigger } from "cs2/api";
 import { useLocalization } from "cs2/l10n";
 import mod from "mod.json";
@@ -57,6 +57,7 @@ export const RouteFilterPanel = (props: Props) => {
       <AssetList roots={props.roots} childrenByParent={props.childrenByParent} selected={props.selected} expanded={props.expanded} searchTerm={props.search.trim().toLocaleLowerCase()} emptyLabel={props.labels.empty} trailerLabel={props.labels.trailer} expandLabel={props.labels.expand} collapseLabel={props.labels.collapse} roadGroupLabel={props.labels.roadGroup} railGroupLabel={props.labels.railGroup} onToggle={props.onToggleAsset} onExpand={props.onExpandAsset} />
       <ActionBar allowAllLabel={props.labels.allowAll} forbidAllLabel={props.labels.forbidAll} applyLabel={props.labels.apply} clearLabel={props.labels.clear} refreshLabel={props.labels.refresh} targetReady={targetReady} onAllowAll={props.onAllowAll} onForbidAll={props.onForbidAll} onApply={props.onApply} onClear={props.onClear} onRefresh={props.onRefresh} />
       <div className={styles.utilityFooter}>
+        <Tooltip tooltip={props.buildId}><span className={styles.buildLabel}>{props.buildId.split("-").slice(-4).join("-")}</span></Tooltip>
         <Button variant="flat" className={styles.utilityAction} onSelect={() => setConfirmReset(true)}>
           <img className={styles.utilityIcon} src={icons.reset} alt="" />
           {tr("RouteFilter.UI.Reset", "Reset RouteFilter")}

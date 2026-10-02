@@ -101,11 +101,13 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
             ComponentType.ReadOnly<RestrictedVehicleAssetV1>());
         m_BadgePositions = new NativeList<float3>(64, Allocator.Persistent);
         m_BadgeProminent = new NativeList<bool>(64, Allocator.Persistent);
+        InitializeRoutePreview();
     }
 
     protected override void OnDestroy()
     {
         m_BadgeJobHandle.Complete();
+        DisposeRoutePreview();
         m_BadgePositions.Dispose();
         m_BadgeProminent.Dispose();
         base.OnDestroy();
@@ -117,6 +119,7 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
         m_BadgeJobHandle = default;
         m_BadgePositions.Clear();
         m_BadgeProminent.Clear();
+        ClearRoutePreview();
     }
 
     protected override void OnUpdate()
@@ -134,6 +137,8 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
             Draw(m_Tool.HoveredTarget, false);
             Draw(m_Tool.SelectedTarget, true);
         }
+
+        DrawRoutePreview();
 
         // Gate restriction badges behind EnableRestrictionBadges
         if (Mod.Settings.EnableRestrictionBadges)

@@ -2,6 +2,7 @@ import React from "react";
 import { Button, Tooltip } from "cs2/ui";
 import styles from "../route-filter.module.scss";
 import { icons } from "../assets";
+import toolbarIcon from "../assets/toolbar-prohibition.svg";
 
 type Props = {
   title: string;
@@ -13,7 +14,7 @@ type Props = {
 
 export const PanelHeader = ({ title, version, buildId, closeLabel, onClose }: Props) => (
   <div className={styles.panelHeader}>
-    <span className={styles.brandIcon}><img className={styles.toolGlyph} src={icons.prohibition} alt="" /></span>
+    <span className={styles.brandIcon}><img className={styles.toolGlyph} src={toolbarIcon} alt="" /></span>
     <div className={styles.brandText}>
       <strong>{title}</strong>
       <span>{version}</span>
