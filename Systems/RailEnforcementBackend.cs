@@ -310,7 +310,8 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
                     if (i < Attempts.Length) ByVehicle[Attempts[i].Vehicle] = i;
                     continue;
                 }
-                if (EnforcementPolicy.HasExpired(Frame, attempt.AbsoluteDeadlineFrame))
+                if (attempt.State == EnforcementAttemptState.Requested &&
+                    EnforcementPolicy.HasExpired(Frame, attempt.AbsoluteDeadlineFrame))
                 {
                     RestoreRequest(attempt);
                     attempt.State = EnforcementAttemptState.Grandfathered;
@@ -645,9 +646,13 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
                         controller.m_Controller != live.Vehicle))) valid = false;
             if (valid)
             {
-                var commands = World.GetOrCreateSystemManaged<EndFrameBarrier>().CreateCommandBuffer();
-                Mod.Log.Warn($"[RouteFilter.NoRouteRemoval] backend=Rail nativeApi=VehicleUtils.DeleteVehicle vehicle={live.Vehicle} prefab={live.MatchedPrefab} target={live.Target} revision={live.RestrictionRevision} generation={live.Generation} frame={m_Simulation.frameIndex} outcome={outcome} build={Mod.BuildId}");
-                VehicleUtils.DeleteVehicle(commands, live.Vehicle, members);
+                var nativeConsumer = RoadEnforcementCoordinator.HasNativeTerminalNoPathLifecycle(EntityManager, live.Vehicle, true);
+                Mod.Log.Warn($"[RouteFilter.NoRouteRemoval] backend=Rail lifecycle={(nativeConsumer ? "NativeFailedResultConsumer" : "VehicleUtils.DeleteVehicle")} vehicle={live.Vehicle} prefab={live.MatchedPrefab} target={live.Target} revision={live.RestrictionRevision} generation={live.Generation} frame={m_Simulation.frameIndex} outcome=NoPath build={Mod.BuildId}");
+                if (!nativeConsumer)
+                {
+                    var commands = World.GetOrCreateSystemManaged<EndFrameBarrier>().CreateCommandBuffer();
+                    VehicleUtils.DeleteVehicle(commands, live.Vehicle, members);
+                }
                 m_EnforcementCounters[20]++;
             }
         }

@@ -21,6 +21,7 @@ internal static class P0Diagnostics
     internal static Entity Vehicle, Target;
     internal static bool HasOwnedRequest => s_Milestones.Contains("RerouteRequested");
     private static Entity s_PhysicalVehicle;
+    private static bool s_NoPathConfirmed;
     private static bool s_OwnedResult, s_ExpectedAlternative;
     internal static readonly string ControlPath = Path.GetFullPath(Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -71,7 +72,7 @@ internal static class P0Diagnostics
             && controller.m_Controller != Entity.Null && controller.m_Controller != selected; i++) selected = controller.m_Controller;
         if (!manager.Exists(selected) || (!manager.HasComponent<CarCurrentLane>(selected) && !manager.HasBuffer<TrainNavigationLane>(selected))) return;
         Vehicle = selected; Target = Entity.Null; s_Pending.Clear(); s_Last.Clear(); s_Milestones.Clear();
-        s_OwnedResult = s_ExpectedAlternative = false;
+        s_OwnedResult = s_ExpectedAlternative = s_NoPathConfirmed = false;
         foreach (var field in new[] { "DirectedGateMatched", "GateDirectionValid", "CandidateCreated", "CandidateRejected",
             "LeaseRequested", "LeaseCreated", "GraphMutationIssued", "UpdatedIssued", "RerouteRequested", "PendingObserved", "ResultObserved", "FailedObserved" })
             s_Pending[field] = "False";
@@ -127,7 +128,13 @@ internal static class P0Diagnostics
             s_TopologyRevision = index.Revision;
             Mod.Log.Info(index.BuildTopologyDump(Target));
         }
-        if (Vehicle != Entity.Null && world.EntityManager.Exists(Vehicle) && Target != Entity.Null)
+        if (s_NoPathConfirmed && Vehicle != Entity.Null &&
+            (!world.EntityManager.Exists(Vehicle) || world.EntityManager.HasComponent<Game.Common.Deleted>(Vehicle)))
+        {
+            Milestone("NativeRemovalObserved", "True");
+            Record("TerminationPhase", "DeletedOrEntityGone");
+        }
+        else if (Vehicle != Entity.Null && world.EntityManager.Exists(Vehicle) && Target != Entity.Null)
             Observe(world);
         foreach (var pair in s_Pending)
             if (!s_Last.TryGetValue(pair.Key, out var previous) || previous != pair.Value)
@@ -310,13 +317,18 @@ internal static class P0Diagnostics
         s_OwnedResult = true; s_ExpectedAlternative = outcome == RoadQueryOutcome.AlternativePathFound;
         Milestone("NativeQueryResultObserved", "True"); Record("AttemptGeneration", generation.ToString());
         if (outcome == RoadQueryOutcome.ConfirmedNoAlternative)
-        { Milestone("ResultObserved", "True"); Record("FinalOutcome", "ConfirmedNoAlternative"); }
+        {
+            s_NoPathConfirmed = true;
+            Milestone("ResultObserved", "True"); Record("FinalOutcome", "NoPath/Removed");
+            Record("TerminationPhase", "NoPathConfirmed; awaiting vanilla cleanup");
+            Record("NativeRemovalObserved", "False");
+        }
     }
 
     internal static void Grandfather(Entity vehicle, string invariant)
     {
-        if (vehicle != Vehicle) return;
-        if (s_Last.TryGetValue("FinalOutcome", out var terminal) && (terminal == "Rerouted" || terminal == "ConfirmedNoAlternative")) return;
+        if (vehicle != Vehicle || s_NoPathConfirmed) return;
+        if (s_Last.TryGetValue("FinalOutcome", out var terminal) && (terminal == "Rerouted" || terminal == "NoPath/Removed")) return;
         Milestone("InitialGrandfatherReason", invariant);
         Record("GrandfatherReason", invariant); Record("FinalOutcome", "Grandfathered");
     }

@@ -210,14 +210,19 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
                     if (!ValidLive(part.m_Vehicle) ||
                         (part.m_Vehicle != attempt.Vehicle && (!EntityManager.TryGetComponent(part.m_Vehicle, out Controller partOwner) ||
                          partOwner.m_Controller != attempt.Vehicle))) return RefuseReceipt(captured, $"LayoutOwnershipInvalid part={part.m_Vehicle} canonical={attempt.Vehicle}");
-            var commands = World.GetOrCreateSystemManaged<EndFrameBarrier>().CreateCommandBuffer();
-            // An action audit, not vehicle scanning/logging. Record every destructive RF action
-            // even when the temporary single-actor trace is armed on a different vehicle.
-            Mod.Log.Warn($"[RouteFilter.NoRouteRemoval] nativeApi=VehicleUtils.DeleteVehicle vehicle={attempt.Vehicle} prefab={attempt.MatchedPrefab} target={attempt.Target} revision={attempt.RestrictionRevision} generation={attempt.Generation} frame={m_Simulation.frameIndex} deadline={attempt.AbsoluteDeadlineFrame} outcome={outcome} build={Mod.BuildId}");
-            VehicleUtils.DeleteVehicle(commands, attempt.Vehicle, layout);
-            var includesHead = false;
-            if (layout.IsCreated) foreach (var part in layout) if (part.m_Vehicle == attempt.Vehicle) includesHead = true;
-            if (layout.IsCreated && layout.Length > 0 && !includesHead) commands.AddComponent(attempt.Vehicle, default(Deleted));
+            // Returning/dummy delivery or transport AI terminates on the original empty native
+            // result. Other states would request a depot path (or park a private car), so use
+            // vanilla's deletion entry point instead of adding a retry/parking state machine.
+            var nativeConsumer = HasNativeTerminalNoPathLifecycle(EntityManager, attempt.Vehicle, false);
+            Mod.Log.Warn($"[RouteFilter.NoRouteRemoval] lifecycle={(nativeConsumer ? "NativeFailedResultConsumer" : "VehicleUtils.DeleteVehicle")} vehicle={attempt.Vehicle} prefab={attempt.MatchedPrefab} target={attempt.Target} revision={attempt.RestrictionRevision} generation={attempt.Generation} frame={m_Simulation.frameIndex} deadline={attempt.AbsoluteDeadlineFrame} outcome=NoPath build={Mod.BuildId}");
+            if (!nativeConsumer)
+            {
+                var commands = World.GetOrCreateSystemManaged<EndFrameBarrier>().CreateCommandBuffer();
+                VehicleUtils.DeleteVehicle(commands, attempt.Vehicle, layout);
+                var includesHead = false;
+                if (layout.IsCreated) foreach (var part in layout) if (part.m_Vehicle == attempt.Vehicle) includesHead = true;
+                if (layout.IsCreated && layout.Length > 0 && !includesHead) commands.AddComponent(attempt.Vehicle, default(Deleted));
+            }
             attempt.State = EnforcementAttemptState.ConfirmedNoAlternative;
             m_Counters[20]++;
         }
@@ -229,6 +234,19 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         if (attempt.Vehicle == P0Diagnostics.Vehicle)
             P0Diagnostics.Milestone("PathResult", $"ownedQueryOutcome={outcome} generation={attempt.Generation} prefab={attempt.MatchedPrefab} target={attempt.Target} revision={attempt.RestrictionRevision}; adopted path verification is separate");
         return true;
+    }
+
+    // Verified in Game.dll 1.6.0f1 DeliveryTruckAI, TransportCarAI and TransportTrainAI.
+    // Reads current vanilla state only; never manufactures Failed/Stuck/Returning flags.
+    internal static bool HasNativeTerminalNoPathLifecycle(EntityManager manager, Entity vehicle, bool rail)
+    {
+        if (!rail && manager.TryGetComponent(vehicle, out Game.Vehicles.DeliveryTruck delivery))
+            return (delivery.m_State & (DeliveryTruckFlags.Returning | DeliveryTruckFlags.DummyTraffic)) != 0;
+        if (rail ? !manager.HasBuffer<TrainNavigationLane>(vehicle) : !manager.HasComponent<Car>(vehicle)) return false;
+        return (manager.TryGetComponent(vehicle, out Game.Vehicles.CargoTransport cargo) &&
+                (cargo.m_State & (CargoTransportFlags.Returning | CargoTransportFlags.DummyTraffic)) != 0) ||
+               (manager.TryGetComponent(vehicle, out Game.Vehicles.PublicTransport transport) &&
+                (transport.m_State & (PublicTransportFlags.Returning | PublicTransportFlags.DummyTraffic)) != 0);
     }
 
     private static bool RefuseReceipt(in EnforcementAttempt attempt, string invariant)
