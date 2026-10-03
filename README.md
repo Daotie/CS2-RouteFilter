@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.5-2d8b70" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.0.0-2d8b70" alt="Version">
   <img src="https://img.shields.io/badge/status-stable-1976d2" alt="Status">
   <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="License">
 </p>
@@ -30,11 +30,11 @@
 
 ---
 
-**v2 development branch:** Road and Rail request-local exclusion are enabled in the 2.0 test build. Actual gameplay, native hook compatibility and performance are **NOT GAME VERIFIED**. No-alternative and late approaches are grandfathered. See [architecture](ARCHITECTURE.md), [performance](PERFORMANCE.md) and [rail design](RAIL_ENFORCEMENT_DESIGN.md). The release overview below describes the published 1.x version; this test build has not been published to Paradox Mods.
+**2.0.0:** Road rerouting and road/rail no-path termination passed player game testing. Some vehicles may still be missed by restriction detection; we will investigate and attempt to fix this in a future update. See the [changelog](CHANGELOG.md).
 
 RouteFilter lets you decide which exact vehicle assets may pass through one network node or an entire road, tram, train, or subway segment.
 
-A matching vehicle is stopped before crossing the restricted target and is asked to find another route when the network provides one.
+Matching vehicles take a legal alternative route when available. A reliably confirmed no-path result ends the vehicle through a vanilla-compatible lifecycle; unreliable technical results are grandfathered.
 
 <!-- RouteFilter overview -->
 <p align="center">
@@ -87,7 +87,7 @@ Selecting another target loads that target's own saved list. **Clear target rest
 
 RouteFilter checks current lanes, upcoming navigation lanes, path elements, node endpoints, and every recognized prefab in a vehicle consist.
 
-For a matching vehicle, it briefly marks the target unavailable to the pathfinder and invalidates that vehicle's current path. If a valid alternative exists, the vehicle can reroute; otherwise it is prevented from continuing normally through the restricted target and may retry.
+For each admitted matching vehicle, the native pathfinder evaluates a request-local exclusion. A legal alternative produces a reroute; confirmed no-path ends the vehicle through the native termination/deletion lifecycle. RouteFilter does not park vehicles or repeatedly request routes.
 
 <!-- How RouteFilter affects vehicle routing -->
 <p align="center">
@@ -131,13 +131,13 @@ The shortcut is remappable in the game's settings. Closing the panel also closes
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | Asset-level restrictions | On | Enables exact prefab matching at restricted nodes and segments. |
-| Emergency vehicle protection | Off | Allows police cars, ambulances, and fire engines even if their assets are selected. |
-| Look-ahead lanes | 3 | Controls how early an approaching vehicle checks for a restriction. |
+| Emergency vehicle protection | On | Allows police cars, ambulances, and fire engines even if their assets are selected. |
+| Road / Rail enforcement | On | Enables the respective restriction backend. |
 | Show/hide panel | `Ctrl+Shift+N` | Opens or closes both the RouteFilter panel and selection tool. |
 
 ## Save data and upgrades
 
-RouteFilter `1.0.5` stores each restricted target's forbidden asset list in the save's versioned payload using stable prefab names and re-applies it after loading.
+RouteFilter `2.0.0` stores each restricted target's forbidden asset list in the save's versioned payload using stable prefab names and re-applies it after loading.
 
 Saves from `1.0.1` and earlier remain readable; their per-entity restriction data is preserved.
 
@@ -147,8 +147,8 @@ Rebuilding, replacing, or deleting a road or track segment creates new game enti
 
 - Asset names are technical prefab names supplied by the game or asset author; a localized display name may not exist.
 - Engine/carriage grouping appears only where the game exposes a fixed-trailer or multiple-unit relationship.
-- A fixed public-transport route cannot always be changed into a valid detour. When no alternative exists, the affected vehicle is stopped and may retry; RouteFilter does not redraw the player's transport line.
-- During the short pathfinding barrier window, another vehicle requesting a route may also avoid the selected target.
+- A fixed public-transport route cannot always be changed into a valid detour. A confirmed no-path result ends the affected vehicle; RouteFilter does not redraw the player's transport line.
+- Some vehicles may be missed by restriction detection and pass through the target. This known limitation will be investigated for a future fix.
 - Compatibility with mods that replace vehicle navigation, pathfinding, or network entities cannot be guaranteed. Report conflicts with a minimal playset and logs.
 
 ## Community

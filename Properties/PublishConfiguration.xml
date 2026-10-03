@@ -1,3 +1,4 @@
+<?xml version='1.0' encoding='utf-8'?>
 <Publish>
   <ModId Value="155839" />
   <DisplayName Value="RouteFilter" />
@@ -16,7 +17,7 @@ RouteFilter gives Cities: Skylines II players precise control over which vehicle
 *   Search assets and inspect maximum speed, acceleration, and braking.
 *   Group recognized engines and trailers while retaining individual control.
 *   Request a new route through the native pathfinder when a matching vehicle approaches.
-*   Stop matching vehicles when a fixed route has no valid alternative.
+*   End matching vehicles through a vanilla-compatible lifecycle when an owned exclusion query reliably confirms no legal route.
 *   Save restrictions with the city and switch automatically between English and Simplified Chinese.
 
 ## Basic use
@@ -25,7 +26,7 @@ Open the RouteFilter panel from the top-left toolbar or press Ctrl+Shift+N.
 
 Select **Node** or **Segment**, left-click a network target, choose the assets that should be forbidden, then apply the list to the selected target. Right-click cancels target selection.
 
-Bulk allow/forbid actions edit only the pending list. They do not change the map until the explicit **Apply** button is pressed.
+Bulk allow/forbid actions affect only the filtered asset list and edit only pending changes. They do not change the map until the explicit **Apply** button is pressed.
 
 ## Important notes
 
@@ -33,7 +34,9 @@ Technical prefab names may not have localized display names.
 
 Rebuilding a network segment can replace its game entity and remove restrictions attached to the original.
 
-RouteFilter cannot redraw a fixed public-transport line; when no valid detour exists, the affected vehicle stops and may retry.
+RouteFilter does not redraw fixed public-transport lines. A confirmed no-path result ends the affected vehicle; uncertain technical results are grandfathered.
+
+**Known issue in 2.0.0:** Restriction detection may miss some vehicles, allowing them to pass through a restricted target. We will investigate and attempt to fix this in a future update.
 
 ## AI-assisted development
 
@@ -76,7 +79,7 @@ RouteFilter 为《都市天际线 II》玩家提供了精细控制能力，可�
 *   搜索资产并查看其最高速度、加速度和制动性能。
 *   将识别的发动机与拖车分组，同时保留对单个车辆的独立控制。
 *   当匹配的车辆接近时，通过游戏原生路径查找器请求新路线。
-*   当固定路线无有效替代路径时，令匹配车辆停止行驶。
+*   排除寻路可靠确认无合法路线后，通过兼容原版的流程结束匹配车辆。
 *   限制规则随城市存档保存，并支持英文和简体中文自动切换。
 
 ## 基本使用方法
@@ -85,7 +88,7 @@ RouteFilter 为《都市天际线 II》玩家提供了精细控制能力，可�
 
 选择 **“节点”** 或 **“路段”**，左键单击道路/铁路目标，然后勾选需要禁止的资产，最后点击 **“应用”** 按钮将列表生效于所选目标。右键单击可取消目标选择。
 
-批量允许/禁止操作仅修改待处理的列表；在显式点击 **“应用”** 按钮之前，不会对地图造成任何更改。
+批量允许／禁止仅作用于筛选后的资产列表，并只修改待应用的清单；在显式点击 **“应用”** 按钮之前，不会对地图造成任何更改。
 
 ## 重要说明
 
@@ -93,7 +96,9 @@ RouteFilter 为《都市天际线 II》玩家提供了精细控制能力，可�
 
 重建某一路段可能会替换其游戏实体，从而导致附加到原始路段上的限制被移除。
 
-RouteFilter 无法重新绘制固定的公共交通线路；当不存在有效绕行路线时，受影响的车辆会停止并可能反复尝试。
+RouteFilter 不会重新绘制固定公共交通线路。可靠确认无合法路线时结束受影响车辆；自身无法可靠执行或确认结果时才放行。
+
+**2.0.0 已知问题：** 禁行检测可能漏掉部分车辆，使其仍能通过受限目标。后续会调查并尝试修复。
 
 ## AI 辅助开发说明
 
@@ -103,8 +108,7 @@ RouteFilter 无法重新绘制固定的公共交通线路；当不存在有效�
 
 对于一般讨论、使用问题、体验反馈以及社区交流，可以使用以下渠道：
 
-*   **Paradox Forum：**
-    [https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/](https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/)
+*   **Paradox Forum：** [https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/](https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/)
     
 *   **Discord：**  
     [https://discord.gg/Y9UXFCkqmD](https://discord.gg/Y9UXFCkqmD)
@@ -121,35 +125,44 @@ RouteFilter 无法重新绘制固定的公共交通线路；当不存在有效�
     [https://github.com/Daotie/CS2-RouteFilter](https://github.com/Daotie/CS2-RouteFilter)
 
 一般问题和非正式反馈可以直接在 Paradox Forum 或 Discord 中交流；对于需要持续跟踪、复现和修复的问题，建议使用 GitHub Issues。</LongDescription>
-  <Thumbnail Value="logo.png" />
-  <Screenshot Value="P1_compressed.png" />
-  <Screenshot Value="P2_compressed.png" />
+  <Thumbnail Value="Thumbnail.png" />
+  <Screenshot Value="../assets/showcase/P1.png" />
+  <Screenshot Value="../assets/showcase/P2.png" />
   <Tag Value="Code Mod" />
   <Tag Value="UITransportationRoad" />
   <Tag Value="UITransportationTrain" />
   <Tag Value="UIRoads" />
   <Tag Value="UITransportation" />
-  <ModVersion Value="1.0.5" />
+  <ModVersion Value="2.0.0" />
   <GameVersion Value="1.6.*" />
-  <ChangeLog>## RouteFilter 1.0.5
+  <ChangeLog># RouteFilter 2.0.0
 
-### English
+## English
 
-RouteFilter 1.0.5 keeps the mod running on game 1.6.0f1, where mods are initialized on a background thread and the Input System throws inside key binding registration.
+- Rebuilt road and rail asset restrictions around directed entry detection and request-local native pathfinding exclusion.
+- Matching vehicles reroute when a legal alternative exists. A reliably confirmed no-path result ends the vehicle through a vanilla-compatible termination/deletion lifecycle; it does not enter a parking or retry loop.
+- Restriction detection follows watched entry lanes and relevant lane objects instead of scanning every vehicle in the city. Fixed the severe FPS drop while selecting a target with simulation paused.
+- Refreshed the panel and asset catalog, restored native mod settings, and added confirmed Reset RouteFilter recovery. Bulk Allow All / Forbid All now affects only the filtered asset list.
+- English and Simplified Chinese are supported. Restrictions remain city-save configuration; enforcement runtime state is rebuilt after loading.
+- Road rerouting and road/rail no-alternative termination passed player game testing of the release candidate. This does not imply every asset, network layout or mod combination has been tested.
 
-- On game 1.6.0f1, mod OnLoad can run on a thread-pool continuation. The Input System's Temp allocator fails there, so resolving the shortcut key binding inside InputBindingResolver.AddActionMap threw ArgumentNullException and aborted the whole mod (the same failure also breaks other key-binding mods). Key binding registration is now retried on the main thread, where the same registration succeeds.
-- Even when every registration attempt fails, the mod still starts: the shortcut key is skipped gracefully and the top-left panel button remains the way to open the panel.
-- Systems that poll the shortcut actions tolerate a missing action map instead of throwing every frame.
-- Save payload version stays 2. Saves from RouteFilter 1.0.1 and earlier still load and keep their per-entity restriction data.
+### Known issue
 
-### 中文
+**Some vehicles may be missed by restriction detection and pass through a restricted target. This is a known limitation in 2.0.0; we will investigate and attempt to fix it in a future update.**
 
-RouteFilter 1.0.5 保证在游戏 1.6.0f1 上正常运行。该版本会在后台线程初始化 mod，输入系统在按键绑定注册时会抛异常，此前会导致整个 mod 启动失败。
+## 简体中文
 
-- 游戏 1.6.0f1 中，mod 的 OnLoad 可能在后台线程执行；输入系统的 Temp 分配器在该线程必然失败，解析快捷键绑定时在 InputBindingResolver.AddActionMap 内抛出 ArgumentNullException，导致整个 mod 初始化中止（其他注册快捷键的 mod 也以同样方式失败）。现在按键绑定注册会在主线程重试，同一注册在主线程可以成功。
-- 即使所有注册尝试都失败，mod 仍会正常启动：快捷键被优雅跳过，左上角面板按钮始终可用。
-- 轮询快捷键的系统在动作映射缺失时不再每帧抛异常。
-- 存档数据版本仍为 v2。RouteFilter 1.0.1 及更早版本的存档仍可正常读取并保留逐实体限制数据。</ChangeLog>
+- 重构道路与轨道逐资产禁行，基于有向入口检测和单次请求的原生寻路排除执行限制。
+- 有合法替代路线时车辆绕行；可靠确认无合法路线后，通过兼容原版的任务终止／删除流程结束车辆，不进入停车等待或反复重试。
+- 检测工作量随受监视入口车道和相关车道对象增长，不再扫描全城车辆；修复暂停状态选择目标时的严重掉帧问题。
+- 更新面板和资产目录，恢复游戏原生模组设置，加入需确认的“重置 RouteFilter”恢复功能；“全部允许／全部禁止”只作用于筛选后的资产列表。
+- 支持英文和简体中文；存档保存玩家禁行配置，执行过程的运行时状态在加载后重建。
+- 发布候选版的道路绕行及道路／轨道无替代路线终止已通过玩家游戏测试；不代表所有资产、路网和模组组合都已验证。
+
+### 已知问题
+
+**禁行检测可能漏掉部分车辆，使其仍能通过受限目标。这是 2.0.0 的已知限制，后续更新将调查并尝试修复。**
+</ChangeLog>
   <ExternalLink Type="github" Url="https://github.com/Daotie/CS2-RouteFilter" />
   <ExternalLink Type="discord" Url="https://discord.gg/Y9UXFCkqmD" />
   <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-routefilter-per-asset-access-control-for-roads-rails.1938927/" />
