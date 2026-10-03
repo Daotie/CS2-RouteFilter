@@ -903,7 +903,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         {
             foreach (var match in m_Matches)
                 if (match.m_Vehicle == P0Diagnostics.Vehicle)
-                    P0Diagnostics.Record("Candidate", $"matched target={match.m_Target} prefab={match.m_MatchedPrefab} entry={match.m_EntryLane} next={match.m_NextLane} via={match.m_ViaLane} remaining={match.m_DirectionAwareRemainingDistanceApprox:F1}");
+                    P0Diagnostics.Milestone("Candidate", $"matched target={match.m_Target} prefab={match.m_MatchedPrefab} entry={match.m_EntryLane} next={match.m_NextLane} via={match.m_ViaLane} remaining={match.m_DirectionAwareRemainingDistanceApprox:F1}");
             foreach (var rejected in m_DebugRejections)
                 if (rejected.m_Vehicle == P0Diagnostics.Vehicle || rejected.m_PhysicalVehicle == P0Diagnostics.Vehicle)
                     P0Diagnostics.Record("RejectReason", $"reason={rejected.m_Reason} target={rejected.m_Target} expectedNext={rejected.m_NextLane} observedNext={rejected.m_ObservedNextLane}");

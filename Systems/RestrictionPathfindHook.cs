@@ -300,7 +300,7 @@ internal static unsafe class RestrictionPathfindHook
         // Capture only here. The postfix runs after those updates are scheduled, so its graph
         // writer dependencies include the current publication, not the previous graph generation.
         s_Transactions[slot] = transaction;
-        if (owner == P0Diagnostics.Vehicle) { P0Diagnostics.Record("Lease", $"query-only transaction target={attempt.Target} expiry={attempt.AbsoluteDeadlineFrame} lanes={count}"); P0Diagnostics.Record("Reroute", "native enqueue intercepted"); }
+        if (owner == P0Diagnostics.Vehicle) { P0Diagnostics.Milestone("Lease", $"query-only transaction target={attempt.Target} expiry={attempt.AbsoluteDeadlineFrame} lanes={count}"); P0Diagnostics.Milestone("Reroute", "native enqueue intercepted"); }
         s_Admissions++; Queries++;
         if (isRail) { RailQueries++; s_World.GetExistingSystemManaged<RailEnforcementBackend>().MarkIntercepted(owner); }
         else { RoadQueries++; s_World.GetExistingSystemManaged<RoadEnforcementCoordinator>().MarkIntercepted(owner); }

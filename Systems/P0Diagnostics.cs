@@ -26,6 +26,17 @@ internal static class P0Diagnostics
     private static DateTime s_LastWrite;
     private static readonly Dictionary<string, string> s_Pending = new();
     private static readonly Dictionary<string, string> s_Last = new();
+    private static readonly HashSet<string> s_Milestones = new();
+
+    // Preserve the first successful transition immediately. Later per-frame observations
+    // must not erase the evidence that a request reached this stage before crossing.
+    internal static void Milestone(string stage, string value)
+    {
+        if (Vehicle == Entity.Null || !s_Milestones.Add(stage)) return;
+        s_Pending.Remove(stage);
+        s_Last[stage] = value;
+        Mod.Log.Info($"[RouteFilter.P0.Trace] vehicle={Vehicle} target={Target} {stage}: {value}");
+    }
 
     internal static void Record(string stage, string value)
     {
@@ -44,7 +55,7 @@ internal static class P0Diagnostics
             }
             return;
         }
-        s_Pending[stage] = value;
+        if (!s_Milestones.Contains(stage)) s_Pending[stage] = value;
     }
 
     internal static void Arm(World world, Entity selected)
@@ -53,7 +64,7 @@ internal static class P0Diagnostics
         for (var i = 0; i < 4 && manager.Exists(selected) && manager.TryGetComponent(selected, out Controller controller)
             && controller.m_Controller != Entity.Null && controller.m_Controller != selected; i++) selected = controller.m_Controller;
         if (!manager.Exists(selected) || !manager.HasComponent<CarCurrentLane>(selected)) return;
-        Vehicle = selected; Target = Entity.Null; s_Pending.Clear(); s_Last.Clear();
+        Vehicle = selected; Target = Entity.Null; s_Pending.Clear(); s_Last.Clear(); s_Milestones.Clear();
         foreach (var stage in new[] { "PrefabMatch", "Gate", "Candidate", "RejectReason", "Safety", "Lease", "GraphMutation", "Reroute", "PathResult", "GateCrossing" })
             s_Pending[stage] = "not observed yet";
         Mod.Log.Info($"[RouteFilter.P0.Trace] ARMED canonicalVehicle={Vehicle} build={Mod.BuildId}");

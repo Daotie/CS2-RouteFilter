@@ -714,7 +714,11 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
         if (P0Diagnostics.Vehicle != Entity.Null)
             foreach (var evaluation in m_Evaluations)
                 if (evaluation.m_Vehicle == P0Diagnostics.Vehicle)
-                    P0Diagnostics.Record("Safety", $"verdict={evaluation.m_Verdict} reasons={evaluation.m_Reasons} remaining={evaluation.m_DistanceToGateAnchor:F1} required={evaluation.m_RequiredDistance:F1} speed={evaluation.m_Speed:F1} braking={evaluation.m_Braking:F1} path={evaluation.m_PathState}");
+                {
+                    var detail = $"verdict={evaluation.m_Verdict} reasons={evaluation.m_Reasons} remaining={evaluation.m_DistanceToGateAnchor:F1} required={evaluation.m_RequiredDistance:F1} speed={evaluation.m_Speed:F1} braking={evaluation.m_Braking:F1} path={evaluation.m_PathState}";
+                    if (evaluation.m_Verdict == RerouteSafetyVerdict.Safe) P0Diagnostics.Milestone("Safety", detail);
+                    else P0Diagnostics.Record("Safety", detail);
+                }
         DumpFilteredEvaluations();
 
         // Mirror the per-frame numbers into managed arrays. This is the only place the native
