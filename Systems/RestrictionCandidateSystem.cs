@@ -123,6 +123,10 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         public Entity DebugTarget;
         public Entity TraceVehicle;
         public NativeArray<Entity> TraceCurrent;
+        public NativeArray<Entity> TracePick;
+        public Entity TraceTarget;
+        [ReadOnly] public ComponentLookup<Game.Vehicles.CargoTransport> TraceCargo;
+        [ReadOnly] public ComponentLookup<Game.Vehicles.DeliveryTruck> TraceDelivery;
         public int RestrictionRevision;
         public uint DetectionFrame;
         /// <summary>Settings-driven master switch for Emergency Protection, evaluated per frame.</summary>
@@ -130,6 +134,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
 
         public void Execute()
         {
+            TracePick[0] = Entity.Null;
             TraceCurrent[0] = TraceVehicle != Entity.Null && CurrentLanes.TryGetComponent(TraceVehicle, out var traceLane) ? traceLane.m_Lane : Entity.Null;
             for (var i = 0; i < RejectionReasons.Length; i++) RejectionReasons[i] = 0;
             var counters = new CandidateDiagnosticCounters
@@ -260,6 +265,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 return;
             }
 
+            if (TraceVehicle == Entity.Null && TracePick[0] == Entity.Null && gate.Target == TraceTarget &&
+                (TraceCargo.HasComponent(canonical) || TraceDelivery.HasComponent(canonical))) TracePick[0] = canonical;
             if (!TryValidateImmediateNavigation(
                     canonical,
                     gate,
@@ -451,7 +458,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 reason = RejectedCandidateReason.SpecialLaneTransition;
                 return false;
             }
-            if (MasterLanes.HasComponent(gate.EntryLane) || MasterLanes.HasComponent(gate.NextLane))
+            if (MasterLanes.HasComponent(gate.EntryLane))
             {
                 reason = RejectedCandidateReason.MasterLaneUnsupported;
                 return false;
@@ -610,6 +617,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
     private NativeList<CandidateIdentity> m_ObservationOrder;
     private NativeArray<CandidateDiagnosticCounters> m_Counters;
     private NativeArray<Entity> m_TraceCurrent;
+    private NativeArray<Entity> m_TracePick;
+    private CandidateDiagnosticCounters m_LastCompletedCounters;
     private NativeArray<int> m_RejectionReasons;
     private JobHandle m_ScanHandle;
     private JobHandle m_ReaderHandle;
@@ -647,6 +656,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         m_ObservationOrder = new NativeList<CandidateIdentity>(MaxTrackedApproaches, Allocator.Persistent);
         m_Counters = new NativeArray<CandidateDiagnosticCounters>(1, Allocator.Persistent);
         m_TraceCurrent = new NativeArray<Entity>(1, Allocator.Persistent);
+        m_TracePick = new NativeArray<Entity>(1, Allocator.Persistent);
         m_RejectionReasons = new NativeArray<int>((int)RejectedCandidateReason.Count, Allocator.Persistent);
     }
 
@@ -664,6 +674,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         m_ObservationOrder.Dispose();
         m_Counters.Dispose();
         m_TraceCurrent.Dispose();
+        m_TracePick.Dispose();
         m_RejectionReasons.Dispose();
         base.OnDestroy();
     }
@@ -719,6 +730,10 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
             DebugTarget = DebugTarget,
             TraceVehicle = P0Diagnostics.Vehicle,
             TraceCurrent = m_TraceCurrent,
+            TracePick = m_TracePick,
+            TraceTarget = P0Diagnostics.Target,
+            TraceCargo = GetComponentLookup<Game.Vehicles.CargoTransport>(true),
+            TraceDelivery = GetComponentLookup<Game.Vehicles.DeliveryTruck>(true),
             RestrictionRevision = m_RuntimeRevision,
             DetectionFrame = m_SimulationSystem.frameIndex,
             EmergencyProtectionEnabled = Mod.Settings?.EmergencyProtection ?? true
@@ -766,13 +781,13 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         m_ReportCounters = default;
         System.Array.Clear(m_ReportRejectionReasons, 0, m_ReportRejectionReasons.Length);
         m_ScanSequence = 0;
+        m_LastCompletedCounters = default;
         DebugTarget = Entity.Null;
     }
 
     public CandidateDiagnosticCounters GetLastCounters()
     {
-        if (m_ScanPending) return default;
-        return m_Counters[0];
+        return m_LastCompletedCounters;
     }
 
     private bool CompletePreviousScanWithoutStall()
@@ -816,6 +831,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                     gate.m_Target == Entity.Null)
                     continue;
 
+                if (EntityManager.HasComponent<MasterLane>(gate.m_EntryLane)) continue;
                 uniqueLanes.Add(gate.m_EntryLane);
                 gates.Add(new DirectedEntryGateRuntime
                 {
@@ -858,7 +874,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
     private void AddUpstreamSegmentWatches(DirectedEntryGate gate, RestrictionTopologyTargetType type,
         HashSet<Entity> watched, List<DirectedEntryGateRuntime> gates)
     {
-        if (!EntityManager.TryGetComponent(gate.m_EntryLane, out Lane connector) ||
+        if (!m_Index.TryGetConnectionLane(gate.m_EntryLane, out Lane connector) ||
             !EntityManager.TryGetComponent(gate.m_EntryLane, out Owner connectorOwner) ||
             !EntityManager.TryGetBuffer(connectorOwner.m_Owner, true, out DynamicBuffer<ConnectedEdge> edges)) return;
         var start = gate.m_EntryDirection == LaneTraversalDirection.Forward ? connector.m_StartNode : connector.m_EndNode;
@@ -868,7 +884,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
             foreach (var sub in lanes)
             {
                 var entity = sub.m_SubLane;
-                if (!EntityManager.TryGetComponent(entity, out Lane lane) ||
+                if (EntityManager.HasComponent<MasterLane>(entity) || !m_Index.TryGetConnectionLane(entity, out Lane lane) ||
                     !EntityManager.TryGetComponent(entity, out Game.Net.CarLane car)) continue;
                 var direction = LaneTraversalDirection.Forward;
                 if (!lane.m_EndNode.Equals(start))
@@ -887,6 +903,13 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
     private void ProcessCompletedDiagnostics()
     {
         var counters = m_Counters[0];
+        m_LastCompletedCounters = counters;
+        if (P0Diagnostics.Vehicle == Entity.Null && m_TracePick[0] != Entity.Null)
+        {
+            var traceTarget = P0Diagnostics.Target;
+            P0Diagnostics.Arm(World, m_TracePick[0]);
+            P0Diagnostics.Target = traceTarget;
+        }
         if (P0Diagnostics.Vehicle != Entity.Null && P0Diagnostics.Target != Entity.Null &&
             m_Index.TryGetInternalLanes(P0Diagnostics.Target, out var traceInternals))
         {

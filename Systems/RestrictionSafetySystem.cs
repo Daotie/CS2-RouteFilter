@@ -633,13 +633,14 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
         m_ReportBrakingDistance.Reset();
         m_ReportFirstSeenFrames.Reset();
         m_LastConsumedScanSequence = 0;
+        m_LastCompletedCounters = default;
         m_DebugMissScans = 0;
         DebugVehicle = Entity.Null;
         DebugTarget = Entity.Null;
     }
 
     public SafetyDiagnosticCounters GetLastCounters()
-        => m_EvaluationPending ? default : m_Counters[0];
+        => m_LastCompletedCounters;
 
     /// <summary>
     /// Reads the last completed per-frame numbers. No JobHandle.Complete: the values are mirrored
@@ -705,9 +706,12 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
         return true;
     }
 
+    private SafetyDiagnosticCounters m_LastCompletedCounters;
+
     private void ProcessDiagnostics()
     {
         var counters = m_Counters[0];
+        m_LastCompletedCounters = counters;
         Accumulate(ref m_ReportCounters, counters);
         m_ReportScans++;
         AccumulateDetailedDiagnostics();

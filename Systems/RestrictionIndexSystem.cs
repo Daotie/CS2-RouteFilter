@@ -435,6 +435,16 @@ public sealed partial class RestrictionIndexSystem : GameSystemBase
                 continue;
             }
 
+            // Vanilla IsContinuous resolves SlaveLane to its owner's master before
+            // comparing connection nodes. Physical slaves do not necessarily share
+            // the master's exact PathNode keys, but carry the actual LaneObjects.
+            if (EntityManager.TryGetComponent(laneEntity, out SlaveLane slave) &&
+                slave.m_MasterIndex < subLanes.Length)
+            {
+                var masterEntity = subLanes[slave.m_MasterIndex].m_SubLane;
+                if (EntityManager.HasComponent<MasterLane>(masterEntity) &&
+                    EntityManager.TryGetComponent(masterEntity, out Lane masterConnection)) lane = masterConnection;
+            }
             if (lane.m_StartNode.Equals(lane.m_EndNode))
             {
                 AddAmbiguity(topology, diagnosticTarget, laneEntity, owner,
@@ -460,6 +470,21 @@ public sealed partial class RestrictionIndexSystem : GameSystemBase
                     LaneTraversalDirection.Reverse));
             }
         }
+    }
+
+    internal bool TryGetConnectionLane(Entity entity, out Lane lane)
+    {
+        if (!EntityManager.TryGetComponent(entity, out lane)) return false;
+        if (EntityManager.TryGetComponent(entity, out SlaveLane slave) &&
+            EntityManager.TryGetComponent(entity, out Game.Common.Owner owner) &&
+            EntityManager.TryGetBuffer(owner.m_Owner, true, out DynamicBuffer<SubLane> lanes) &&
+            slave.m_MasterIndex < lanes.Length)
+        {
+            var master = lanes[slave.m_MasterIndex].m_SubLane;
+            if (EntityManager.HasComponent<MasterLane>(master) && EntityManager.TryGetComponent(master, out Lane connection))
+                lane = connection;
+        }
+        return true;
     }
 
     private static RestrictionEndpoint GetEndpoint(Edge edge, Entity owner)

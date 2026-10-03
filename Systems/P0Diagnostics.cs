@@ -23,6 +23,7 @@ internal static class P0Diagnostics
         "..", "LocalLow", "Colossal Order", "Cities Skylines II", "RouteFilter-p0.txt"));
     private static float s_NextPoll, s_NextReport, s_ReportStart;
     private static int s_Frames;
+    private static int s_TopologyRevision = -1;
     private static DateTime s_LastWrite;
     private static readonly Dictionary<string, string> s_Pending = new();
     private static readonly Dictionary<string, string> s_Last = new();
@@ -105,6 +106,12 @@ internal static class P0Diagnostics
         catch (Exception error) { Mod.Log.Warn("[RouteFilter.P0] control read failed: " + error.Message); }
         var tool = world.GetExistingSystemManaged<RestrictionToolSystem>();
         if (tool?.SelectedTarget != Entity.Null && tool != null) Target = tool.SelectedTarget;
+        var index = world.GetExistingSystemManaged<RestrictionIndexSystem>();
+        if (Target != Entity.Null && index != null && index.Revision != s_TopologyRevision)
+        {
+            s_TopologyRevision = index.Revision;
+            Mod.Log.Info(index.BuildTopologyDump(Target));
+        }
         if (Vehicle != Entity.Null && world.EntityManager.Exists(Vehicle) && Target != Entity.Null)
             Observe(world);
         foreach (var pair in s_Pending)
