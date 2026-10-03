@@ -72,7 +72,8 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
                     !Current.TryGetComponent(v.m_Vehicle, out var current) || current.m_Lane != v.m_EntryLane ||
                     current.m_ChangeLane != Entity.Null || current.m_ChangeProgress != 0 ||
                     !Navigation.TryGetBuffer(v.m_Vehicle, out var nav) ||
-                    (v.m_ViaLane == Entity.Null ? nav.Length == 0 || nav[0].m_Lane != v.m_NextLane :
+                    (v.m_ViaLane2 != Entity.Null ? nav.Length < 3 || nav[0].m_Lane != v.m_ViaLane || nav[1].m_Lane != v.m_ViaLane2 || nav[2].m_Lane != v.m_NextLane :
+                        v.m_ViaLane == Entity.Null ? nav.Length == 0 || nav[0].m_Lane != v.m_NextLane :
                         nav.Length < 2 || nav[0].m_Lane != v.m_ViaLane || nav[1].m_Lane != v.m_NextLane))
                 { Counters[14]++; continue; }
                 if (EmergencyProtection && EnforcementPolicy.IsExempt(v.m_Category)) { Counters[12]++; continue; }
@@ -85,6 +86,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
                 var before = owner.m_State; owner.m_State |= PathFlags.Obsolete; Owners[v.m_Vehicle] = owner;
                 ByVehicle.TryAdd(v.m_Vehicle, Attempts.Length);
                 Attempts.Add(new EnforcementAttempt { Vehicle = v.m_Vehicle, Target = v.m_Target, GateEntryLane = v.m_EntryLane, ViaLane = v.m_ViaLane,
+                    ViaLane2 = v.m_ViaLane2,
                     OwnedLane = v.m_NextLane, MatchedPrefab = v.m_MatchedPrefab, Generation = ++Generations[0],
                     RestrictionRevision = Revision, OriginalPathState = before, WrittenPathState = owner.m_State,
                     OriginalElementIndex = owner.m_ElementIndex, RequestedFrame = Frame, AbsoluteDeadlineFrame = Frame + DeadlineFrames,

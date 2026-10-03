@@ -34,6 +34,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         public Entity EntryLane;
         public Entity NextLane;
         public Entity ViaLane;
+        public Entity ViaLane2;
         public Entity Target;
         public RestrictionTopologyTargetType TargetType;
         public LaneTraversalDirection EntryDirection;
@@ -334,6 +335,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 m_EntryLane = gate.EntryLane,
                 m_NextLane = gate.NextLane,
                 m_ViaLane = gate.ViaLane,
+                m_ViaLane2 = gate.ViaLane2,
                 m_Target = gate.Target,
                 m_RestrictedPrefab = matchedPrefab,
                 m_MatchedPrefab = matchedPrefab,
@@ -469,8 +471,9 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 return false;
             }
 
-            var nextIndex = gate.ViaLane == Entity.Null ? 0 : 1;
-            if (navigation.Length <= nextIndex || (nextIndex == 1 && navigation[0].m_Lane != gate.ViaLane))
+            var nextIndex = gate.ViaLane2 != Entity.Null ? 2 : gate.ViaLane == Entity.Null ? 0 : 1;
+            if (navigation.Length <= nextIndex || (nextIndex > 0 && navigation[0].m_Lane != gate.ViaLane) ||
+                (nextIndex == 2 && navigation[1].m_Lane != gate.ViaLane2))
             { reason = RejectedCandidateReason.ImmediateLaneMismatch; return false; }
             var next = navigation[nextIndex];
             observedNextLane = next.m_Lane;
@@ -843,8 +846,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                     NextDirection = gate.m_NextDirection,
                     TargetEndpoint = gate.m_TargetEndpoint
                 });
-                if (targetType == RestrictionTopologyTargetType.Segment)
-                    AddUpstreamSegmentWatches(gate, targetType, uniqueLanes, gates);
+                AddUpstreamSegmentWatches(gate, targetType, uniqueLanes, gates);
             }
         }
 
@@ -868,34 +870,57 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         m_RuntimeRevision = m_Index.Revision;
     }
 
-    // Retain directed topology unchanged. Observation extends one hop behind its short endpoint
-    // connector, and requires the exact connector + target lane sequence in navigation.
-    // Work is local connected-edge lanes, only when a restriction revision changes.
+    // At most two exact predecessors; never a city-wide vehicle/lane search.
+    // Only rebuilt with topology. Navigation must advertise every intervening lane.
     private void AddUpstreamSegmentWatches(DirectedEntryGate gate, RestrictionTopologyTargetType type,
         HashSet<Entity> watched, List<DirectedEntryGateRuntime> gates)
     {
-        if (!m_Index.TryGetConnectionLane(gate.m_EntryLane, out Lane connector) ||
-            !EntityManager.TryGetComponent(gate.m_EntryLane, out Owner connectorOwner) ||
-            !EntityManager.TryGetBuffer(connectorOwner.m_Owner, true, out DynamicBuffer<ConnectedEdge> edges)) return;
-        var start = gate.m_EntryDirection == LaneTraversalDirection.Forward ? connector.m_StartNode : connector.m_EndNode;
-        foreach (var edge in edges)
+        var budget = 64;
+        foreach (var first in UpstreamRoadLanes(gate.m_EntryLane, gate.m_EntryDirection))
         {
-            if (edge.m_Edge == gate.m_Target || !EntityManager.TryGetBuffer(edge.m_Edge, true, out DynamicBuffer<Game.Net.SubLane> lanes)) continue;
+            if (--budget < 0) break;
+            if (first.Lane == gate.m_NextLane) continue;
+            watched.Add(first.Lane);
+            gates.Add(new DirectedEntryGateRuntime { EntryLane = first.Lane, ViaLane = gate.m_EntryLane,
+                NextLane = gate.m_NextLane, Target = gate.m_Target, TargetType = type,
+                EntryDirection = first.Direction, NextDirection = gate.m_NextDirection, TargetEndpoint = gate.m_TargetEndpoint });
+            foreach (var second in UpstreamRoadLanes(first.Lane, first.Direction))
+            {
+                if (--budget < 0) break;
+                if (second.Lane == gate.m_EntryLane || second.Lane == gate.m_NextLane) continue;
+                watched.Add(second.Lane);
+                gates.Add(new DirectedEntryGateRuntime { EntryLane = second.Lane, ViaLane = first.Lane, ViaLane2 = gate.m_EntryLane,
+                    NextLane = gate.m_NextLane, Target = gate.m_Target, TargetType = type,
+                    EntryDirection = second.Direction, NextDirection = gate.m_NextDirection, TargetEndpoint = gate.m_TargetEndpoint });
+            }
+        }
+    }
+
+    private IEnumerable<(Entity Lane, LaneTraversalDirection Direction)> UpstreamRoadLanes(Entity connectorEntity, LaneTraversalDirection direction)
+    {
+        if (!m_Index.TryGetConnectionLane(connectorEntity, out Lane connector) ||
+            !EntityManager.TryGetComponent(connectorEntity, out Owner owner)) yield break;
+        var start = direction == LaneTraversalDirection.Forward ? connector.m_StartNode : connector.m_EndNode;
+        var node = owner.m_Owner;
+        var owners = new List<Entity>(8);
+        if (EntityManager.TryGetComponent(node, out Game.Net.Edge edge))
+        {
+            node = direction == LaneTraversalDirection.Forward ? edge.m_Start : edge.m_End;
+            owners.Add(node); // Node connectors precede an edge lane.
+        }
+        if (EntityManager.TryGetBuffer(node, true, out DynamicBuffer<ConnectedEdge> edges))
+            foreach (var connected in edges) if (connected.m_Edge != owner.m_Owner) owners.Add(connected.m_Edge);
+        foreach (var candidateOwner in owners)
+        {
+            if (!EntityManager.TryGetBuffer(candidateOwner, true, out DynamicBuffer<Game.Net.SubLane> lanes)) continue;
             foreach (var sub in lanes)
             {
                 var entity = sub.m_SubLane;
-                if (EntityManager.HasComponent<MasterLane>(entity) || !m_Index.TryGetConnectionLane(entity, out Lane lane) ||
-                    !EntityManager.TryGetComponent(entity, out Game.Net.CarLane car)) continue;
-                var direction = LaneTraversalDirection.Forward;
-                if (!lane.m_EndNode.Equals(start))
-                {
-                    if ((car.m_Flags & Game.Net.CarLaneFlags.Twoway) == 0 || !lane.m_StartNode.Equals(start)) continue;
-                    direction = LaneTraversalDirection.Reverse;
-                }
-                watched.Add(entity);
-                gates.Add(new DirectedEntryGateRuntime { EntryLane = entity, ViaLane = gate.m_EntryLane,
-                    NextLane = gate.m_NextLane, Target = gate.m_Target, TargetType = type,
-                    EntryDirection = direction, NextDirection = gate.m_NextDirection, TargetEndpoint = gate.m_TargetEndpoint });
+                if (entity == connectorEntity || EntityManager.HasComponent<MasterLane>(entity) ||
+                    !m_Index.TryGetConnectionLane(entity, out Lane lane) || !EntityManager.TryGetComponent(entity, out Game.Net.CarLane car)) continue;
+                if (lane.m_EndNode.Equals(start)) yield return (entity, LaneTraversalDirection.Forward);
+                else if ((car.m_Flags & Game.Net.CarLaneFlags.Twoway) != 0 && lane.m_StartNode.Equals(start))
+                    yield return (entity, LaneTraversalDirection.Reverse);
             }
         }
     }

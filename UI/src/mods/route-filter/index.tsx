@@ -13,6 +13,7 @@ const selectedTargetKind$ = bindValue<number>(mod.id, "selectedTargetKind", 0);
 const assetCatalog$ = bindValue<string>(mod.id, "assetCatalog", "");
 const selectedAssetIds$ = bindValue<string>(mod.id, "selectedAssetIds", "");
 const resetCompleted$ = bindValue<number>(mod.id, "resetCompleted", 0);
+const panelClose$ = bindValue<number>(mod.id, "panelClose", 0);
 const buildId$ = bindValue<string>(mod.id, "buildId", "unknown");
 const configurationEditable$ = bindValue<boolean>(mod.id, "configurationEditable", true);
 
@@ -28,6 +29,11 @@ export const RouteFilterShell = () => {
   const catalogRaw = useValue(assetCatalog$);
   const selectedRaw = useValue(selectedAssetIds$);
   const resetCompleted = useValue(resetCompleted$);
+  const panelClose = useValue(panelClose$);
+  useEffect(() => { if (panelClose) setPanelOpen(false); }, [panelClose]);
+  useEffect(() => {
+    if (panelOpen) trigger(mod.id, "activateTool");
+  }, [panelOpen]);
   const buildId = useValue(buildId$);
   const configurationEditable = useValue(configurationEditable$);
   useEffect(() => {
@@ -63,23 +69,6 @@ export const RouteFilterShell = () => {
     return () => { trigger(mod.id, "setPointerOverUi", false); };
   }, [active]);
 
-  useEffect(() => {
-    if (!panelOpen) return;
-    const onContextMenu = (event: MouseEvent) => {
-      event.preventDefault();
-      if (active && selectedTargetKind !== 0) {
-        trigger(mod.id, "cancelSelection");
-        return;
-      }
-      if (selectedTargetKind === 0) {
-        setPanelOpen(false);
-        trigger(mod.id, "setPointerOverUi", false);
-        trigger(mod.id, "deactivateTool");
-      }
-    };
-    window.addEventListener("contextmenu", onContextMenu);
-    return () => window.removeEventListener("contextmenu", onContextMenu);
-  }, [active, panelOpen, selectedTargetKind]);
 
   useEffect(() => {
     if (buildId !== "unknown") console.info(`[RouteFilter.Build] loaded id=${buildId}`);
@@ -145,7 +134,6 @@ export const RouteFilterShell = () => {
         trigger(mod.id, "deactivateTool");
       } else {
         setPanelOpen(true);
-        trigger(mod.id, "activateTool");
       }
     }} />
     {panelOpen && <RouteFilterPanel

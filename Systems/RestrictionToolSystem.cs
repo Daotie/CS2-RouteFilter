@@ -18,6 +18,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 {
     private DisplayNameOverride m_MouseApplyDisplay = null!;
     private DisplayNameOverride m_MouseCancelDisplay = null!;
+    private int m_ActivationFrame;
     public Entity HoveredTarget { get; private set; } = Entity.Null;
     public int HoveredTransportMode { get; private set; }
     public Entity SelectedTarget { get; private set; } = Entity.Null;
@@ -74,6 +75,8 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
     public void Activate()
     {
         Mod.Log.Info($"[RouteFilter.Tool] Activated {Mod.SelectedTargetMode}");
+        PointerOverUi = false;
+        m_ActivationFrame = UnityEngine.Time.frameCount;
         if (m_ToolSystem.activeTool == this) return;
         P0Diagnostics.Arm(World, m_ToolSystem.selected);
         m_ToolSystem.selected = Entity.Null;
@@ -108,6 +111,19 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         if (m_ToolSystem.activeTool != this) return inputDeps;
         if (!P0Diagnostics.Tool) { m_ToolSystem.selected = Entity.Null; return inputDeps; }
 
+        // Handle native cancel independently of raycast/pointer state. First cancel clears
+        // the selected target; another cancel with no target closes the panel.
+        if (Mod.Clear != null && Mod.Clear.WasPressedThisFrame())
+        {
+            if (SelectedTarget != Entity.Null) ClearSelection();
+            else
+            {
+                Deactivate();
+                World.GetOrCreateSystemManaged<RouteFilterUISystem>().NotifyPanelClose();
+            }
+            return inputDeps;
+        }
+
         if (SelectedTarget != Entity.Null && !EntityManager.Exists(SelectedTarget)) ClearSelection();
 
         if (PointerOverUi)
@@ -123,7 +139,6 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
             m_ToolSystem.selected = P0Diagnostics.Highlight ? SelectedTarget : Entity.Null;
-            if (Mod.Clear != null && Mod.Clear.WasPressedThisFrame()) ClearSelection();
             return inputDeps;
         }
 
@@ -132,12 +147,8 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         HoveredTarget = target;
         HoveredTransportMode = GetTransportMode(target);
         m_ToolSystem.selected = P0Diagnostics.Highlight ? (SelectedTarget != Entity.Null ? SelectedTarget : target) : Entity.Null;
-        if (Mod.Clear != null && Mod.Clear.WasPressedThisFrame())
-        {
-            ClearSelection();
-            return inputDeps;
-        }
-        if (target != Entity.Null && Mod.Apply != null && Mod.Apply.WasPressedThisFrame()) SelectTarget(target);
+        if (target != Entity.Null && UnityEngine.Time.frameCount > m_ActivationFrame &&
+            Mod.Apply != null && Mod.Apply.WasPressedThisFrame()) SelectTarget(target);
 
         return inputDeps;
     }

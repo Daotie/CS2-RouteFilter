@@ -405,7 +405,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         m_WorkCounters = new NativeArray<int>(3, Allocator.Persistent);
         m_Attempts = new NativeList<EnforcementAttempt>(64, Allocator.Persistent);
         m_ByVehicle = new NativeParallelHashMap<Entity, int>(64, Allocator.Persistent);
-        m_EnforcementCounters = new NativeArray<uint>(20, Allocator.Persistent);
+        m_EnforcementCounters = new NativeArray<uint>(21, Allocator.Persistent);
         m_Generations = new NativeArray<ulong>(1, Allocator.Persistent);
     }
 
@@ -610,26 +610,48 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         return false;
     }
 
-    internal bool ConsumeOwnedResult(in EnforcementAttempt captured, bool alternative)
+    internal bool ConsumeOwnedResult(in EnforcementAttempt captured, RoadQueryOutcome outcome, out RoadQueryOutcome accepted)
     {
+        accepted = RoadQueryOutcome.EnforcementUncertain;
         if (!m_Work.IsCompleted) return false;
         m_Work.Complete();
         if (!m_ByVehicle.TryGetValue(captured.Vehicle, out var i)) return true;
         var live = m_Attempts[i];
-        if (!live.QueryIntercepted || live.Generation != captured.Generation || live.Generation == 0 ||
-            live.Target != captured.Target || live.RestrictionRevision != captured.RestrictionRevision ||
-            live.MatchedPrefab != captured.MatchedPrefab || live.State != EnforcementAttemptState.Requested) return true;
+        if (!EnforcementPolicy.OwnsRailReceipt(live, captured))
+        { P0Diagnostics.Grandfather(captured.Vehicle, $"RailReceiptIdentityMismatch liveGeneration={live.Generation} capturedGeneration={captured.Generation} liveState={live.State}"); return true; }
         var valid = m_Index.Revision == live.RestrictionRevision && !Mod.RestrictionsDirty &&
             !EnforcementPolicy.HasExpired(m_Simulation.frameIndex, live.AbsoluteDeadlineFrame) &&
             EntityManager.Exists(live.Vehicle) && !EntityManager.HasComponent<Deleted>(live.Vehicle) &&
+            EntityManager.Exists(live.Target) && !EntityManager.HasComponent<Deleted>(live.Target) &&
+            EntityManager.Exists(live.OwnedLane) && !EntityManager.HasComponent<Deleted>(live.OwnedLane) &&
             EntityManager.TryGetComponent(live.Vehicle, out Game.Common.Target destination) && destination.m_Target == live.NativeDestination &&
             EntityManager.TryGetComponent(live.Vehicle, out TrainCurrentLane current) && current.m_Front.m_Lane == live.GateEntryLane &&
             EntityManager.TryGetBuffer(live.Vehicle, true, out DynamicBuffer<LayoutElement> layout) &&
             layout.Length > 0 && layout[0].m_Vehicle == live.Vehicle && StillForbidden(live);
-        live.State = alternative && valid ? EnforcementAttemptState.Rerouted : EnforcementAttemptState.Grandfathered;
+        if (outcome == RoadQueryOutcome.ConfirmedNoAlternative && valid)
+        {
+            var front = EntityManager.GetComponentData<TrainCurrentLane>(live.Vehicle).m_Front;
+            valid = EntityManager.TryGetComponent(live.Vehicle, out PathOwner owner) && EnforcementPolicy.IsExpectedSetup(live, owner.m_State) &&
+                (live.Forward ? front.m_CurvePosition.y < live.TraversalEnd : front.m_CurvePosition.y > live.TraversalEnd);
+            var members = EntityManager.GetBuffer<LayoutElement>(live.Vehicle, true);
+            foreach (var member in members)
+                if (!EntityManager.Exists(member.m_Vehicle) || EntityManager.HasComponent<Deleted>(member.m_Vehicle) ||
+                    (member.m_Vehicle != live.Vehicle && (!EntityManager.TryGetComponent(member.m_Vehicle, out Controller controller) ||
+                        controller.m_Controller != live.Vehicle))) valid = false;
+            if (valid)
+            {
+                var commands = World.GetOrCreateSystemManaged<EndFrameBarrier>().CreateCommandBuffer();
+                Mod.Log.Warn($"[RouteFilter.NoRouteRemoval] backend=Rail nativeApi=VehicleUtils.DeleteVehicle vehicle={live.Vehicle} prefab={live.MatchedPrefab} target={live.Target} revision={live.RestrictionRevision} generation={live.Generation} frame={m_Simulation.frameIndex} outcome={outcome} build={Mod.BuildId}");
+                VehicleUtils.DeleteVehicle(commands, live.Vehicle, members);
+                m_EnforcementCounters[20]++;
+            }
+        }
+        accepted = valid ? outcome : RoadQueryOutcome.EnforcementUncertain;
+        live.State = accepted == RoadQueryOutcome.AlternativePathFound ? EnforcementAttemptState.Rerouted :
+            accepted == RoadQueryOutcome.ConfirmedNoAlternative ? EnforcementAttemptState.ConfirmedNoAlternative : EnforcementAttemptState.Grandfathered;
         m_Attempts[i] = live;
-        if (alternative && valid) P0Diagnostics.OwnedResult(live.Vehicle, RoadQueryOutcome.AlternativePathFound, live.Generation);
-        else P0Diagnostics.Grandfather(live.Vehicle, "RailOwnedQueryDidNotProveAvoidanceOrReceiptExpired");
+        if (accepted != RoadQueryOutcome.EnforcementUncertain) P0Diagnostics.OwnedResult(live.Vehicle, accepted, live.Generation);
+        else P0Diagnostics.Grandfather(live.Vehicle, $"RailReceiptRejectedOrQueryUncertain generation={live.Generation} revision={live.RestrictionRevision} currentRevision={m_Index.Revision} deadline={live.AbsoluteDeadlineFrame} frame={m_Simulation.frameIndex} queryOutcome={outcome}");
         return true;
     }
 

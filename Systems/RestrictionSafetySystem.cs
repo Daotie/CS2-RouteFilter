@@ -136,10 +136,11 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
                 var navigation = default(DynamicBuffer<CarNavigationLane>);
                 var hasNavigation = vehicleValid && NavigationLanes.TryGetBuffer(candidate.m_Vehicle, out navigation) &&
                                     navigation.Length != 0;
-                var nextIndex = candidate.m_ViaLane == Entity.Null ? 0 : 1;
+                var nextIndex = candidate.m_ViaLane2 != Entity.Null ? 2 : candidate.m_ViaLane == Entity.Null ? 0 : 1;
                 var next = hasNavigation && navigation.Length > nextIndex ? navigation[nextIndex] : default;
                 var immediateMatches = hasNavigation && navigation.Length > nextIndex && next.m_Lane == candidate.m_NextLane &&
-                    (nextIndex == 0 || navigation[0].m_Lane == candidate.m_ViaLane);
+                    (nextIndex == 0 || navigation[0].m_Lane == candidate.m_ViaLane) &&
+                    (nextIndex != 2 || navigation[1].m_Lane == candidate.m_ViaLane2);
                 var entryDelta = hasCurrent ? current.m_CurvePosition.z - current.m_CurvePosition.x : 0f;
                 var nextDelta = hasNavigation ? next.m_CurvePosition.y - next.m_CurvePosition.x : 0f;
                 var entryDirectionMatches = hasCurrent && DirectionMatches(candidate.m_EntryDirection, entryDelta);

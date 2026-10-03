@@ -96,6 +96,7 @@ public struct EnforcementAttempt
     public Entity Target;
     public Entity GateEntryLane;
     public Entity ViaLane;
+    public Entity ViaLane2;
     /// <summary>Imminent forbidden lane required in the query exclusion set. No physical blockage.</summary>
     public Entity OwnedLane;
     public Entity NativeDestination;
@@ -144,12 +145,19 @@ public struct CanonicalApproachKey : IEquatable<CanonicalApproachKey>
 public static class EnforcementPolicy
 {
     public static bool OwnsRoadReceipt(in EnforcementAttempt live, in EnforcementAttempt receipt)
-        => live.Backend == EnforcementBackend.Road && live.QueryIntercepted &&
+        => OwnsReceipt(live, receipt, EnforcementBackend.Road);
+
+    public static bool OwnsRailReceipt(in EnforcementAttempt live, in EnforcementAttempt receipt)
+        => OwnsReceipt(live, receipt, EnforcementBackend.Rail);
+
+    private static bool OwnsReceipt(in EnforcementAttempt live, in EnforcementAttempt receipt, EnforcementBackend backend)
+        => live.Backend == backend && receipt.Backend == backend && live.QueryIntercepted &&
            live.State == EnforcementAttemptState.Requested && live.Generation != 0 &&
            live.Generation == receipt.Generation && live.Vehicle == receipt.Vehicle &&
            live.Target == receipt.Target && live.MatchedPrefab == receipt.MatchedPrefab &&
            live.RestrictionRevision == receipt.RestrictionRevision && live.OwnedLane == receipt.OwnedLane &&
-           live.GateEntryLane == receipt.GateEntryLane && live.NativeDestination == receipt.NativeDestination;
+           live.GateEntryLane == receipt.GateEntryLane && live.NativeDestination == receipt.NativeDestination &&
+           live.ViaLane == receipt.ViaLane && live.ViaLane2 == receipt.ViaLane2;
 
     public static RoadQueryOutcome ClassifyRoadQuery(in RoadQueryProof proof)
     {

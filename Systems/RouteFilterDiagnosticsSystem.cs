@@ -79,6 +79,7 @@ public sealed partial class RouteFilterDiagnosticsSystem : GameSystemBase
         public int RailReroutesRequested;
         public int RailRefusedFixedRoute;
         public int RailRefusedNotSafe;
+        public int RailConfirmedNoAlternative;
         public int ActiveRailAttempts;
         public bool PersistenceLocked;
     }
@@ -167,6 +168,7 @@ public sealed partial class RouteFilterDiagnosticsSystem : GameSystemBase
             RailReroutesRequested = Delta(m_RailCounters, m_RailPrevious, 5),
             RailRefusedFixedRoute = Delta(m_RailCounters, m_RailPrevious, 13),
             RailRefusedNotSafe = Delta(m_RailCounters, m_RailPrevious, 9),
+            RailConfirmedNoAlternative = Delta(m_RailCounters, m_RailPrevious, 20),
             ActiveRailAttempts = m_Rail.ActiveAttempts,
             PersistenceLocked = m_Persistence.PersistenceLocked
         };
@@ -197,7 +199,7 @@ public sealed partial class RouteFilterDiagnosticsSystem : GameSystemBase
            $"roadActiveAttempts={value.ActiveRoadAttempts} " +
            $"railWatchedLanes={value.RailWatchedEntryLanes} railLaneObjects={value.RailLaneObjectsScanned} " +
            $"railReroutes={value.RailReroutesRequested} railRefusedFixedRoute={value.RailRefusedFixedRoute} " +
-           $"railRefusedTooLate={value.RailRefusedNotSafe} railActiveAttempts={value.ActiveRailAttempts} " +
+           $"railRefusedTooLate={value.RailRefusedNotSafe} railConfirmedNoAlternative={value.RailConfirmedNoAlternative} railActiveAttempts={value.ActiveRailAttempts} " +
            $"persistenceLocked={value.PersistenceLocked} build={Mod.BuildId} " +
            $"queryHook={RestrictionPathfindHook.Available} " +
            $"excludedQueries={RestrictionPathfindHook.Queries} roadQueries={RestrictionPathfindHook.RoadQueries} " +

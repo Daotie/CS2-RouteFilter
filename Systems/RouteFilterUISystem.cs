@@ -47,6 +47,8 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private ValueBinding<string> m_BuildIdBinding = null!;
     private ValueBinding<bool> m_ConfigurationEditableBinding = null!;
     private int m_ResetCompleted;
+    private ValueBinding<int> m_PanelCloseBinding = null!;
+    private int m_PanelClose;
     private ValueBinding<string> m_SelectedTargetBinding = null!;
     private ValueBinding<int> m_RestrictionRevisionBinding = null!;
     private int m_RestrictionRevision;
@@ -72,6 +74,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         m_AssetCatalogBinding = CreateValue("assetCatalog", string.Empty);
         m_SelectedAssetsBinding = CreateValue("selectedAssetIds", string.Empty);
         m_ResetCompletedBinding = CreateValue("resetCompleted", 0);
+        m_PanelCloseBinding = CreateValue("panelClose", 0);
         m_BuildIdBinding = CreateValue("buildId", Mod.BuildId);
         m_ConfigurationEditableBinding = CreateValue("configurationEditable", true);
         AddBinding(new TriggerBinding(Mod.Id, "openSettings", () => World.GetOrCreateSystemManaged<RouteFilterSettingsUISystem>().OpenSettings()));
@@ -150,6 +153,8 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         // System's Temp allocator fails; retry the key binding registration here on the
         // main thread once so the shortcut key still works in that scenario.
         Mod.RetryKeyBindings();
+        if (m_ToolSystem.activeTool != m_RestrictionTool && m_RestrictionTool.SelectedTarget == Entity.Null &&
+            Mod.Clear != null && Mod.Clear.WasPressedThisFrame()) NotifyPanelClose();
         m_ConfigurationEditableBinding.Update(World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable);
 
         // Sample catalog membership every five real seconds, independently of paused FPS.
@@ -208,6 +213,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     }
 
     public void NotifyResetCompleted() => m_ResetCompletedBinding.Update(++m_ResetCompleted);
+    public void NotifyPanelClose() => m_PanelCloseBinding.Update(++m_PanelClose);
 
     private void SetTargetMode(int value)
     {

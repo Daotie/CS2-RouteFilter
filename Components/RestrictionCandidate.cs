@@ -44,6 +44,7 @@ public struct CandidateMatch
     public Entity m_EntryLane;
     public Entity m_NextLane;
     public Entity m_ViaLane;
+    public Entity m_ViaLane2;
     public Entity m_Target;
     public Entity m_RestrictedPrefab;
     public Entity m_MatchedPrefab;

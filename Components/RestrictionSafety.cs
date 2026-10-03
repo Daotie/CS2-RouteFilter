@@ -107,6 +107,7 @@ public struct RerouteSafetyEvaluation
     public Entity m_EntryLane;
     public Entity m_NextLane;
     public Entity m_ViaLane;
+    public Entity m_ViaLane2;
     public Entity m_MatchedPrefab;
     public RerouteSafetyVerdict m_Verdict;
     public SafetyConfidence m_Confidence;

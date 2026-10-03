@@ -136,6 +136,7 @@ public static class SafeToAttemptRerouteEvaluator
             m_EntryLane = candidate.m_EntryLane,
             m_NextLane = candidate.m_NextLane,
             m_ViaLane = candidate.m_ViaLane,
+            m_ViaLane2 = candidate.m_ViaLane2,
             m_MatchedPrefab = candidate.m_MatchedPrefab,
             m_Verdict = verdict,
             m_Confidence = calibration.m_Confidence,

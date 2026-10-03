@@ -138,6 +138,33 @@ var endedAttempt = liveAttempt; endedAttempt.State = EnforcementAttemptState.Gra
 Check(!EnforcementPolicy.OwnsRoadReceipt(endedAttempt, liveAttempt), "ended attempt cannot accept a late no-route result");
 var notIntercepted = liveAttempt; notIntercepted.QueryIntercepted = false;
 Check(!EnforcementPolicy.OwnsRoadReceipt(notIntercepted, liveAttempt), "generic Failed/no intercepted query is never deletion evidence");
+var railReceipt = liveAttempt; railReceipt.Backend = EnforcementBackend.Rail;
+Check(EnforcementPolicy.OwnsRailReceipt(railReceipt, railReceipt), "RAIL-NO-ALTERNATIVE-001: exact owned rail receipt");
+Check(!EnforcementPolicy.OwnsRailReceipt(railReceipt, liveAttempt), "rail rejects road receipt");
+Check(!EnforcementPolicy.OwnsRoadReceipt(liveAttempt, railReceipt), "road rejects rail receipt");
+for (var variant = 0; variant < 10; variant++)
+{
+    var stale = railReceipt;
+    switch (variant)
+    {
+        case 0: stale.Generation++; break;
+        case 1: stale.Vehicle.Version++; break;
+        case 2: stale.Target.Version++; break;
+        case 3: stale.RestrictionRevision++; break;
+        case 4: stale.MatchedPrefab.Index++; break;
+        case 5: stale.OwnedLane.Index++; break;
+        case 6: stale.GateEntryLane.Index++; break;
+        case 7: stale.NativeDestination.Index++; break;
+        case 8: stale.ViaLane.Index++; break;
+        case 9: stale.ViaLane2.Index++; break;
+    }
+    Check(!EnforcementPolicy.OwnsRailReceipt(railReceipt, stale), $"RAIL-UNCERTAIN-001: foreign receipt {variant}");
+}
+Check(EnforcementPolicy.ClassifyRoadQuery(exhausted) == RoadQueryOutcome.ConfirmedNoAlternative, "RAIL-NO-ALTERNATIVE-001: complete exhaustive proof");
+Check(EnforcementPolicy.ClassifyRoadQuery(alternative) == RoadQueryOutcome.AlternativePathFound, "RAIL-ALTERNATIVE-001: never remove an avoiding result");
+var broadTrackScope = exhausted; broadTrackScope.ExactNoRouteScope = false;
+Check(EnforcementPolicy.ClassifyRoadQuery(broadTrackScope) == RoadQueryOutcome.EnforcementUncertain, "rail two-way outbound exclusion is not deletion proof");
+Console.WriteLine("PASS: rail receipt identity, cross-backend isolation, and shared alternative/no-route/uncertain policy. Live game test remains required.");
 Console.WriteLine("PASS: ROAD-NO-ALTERNATIVE-001 / ROAD-ALTERNATIVE-001 / ROAD-UNCERTAIN-001 policy and receipt fixtures. GAME TEST STILL REQUIRED.");
 
 Console.WriteLine("PASS: 65,536 lane ownership pairs, vanilla empty interval, exact expiry, frame wrap, " +
