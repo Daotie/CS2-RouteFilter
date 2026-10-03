@@ -93,6 +93,8 @@ public struct EnforcementAttempt
 {
     /// <summary>Canonical vehicle (road) or locomotive (rail). Holds the vanilla PathOwner.</summary>
     public Entity Vehicle;
+    /// <summary>Road LaneObject that supplied the matched prefab; runtime-only receipt evidence.</summary>
+    public Entity PhysicalVehicle;
     /// <summary>Physical lead in LayoutElement[0], independent of the rail path owner.</summary>
     public Entity NavigationVehicle;
     public Entity Target;
@@ -152,7 +154,7 @@ public static class EnforcementPolicy
         => remaining > 0f && !float.IsNaN(remaining) && !float.IsInfinity(remaining);
 
     public static bool OwnsRoadReceipt(in EnforcementAttempt live, in EnforcementAttempt receipt)
-        => OwnsReceipt(live, receipt, EnforcementBackend.Road);
+        => OwnsReceipt(live, receipt, EnforcementBackend.Road) && live.PhysicalVehicle == receipt.PhysicalVehicle;
 
     public static bool OwnsRailReceipt(in EnforcementAttempt live, in EnforcementAttempt receipt)
         => OwnsReceipt(live, receipt, EnforcementBackend.Rail);

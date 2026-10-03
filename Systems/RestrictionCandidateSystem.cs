@@ -126,8 +126,6 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         public NativeArray<Entity> TraceCurrent;
         public NativeArray<Entity> TracePick;
         public Entity TraceTarget;
-        [ReadOnly] public ComponentLookup<Game.Vehicles.CargoTransport> TraceCargo;
-        [ReadOnly] public ComponentLookup<Game.Vehicles.DeliveryTruck> TraceDelivery;
         public int RestrictionRevision;
         public uint DetectionFrame;
         /// <summary>Settings-driven master switch for Emergency Protection, evaluated per frame.</summary>
@@ -216,6 +214,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                         // after it: an exempt vehicle must not cost a gate walk, a prefab match and
                         // a navigation validation just to be dropped afterwards.
                         counters.m_EmergencyExempt++;
+                        AddDebugRejection(physical, canonical, entryLane, Entity.Null, firstGate.Target,
+                            RejectedCandidateReason.EmergencyProtectionExempt);
                         continue;
                     }
 
@@ -266,8 +266,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 return;
             }
 
-            if (TraceVehicle == Entity.Null && TracePick[0] == Entity.Null && gate.Target == TraceTarget &&
-                (TraceCargo.HasComponent(canonical) || TraceDelivery.HasComponent(canonical))) TracePick[0] = canonical;
+            if (TraceVehicle == Entity.Null && TracePick[0] == Entity.Null && gate.Target == TraceTarget)
+                TracePick[0] = physical;
             if (!TryValidateImmediateNavigation(
                     canonical,
                     gate,
@@ -735,8 +735,6 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
             TraceCurrent = m_TraceCurrent,
             TracePick = m_TracePick,
             TraceTarget = P0Diagnostics.Target,
-            TraceCargo = GetComponentLookup<Game.Vehicles.CargoTransport>(true),
-            TraceDelivery = GetComponentLookup<Game.Vehicles.DeliveryTruck>(true),
             RestrictionRevision = m_RuntimeRevision,
             DetectionFrame = m_SimulationSystem.frameIndex,
             EmergencyProtectionEnabled = Mod.Settings?.EmergencyProtection ?? true

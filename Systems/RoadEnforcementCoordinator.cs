@@ -39,9 +39,12 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         public uint Frame;
         public int Revision;
         public bool EmergencyProtection;
+        public Entity TraceVehicle;
+        private void Trace(Entity vehicle, uint reason) { if (vehicle == TraceVehicle) Counters[20] = reason; }
         private bool Valid(Entity e) => e != Entity.Null && Entities.Exists(e) && !Deleted.HasComponent(e) && !Temporary.HasComponent(e);
         public void Execute()
         {
+            Counters[20] = 0;
             for (var i = Attempts.Length - 1; i >= 0; i--)
             {
                 var attempt = Attempts[i];
@@ -66,7 +69,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
             for (var i = 0; i < Evaluations.Length; i++)
             {
                 var v = Evaluations[i];
-                if (v.m_Verdict != RerouteSafetyVerdict.Safe) { Counters[9]++; continue; }
+                if (v.m_Verdict != RerouteSafetyVerdict.Safe) { Counters[9]++; Trace(v.m_Vehicle, 1); continue; }
                 if (!Valid(v.m_Vehicle) || !Valid(v.m_Target) || Trains.HasComponent(v.m_Vehicle) || v.m_RestrictionRevision != Revision ||
                     Frame - v.m_EvaluationFrame > 2 || Frame - v.m_FirstSeenFrame > DeadlineFrames ||
                     !Current.TryGetComponent(v.m_Vehicle, out var current) || current.m_Lane != v.m_EntryLane ||
@@ -75,17 +78,18 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
                     (v.m_ViaLane2 != Entity.Null ? nav.Length < 3 || nav[0].m_Lane != v.m_ViaLane || nav[1].m_Lane != v.m_ViaLane2 || nav[2].m_Lane != v.m_NextLane :
                         v.m_ViaLane == Entity.Null ? nav.Length == 0 || nav[0].m_Lane != v.m_NextLane :
                         nav.Length < 2 || nav[0].m_Lane != v.m_ViaLane || nav[1].m_Lane != v.m_NextLane))
-                { Counters[14]++; continue; }
-                if (EmergencyProtection && EnforcementPolicy.IsExempt(v.m_Category)) { Counters[12]++; continue; }
-                if (ByVehicle.ContainsKey(v.m_Vehicle)) { Counters[10]++; continue; }
-                if (Attempts.Length >= MaxAttempts) { Counters[17]++; continue; }
-                if (!Destinations.TryGetComponent(v.m_Vehicle, out var destination) || destination.m_Target == Entity.Null) continue;
+                { Counters[14]++; Trace(v.m_Vehicle, 2); continue; }
+                if (EmergencyProtection && EnforcementPolicy.IsExempt(v.m_Category)) { Counters[12]++; Trace(v.m_Vehicle, 3); continue; }
+                if (ByVehicle.ContainsKey(v.m_Vehicle)) { Counters[10]++; Trace(v.m_Vehicle, 4); continue; }
+                if (Attempts.Length >= MaxAttempts) { Counters[17]++; Trace(v.m_Vehicle, 5); continue; }
+                if (!Destinations.TryGetComponent(v.m_Vehicle, out var destination) || destination.m_Target == Entity.Null)
+                { Trace(v.m_Vehicle, 6); continue; }
                 if (Frame - Counters[16] >= 64) { Counters[16] = Frame; Counters[18] = 0; }
-                if (Counters[18] >= 4) { Counters[15]++; continue; }
-                if (!Owners.TryGetComponent(v.m_Vehicle, out var owner) || !EnforcementPolicy.CanRequestReroute(owner.m_State)) { Counters[11]++; continue; }
+                if (Counters[18] >= 4) { Counters[15]++; Trace(v.m_Vehicle, 7); continue; }
+                if (!Owners.TryGetComponent(v.m_Vehicle, out var owner) || !EnforcementPolicy.CanRequestReroute(owner.m_State)) { Counters[11]++; Trace(v.m_Vehicle, 8); continue; }
                 var before = owner.m_State; owner.m_State |= PathFlags.Obsolete; Owners[v.m_Vehicle] = owner;
                 ByVehicle.TryAdd(v.m_Vehicle, Attempts.Length);
-                Attempts.Add(new EnforcementAttempt { Vehicle = v.m_Vehicle, Target = v.m_Target, GateEntryLane = v.m_EntryLane, ViaLane = v.m_ViaLane,
+                Attempts.Add(new EnforcementAttempt { Vehicle = v.m_Vehicle, PhysicalVehicle = v.m_PhysicalVehicle, Target = v.m_Target, GateEntryLane = v.m_EntryLane, ViaLane = v.m_ViaLane,
                     ViaLane2 = v.m_ViaLane2,
                     OwnedLane = v.m_NextLane, MatchedPrefab = v.m_MatchedPrefab, Generation = ++Generations[0],
                     RestrictionRevision = Revision, OriginalPathState = before, WrittenPathState = owner.m_State,
@@ -95,6 +99,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
                     Forward = current.m_CurvePosition.z > current.m_CurvePosition.x,
                     Backend = EnforcementBackend.Road, State = EnforcementAttemptState.Requested, Category = v.m_Category });
                 Counters[5]++; Counters[6]++; Counters[18]++;
+                Trace(v.m_Vehicle, 9);
             }
         }
     }
@@ -107,6 +112,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
     private SimulationSystem m_Simulation;
     private UpdateSystem m_Update;
     private JobHandle m_Work;
+    private Entity m_AdmissionTraceVehicle;
     public bool EnforcementEnabled { get; set; } = true;
     public int ActiveLeases => 0;
     public int ActiveAttempts { get; private set; }
@@ -130,6 +136,20 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         if (m_Update.currentPhase == SystemUpdatePhase.Serialize) { ReleaseAll(); return; }
         if (!m_Work.IsCompleted) return;
         m_Work.Complete(); ActiveAttempts = m_Attempts.Length;
+        if (m_AdmissionTraceVehicle != Entity.Null && m_AdmissionTraceVehicle == P0Diagnostics.Vehicle)
+            P0Diagnostics.Record("RoadAdmission", m_Counters[20] switch
+            {
+                1 => "SafetyNotSafe: see SafetyVerdict/SafetyReason",
+                2 => "ApproachInvalid: revision/age/current lane/lane change/navigation prefix",
+                3 => "IntentionalEmergencyProtectionExemption",
+                4 => "ExistingApproachRecord: see AttemptState; not a new request",
+                5 => "ActiveApproachCapacity64Reached",
+                6 => "NativeDestinationMissing",
+                7 => "AdmissionBudget4Per64SimulationFramesReached",
+                8 => "PathOwnerMissingOrVanillaRequireNewPathNotRequestable",
+                9 => "Admitted: one-shot Obsolete issued",
+                _ => "NoEvaluationForSelectedVehicleInThisCompletedBatch"
+            });
         foreach (var attempt in m_Attempts)
             if (attempt.Vehicle == P0Diagnostics.Vehicle && attempt.Target == P0Diagnostics.Target)
             {
@@ -145,12 +165,13 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         if (m_Index.ActiveTargetCount == 0 && m_Attempts.Length == 0) return;
         // EvaluationCount returns zero while fresh work is pending; use its deferred array/dependency.
         var evaluations = m_Safety.GetEvaluations(out var safetyDependency);
+        m_AdmissionTraceVehicle = P0Diagnostics.Vehicle;
         m_Work = new AdmitJob { Evaluations = evaluations, Entities = GetEntityStorageInfoLookup(), Deleted = GetComponentLookup<Deleted>(true),
             Temporary = GetComponentLookup<Temp>(true), Trains = GetComponentLookup<Train>(true), Current = GetComponentLookup<CarCurrentLane>(true),
             Navigation = GetBufferLookup<CarNavigationLane>(true), Owners = GetComponentLookup<PathOwner>(), Attempts = m_Attempts,
             Destinations = GetComponentLookup<Game.Common.Target>(true),
             ByVehicle = m_ByVehicle, Counters = m_Counters, Generations = m_Generations, Frame = m_Simulation.frameIndex, Revision = m_Index.Revision,
-            EmergencyProtection = Mod.Settings?.EmergencyProtection ?? true }.Schedule(JobHandle.CombineDependencies(Dependency, safetyDependency));
+            EmergencyProtection = Mod.Settings?.EmergencyProtection ?? true, TraceVehicle = m_AdmissionTraceVehicle }.Schedule(JobHandle.CombineDependencies(Dependency, safetyDependency));
         m_Safety.AddEvaluationReader(m_Work); Dependency = m_Work;
     }
     internal bool TryGetRequest(Entity vehicle, out EnforcementAttempt attempt)
@@ -261,12 +282,8 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         var forbidden = false;
         foreach (var item in restricted) if (item.m_Prefab == attempt.MatchedPrefab) forbidden = true;
         if (!forbidden) return false;
-        if (EntityManager.TryGetComponent(attempt.Vehicle, out PrefabRef prefab) && prefab.m_Prefab == attempt.MatchedPrefab) return true;
-        if (EntityManager.TryGetBuffer(attempt.Vehicle, true, out DynamicBuffer<LayoutElement> layout))
-            foreach (var part in layout)
-                if (ValidLive(part.m_Vehicle) && EntityManager.TryGetComponent(part.m_Vehicle, out PrefabRef partPrefab) &&
-                    partPrefab.m_Prefab == attempt.MatchedPrefab) return true;
-        return false;
+        return VehiclePrefabMatcher.StillMatches(attempt.PhysicalVehicle, attempt.Vehicle,
+            attempt.MatchedPrefab, EntityManager);
     }
     public void ReleaseAll()
     {

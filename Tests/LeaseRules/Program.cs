@@ -118,6 +118,9 @@ var liveAttempt = new EnforcementAttempt { Backend = EnforcementBackend.Road, Qu
     MatchedPrefab = new Unity.Entities.Entity { Index = 300 }, OwnedLane = new Unity.Entities.Entity { Index = 400 },
     GateEntryLane = new Unity.Entities.Entity { Index = 500 }, NativeDestination = new Unity.Entities.Entity { Index = 600 } };
 Check(EnforcementPolicy.OwnsRoadReceipt(liveAttempt, liveAttempt), "exact owned receipt is accepted");
+var changedPhysical = liveAttempt;
+changedPhysical.PhysicalVehicle = new Unity.Entities.Entity { Index = 987, Version = 1 };
+Check(!EnforcementPolicy.OwnsRoadReceipt(liveAttempt, changedPhysical), "road receipt cannot substitute physical prefab evidence");
 for (var variant = 0; variant < 8; variant++)
 {
     var stale = liveAttempt;

@@ -314,7 +314,9 @@ public sealed partial class RouteFilterUISystem : UISystemBase
                 parentId, info.IsTrailer ? 1 : 0));
         }
 
-        Mod.SelectedVehicleAssets.RemoveWhere(entity => !m_IdsByAsset.ContainsKey(entity));
+        // Catalog visibility is not the saved source of truth. A dirty/partial catalog must
+        // not silently turn an existing restriction into allow-all on the next Apply.
+        Mod.SelectedVehicleAssets.RemoveWhere(entity => !EntityManager.Exists(entity));
         m_AssetCatalogBinding.Update(string.Join("\n", lines));
         UpdateSelectedBinding();
 
@@ -327,6 +329,8 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     private static string Format(float value) => value.ToString("0.##", CultureInfo.InvariantCulture);
 
+    internal bool ContainsCatalogPrefab(Entity prefab) => m_IdsByAsset.ContainsKey(prefab);
+
     private void LoadSelectedTargetAssets(Entity target)
     {
         Mod.SelectedVehicleAssets.Clear();
@@ -334,7 +338,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
             EntityManager.TryGetBuffer(target, true, out DynamicBuffer<Components.RestrictedVehicleAssetV1> assets))
         {
             foreach (var asset in assets)
-                if (asset.m_Prefab != Entity.Null && m_IdsByAsset.ContainsKey(asset.m_Prefab))
+                if (asset.m_Prefab != Entity.Null && EntityManager.Exists(asset.m_Prefab))
                     Mod.SelectedVehicleAssets.Add(asset.m_Prefab);
         }
         UpdateSelectedBinding();

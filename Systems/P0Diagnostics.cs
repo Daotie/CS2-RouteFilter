@@ -70,7 +70,7 @@ internal static class P0Diagnostics
         s_PhysicalVehicle = selected;
         for (var i = 0; i < 4 && manager.Exists(selected) && manager.TryGetComponent(selected, out Controller controller)
             && controller.m_Controller != Entity.Null && controller.m_Controller != selected; i++) selected = controller.m_Controller;
-        if (!manager.Exists(selected) || (!manager.HasComponent<CarCurrentLane>(selected) && !manager.HasBuffer<TrainNavigationLane>(selected))) return;
+        if (!manager.Exists(selected) || !manager.HasComponent<Vehicle>(selected)) return;
         Vehicle = selected; Target = Entity.Null; s_Pending.Clear(); s_Last.Clear(); s_Milestones.Clear();
         s_OwnedResult = s_ExpectedAlternative = s_NoPathConfirmed = false;
         foreach (var field in new[] { "DirectedGateMatched", "GateDirectionValid", "CandidateCreated", "CandidateRejected",
@@ -161,6 +161,22 @@ internal static class P0Diagnostics
         Record("PhysicalVehicle", s_PhysicalVehicle.ToString());
         Record("PhysicalPrefab", PrefabDescription(world, s_PhysicalVehicle));
         Record("Prefab", PrefabDescription(world, Vehicle));
+        Record("PhysicalComponents", ComponentDescription(manager, s_PhysicalVehicle));
+        Record("CanonicalComponents", ComponentDescription(manager, Vehicle));
+        var chain = new System.Text.StringBuilder();
+        var linked = s_PhysicalVehicle;
+        for (var depth = 0; depth <= 4 && manager.Exists(linked); depth++)
+        {
+            chain.Append(linked).Append(" -> ");
+            if (!manager.TryGetComponent(linked, out Controller controller) || controller.m_Controller == Entity.Null || controller.m_Controller == linked) break;
+            linked = controller.m_Controller;
+        }
+        Record("ControllerChain", chain.ToString());
+        if (manager.TryGetComponent(Vehicle, out Game.Vehicles.MaintenanceVehicle maintenance))
+            Record("NativeMaintenanceState", $"{maintenance.m_State}; vanilla skips RequireNewPath while TryWork/Working is set=" +
+                ((maintenance.m_State & (MaintenanceVehicleFlags.TryWork | MaintenanceVehicleFlags.Working)) != 0));
+        Record("EmergencyProtectionExemption", (Mod.Settings?.EmergencyProtection != false &&
+            (IsProtectedService(manager, Vehicle) || IsProtectedService(manager, s_PhysicalVehicle))).ToString());
         Record("TargetType", manager.HasComponent<Node>(Target) ? "Node" : manager.HasComponent<Game.Net.Edge>(Target) ? "Segment" : "InvalidTarget");
         Record("RestrictionRevision", index.Revision.ToString());
         if (manager.TryGetBuffer(Target, true, out DynamicBuffer<RestrictedVehicleAssetV1> restriction))
@@ -169,6 +185,7 @@ internal static class P0Diagnostics
             foreach (var item in restriction) names.Add(PrefabName(world, item.m_Prefab));
             Record("UIForbiddenPrefabs", string.Join(",", names));
         }
+        if (manager.TryGetComponent(s_PhysicalVehicle, out PrefabRef physicalPrefab)) prefabs.Add(physicalPrefab.m_Prefab);
         if (manager.TryGetComponent(Vehicle, out PrefabRef own)) prefabs.Add(own.m_Prefab);
         if (manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<LayoutElement> layout))
             for (var i = 0; i < layout.Length && i < 64; i++)
@@ -177,13 +194,22 @@ internal static class P0Diagnostics
         if (manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<LayoutElement> parts))
             for (var i = 0; i < parts.Length && i < 64; i++) layoutNames.Add(PrefabDescription(world, parts[i].m_Vehicle));
         Record("LayoutTrailerPrefabs", string.Join(",", layoutNames));
+        var catalog = world.GetExistingSystemManaged<RouteFilterUISystem>();
+        var catalogMatches = new List<string>(prefabs.Count);
+        foreach (var prefab in prefabs)
+            catalogMatches.Add($"{PrefabName(world, prefab)}:catalog={catalog?.ContainsCatalogPrefab(prefab)}:CarData={manager.HasComponent<CarData>(prefab)}");
+        Record("CatalogMatch", string.Join(";", catalogMatches));
         Record("ForbiddenPrefabMatch", index.TargetRestricts(Target, prefabs).ToString());
         Record("PrefabMatch", $"matched={index.TargetRestricts(Target, prefabs)} prefabs={string.Join(",", prefabs)} revision={index.Revision} dirty={Mod.RestrictionsDirty}");
         if (manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<TrainNavigationLane> railNavigation) &&
             manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<LayoutElement> railLayout) && railLayout.Length > 0 &&
             manager.TryGetComponent(railLayout[0].m_Vehicle, out TrainCurrentLane trainCurrent))
         { ObserveRail(world, trainCurrent); return; }
-        if (!manager.TryGetComponent(Vehicle, out CarCurrentLane current)) return;
+        Record("CarCurrentLanePresent", manager.HasComponent<CarCurrentLane>(Vehicle).ToString());
+        Record("CarNavigationLanePresent", manager.HasBuffer<CarNavigationLane>(Vehicle).ToString());
+        Record("PathOwnerPresent", manager.HasComponent<PathOwner>(Vehicle).ToString());
+        if (!manager.TryGetComponent(Vehicle, out CarCurrentLane current))
+        { Record("CandidateRejectReason", "RoadControllerMissing: selected canonical lacks CarCurrentLane"); return; }
         var next = Entity.Null;
         if (manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<CarNavigationLane> nav) && nav.Length > 0) next = nav[0].m_Lane;
         var gate = false;
@@ -290,20 +316,22 @@ internal static class P0Diagnostics
                 foreach (var item in objects)
                 {
                     if (--budget < 0) return;
-                    var truck = item.m_LaneObject;
-                    if (manager.TryGetComponent(truck, out Controller controller) && controller.m_Controller != Entity.Null) truck = controller.m_Controller;
+                    var physical = item.m_LaneObject;
+                    var truck = physical;
+                    for (var depth = 0; depth < 4 && manager.Exists(truck) && manager.TryGetComponent(truck, out Controller controller) &&
+                        controller.m_Controller != Entity.Null && controller.m_Controller != truck; depth++) truck = controller.m_Controller;
                     if (!manager.Exists(truck)) continue;
-                    var roadTruck = manager.HasComponent<CarCurrentLane>(truck) &&
-                        (manager.HasComponent<Game.Vehicles.CargoTransport>(truck) || manager.HasComponent<Game.Vehicles.DeliveryTruck>(truck));
+                    var roadTruck = manager.HasComponent<Car>(truck) && manager.HasComponent<CarCurrentLane>(truck);
                     var railConsist = manager.HasBuffer<TrainNavigationLane>(truck);
                     if (!roadTruck && !railConsist) continue;
                     var prefabs = new List<Entity>(8);
+                    if (manager.TryGetComponent(physical, out PrefabRef physicalPrefab)) prefabs.Add(physicalPrefab.m_Prefab);
                     if (manager.TryGetComponent(truck, out PrefabRef prefab)) prefabs.Add(prefab.m_Prefab);
                     if (manager.TryGetBuffer(truck, true, out DynamicBuffer<LayoutElement> layout))
                         for (var p = 0; p < layout.Length && p < 64; p++)
                             if (manager.TryGetComponent(layout[p].m_Vehicle, out PrefabRef part)) prefabs.Add(part.m_Prefab);
                     if (!index.TargetRestricts(Target, prefabs)) continue;
-                    var selectedTarget = Target; Arm(world, truck); Target = selectedTarget;
+                    var selectedTarget = Target; Arm(world, physical); Target = selectedTarget;
                     Milestone("PrefabMatch", $"matched=True prefabs={string.Join(",", prefabs)} revision={index.Revision}; target-local diagnostic pick");
                     return;
                 }
@@ -340,6 +368,20 @@ internal static class P0Diagnostics
     }
     private static string PrefabDescription(World world, Entity vehicle) =>
         world.EntityManager.Exists(vehicle) && world.EntityManager.TryGetComponent(vehicle, out PrefabRef prefab) ? PrefabName(world, prefab.m_Prefab) : "PrefabRefMissing";
+
+    private static bool IsProtectedService(EntityManager manager, Entity vehicle) => manager.Exists(vehicle) &&
+        (manager.HasComponent<Game.Vehicles.PoliceCar>(vehicle) || manager.HasComponent<Game.Vehicles.Ambulance>(vehicle) ||
+         manager.HasComponent<Game.Vehicles.FireEngine>(vehicle) || manager.HasComponent<Game.Vehicles.Hearse>(vehicle));
+
+    // One selected vehicle, once per real second. Never used for discovery or admission.
+    private static string ComponentDescription(EntityManager manager, Entity vehicle)
+    {
+        if (!manager.Exists(vehicle)) return "EntityMissing";
+        using var types = manager.GetComponentTypes(vehicle, Unity.Collections.Allocator.Temp);
+        var text = new System.Text.StringBuilder();
+        foreach (var type in types) text.Append(type.GetManagedType()?.FullName).Append(';');
+        return text.ToString();
+    }
 
     private static bool PathCrossesTarget(World world, DynamicBuffer<PathElement> path)
     {
