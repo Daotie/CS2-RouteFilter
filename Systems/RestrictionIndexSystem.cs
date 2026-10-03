@@ -272,6 +272,25 @@ public sealed partial class RestrictionIndexSystem : GameSystemBase
         var internalLanes = topology.InternalLanesFor(node);
         foreach (var traversal in m_InternalTraversals) internalLanes.Add(traversal.Lane);
 
+        // A straight-through highway node may have no node-owned connector lanes.
+        // Its adjacent edge lanes join directly on the SAME native PathNode at this node.
+        // Only exact directed connections qualify; adjacency alone never creates a gate.
+        if (internalLanes.Count == 0)
+        {
+            foreach (var inbound in m_AdjacentTraversals)
+            foreach (var outbound in m_AdjacentTraversals)
+            {
+                if (inbound.Owner == outbound.Owner || inbound.To.GetOwnerIndex() != node.Index ||
+                    !inbound.To.Equals(outbound.From)) continue;
+                AddGate(topology, new DirectedEntryGate { m_EntryLane = inbound.Lane,
+                    m_NextLane = outbound.Lane, m_Target = node, m_EntryDirection = inbound.Direction,
+                    m_NextDirection = outbound.Direction, m_TargetEndpoint = RestrictionEndpoint.None });
+                // Query-local exclusion of the outbound edge prevents this directed crossing.
+                // It never changes the physical lane or another vehicle's query.
+                internalLanes.Add(outbound.Lane);
+                topology.OutboundLanesFor(node).Add(outbound.Lane);
+            }
+        }
         if (internalLanes.Count == 0)
             AddAmbiguity(topology, node, node, Entity.Null,
                 RestrictionTopologyAmbiguityReason.NoRoadInternalLanes);
@@ -580,6 +599,26 @@ public sealed partial class RestrictionIndexSystem : GameSystemBase
                 builder.Append("- Lane ").Append(FormatEntity(ambiguity.m_Lane))
                     .Append("; Related=").Append(FormatEntity(ambiguity.m_RelatedLane))
                     .Append("; Reason=").Append(ambiguity.m_Reason).AppendLine();
+            }
+            if (type == RestrictionTopologyTargetType.Node && !gates.Any() &&
+                EntityManager.TryGetBuffer(item, true, out DynamicBuffer<ConnectedEdge> connected))
+            {
+                builder.AppendLine("Local connection evidence (bounded, only this target):");
+                var rows = 0;
+                foreach (var edge in connected)
+                {
+                    if (!EntityManager.TryGetBuffer(edge.m_Edge, true, out DynamicBuffer<SubLane> lanes)) continue;
+                    foreach (var sub in lanes)
+                    {
+                        if (rows >= 64 || !EntityManager.HasComponent<CarLane>(sub.m_SubLane) ||
+                            !TryGetConnectionLane(sub.m_SubLane, out Lane lane)) continue;
+                        rows++;
+                        builder.Append("- lane=").Append(FormatEntity(sub.m_SubLane)).Append(" owner=").Append(FormatEntity(edge.m_Edge))
+                            .Append(" from=").Append(lane.m_StartNode.GetOwnerIndex()).Append('/').Append(lane.m_StartNode.GetLaneIndex())
+                            .Append('/').Append(lane.m_StartNode.GetCurvePos()).Append(" to=").Append(lane.m_EndNode.GetOwnerIndex())
+                            .Append('/').Append(lane.m_EndNode.GetLaneIndex()).Append('/').Append(lane.m_EndNode.GetCurvePos()).AppendLine();
+                    }
+                }
             }
         }
         return builder.ToString();

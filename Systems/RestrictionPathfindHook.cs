@@ -45,6 +45,8 @@ internal static unsafe class RestrictionPathfindHook
     private sealed class Transaction
     {
         internal NativeArray<Entity> Lanes;
+        internal NativeArray<Entity> GraphLanes;
+        internal EnforcementAttempt Attempt;
         // claim, applied edges, restored edges, conflicts, alternative, fallback, cancel
         internal NativeArray<int> State;
         internal NativeArray<EdgeID> Edges;
@@ -60,7 +62,8 @@ internal static unsafe class RestrictionPathfindHook
         internal object System;
         internal PathEventData EventData;
         internal bool WantsEvent, Scheduled, HighPriority, Rail;
-        internal void Dispose() { Lanes.Dispose(); State.Dispose(); Edges.Dispose(); Originals.Dispose(); }
+        internal bool ExactNoRouteScope;
+        internal void Dispose() { Lanes.Dispose(); GraphLanes.Dispose(); State.Dispose(); Edges.Dispose(); Originals.Dispose(); }
     }
 
     // Managed job deliberately preserves finally semantics if the native query throws.
@@ -70,6 +73,7 @@ internal static unsafe class RestrictionPathfindHook
     {
         public NativePathfindData Graph;
         [ReadOnly] public NativeArray<Entity> Lanes;
+        [ReadOnly] public NativeArray<Entity> GraphLanes;
         [NativeDisableContainerSafetyRestriction] public NativeArray<int> State;
         [NativeDisableContainerSafetyRestriction] public NativeArray<EdgeID> Edges;
         [NativeDisableContainerSafetyRestriction] public NativeArray<PathMethod> Originals;
@@ -77,6 +81,8 @@ internal static unsafe class RestrictionPathfindHook
         public PathfindHeuristicData Heuristic;
         public float PassengerSpeed, CargoSpeed;
         public uint Seed;
+        public bool Road;
+        public bool ExactNoRouteScope;
         public void SetPathfindData(NativePathfindData data) => Graph = data;
 
         public void Execute()
@@ -87,14 +93,24 @@ internal static unsafe class RestrictionPathfindHook
             // A target can have primary and taxi/secondary edges. The overlay modifies methods
             // only; all connections, costs, rules and access authorizations are left unchanged.
             var count = 0;
+            var completeExclusion = ReadState(6) == 0;
+            var validEndpoints = ValidTargets(ref graph, Action->m_StartTargets) && ValidTargets(ref graph, Action->m_EndTargets);
+            var proof = new RoadQueryProof { ValidEndpoints = validEndpoints, ExactNoRouteScope = ExactNoRouteScope };
             try
             {
                 if (ReadState(6) == 0)
                     for (var i = 0; i < Lanes.Length; i++)
                     {
                         if (Lanes[i] == Entity.Null) continue;
-                        if (graph.GetEdge(Lanes[i], out var primary)) Exclude(ref graph, primary, ref count);
-                        if (graph.GetSecondaryEdge(Lanes[i], out var secondary)) Exclude(ref graph, secondary, ref count);
+                        if (graph.GetEdge(GraphLanes[i], out var primary))
+                        {
+                            var alreadyOwned = false;
+                            for (var e = 0; e < count; e++) if (Edges[e].Equals(primary)) alreadyOwned = true;
+                            if (!alreadyOwned && graph.GetEdge(primary).m_Specification.m_Methods == 0) completeExclusion = false;
+                            Exclude(ref graph, primary, ref count);
+                        }
+                        else completeExclusion = false;
+                        if (graph.GetSecondaryEdge(GraphLanes[i], out var secondary)) Exclude(ref graph, secondary, ref count);
                     }
                 State[1] = count;
                 // The original vanilla request supplies endpoints, weights, methods and flags.
@@ -104,9 +120,19 @@ internal static unsafe class RestrictionPathfindHook
                 var avoidsTarget = Action->m_Path.Length > 0;
                 for (var p = 0; count > 0 && avoidsTarget && p < Action->m_Path.Length; p++)
                     for (var lane = 0; lane < Lanes.Length; lane++)
-                        if (Lanes[lane] != Entity.Null && Action->m_Path[p].m_Target == Lanes[lane])
+                        if (Lanes[lane] != Entity.Null && (Action->m_Path[p].m_Target == Lanes[lane] ||
+                            Action->m_Path[p].m_Target == GraphLanes[lane]))
                         { avoidsTarget = false; break; }
-                if (count > 0 && !avoidsTarget) { Action->m_Path.Clear(); Action->m_Result.Clear(); }
+                proof.QueryCompleted = true;
+                proof.AvoidsTarget = avoidsTarget;
+                proof.EmptyPath = Action->m_Path.Length == 0;
+                // Game 1.6 returns -1 on heap exhaustion, float.MaxValue on cost cutoff.
+                // Missing/invalid endpoints, error codes and ignored paths are never no-route proof.
+                proof.SearchExhausted = proof.EmptyPath && Action->m_Result.Length == 1 &&
+                    Action->m_Result[0].m_ErrorCode == ErrorCode.None && Action->m_Result[0].m_TotalCost == -1f &&
+                    Action->m_Result[0].m_GraphTraversal > 0 &&
+                    (Action->m_Parameters.m_PathfindFlags & (PathfindFlags.IgnorePath | PathfindFlags.SkipPathfind)) == 0;
+                if (count > 0 && !avoidsTarget && !proof.EmptyPath) { Action->m_Path.Clear(); Action->m_Result.Clear(); }
                 State[4] = avoidsTarget && count > 0 ? 1 : 0;
             }
             catch (Exception) { State[7] = 1; }
@@ -121,16 +147,53 @@ internal static unsafe class RestrictionPathfindHook
                     else State[3]++; // External/unknown write: never overwrite it.
                 }
             }
+            proof.CompleteExclusion = completeExclusion && count > 0;
+            proof.Cancelled = ReadState(6) != 0;
+            proof.Exception = State[7] != 0;
+            proof.RestoreConflict = State[3] != 0 || State[2] != count;
+            var baselineExecuted = false;
+            var excludedResult = Action->m_Result.Length > 0 ? Action->m_Result[0] : default;
+            if (Road && proof.ExactNoRouteScope && proof.EmptyPath && proof.SearchExhausted && proof.CompleteExclusion &&
+                proof.ValidEndpoints && !proof.Cancelled && !proof.Exception && !proof.RestoreConflict)
+            {
+                // Counterfactual proof: the SAME original native request must succeed and cross
+                // the excluded target without our overlay. A pre-existing unreachable destination
+                // or overbroad exclusion must never be attributed to RouteFilter for deletion.
+                Action->m_Path.Clear(); Action->m_Result.Clear(); baselineExecuted = true;
+                try
+                {
+                    PathfindJobs.PathfindJob.Execute(Graph, Allocator.Temp, new Unity.Mathematics.Random(Seed),
+                        Heuristic, PassengerSpeed, CargoSpeed, ref *Action);
+                    if (Action->m_Result.Length > 0 && Action->m_Result[0].m_ErrorCode == ErrorCode.None &&
+                        Action->m_Result[0].m_TotalCost >= 0 && Action->m_Path.Length > 0)
+                        for (var p = 0; p < Action->m_Path.Length && !proof.BaselineCrossesTarget; p++)
+                            for (var lane = 0; lane < Lanes.Length; lane++)
+                                if (Lanes[lane] != Entity.Null && (Action->m_Path[p].m_Target == Lanes[lane] ||
+                                    Action->m_Path[p].m_Target == GraphLanes[lane])) { proof.BaselineCrossesTarget = true; break; }
+                }
+                catch (Exception)
+                {
+                    State[7] = 3; proof.Exception = true;
+                    Action->m_Path.Clear(); Action->m_Result.Clear();
+                }
+            }
+            proof.Cancelled = ReadState(6) != 0;
+            var outcome = EnforcementPolicy.ClassifyRoadQuery(proof);
+            if (Road && outcome == RoadQueryOutcome.ConfirmedNoAlternative)
+            { Action->m_Path.Clear(); Action->m_Result.Clear(); Action->m_Result.Add(excludedResult); }
+            State[8] = proof.CompleteExclusion ? 1 : 0;
+            State[9] = (int)outcome;
+            State[10] = proof.BaselineCrossesTarget ? 1 : 0;
             // A single bounded grandfather query prevents a failed exclusion from discarding the
             // original path and stranding a vehicle. This is the SAME native request, not another
             // Obsolete write or an attempt retry. The graph is already restored for this fallback.
-            if ((Action->m_Path.Length == 0 && State[1] > 0) || State[7] != 0)
+            if (Road ? outcome == RoadQueryOutcome.EnforcementUncertain :
+                (Action->m_Path.Length == 0 && State[1] > 0) || State[7] != 0)
             {
-                Action->m_Result.Clear();
-                Action->m_Path.Clear();
                 State[5] = 1;
-                try
+                if (!baselineExecuted) try
                 {
+                    Action->m_Result.Clear(); Action->m_Path.Clear();
                     PathfindJobs.PathfindJob.Execute(Graph, Allocator.Temp, new Unity.Mathematics.Random(Seed),
                         Heuristic, PassengerSpeed, CargoSpeed, ref *Action);
                 }
@@ -145,7 +208,27 @@ internal static unsafe class RestrictionPathfindHook
             if (Action->m_Result.Length == 0)
                 Action->m_Result.Add(new PathfindResult { m_Distance = -1, m_Duration = -1, m_TotalCost = -1 });
             Interlocked.MemoryBarrier();
-            Action->m_State = PathfindActionState.Completed;
+            // Hold this exact no-route result until the coordinator revalidates ownership and
+            // queues vanilla deletion. Ordinary Failed flags can never enter this handshake.
+            Action->m_State = Road && outcome == RoadQueryOutcome.ConfirmedNoAlternative ?
+                PathfindActionState.Pending : PathfindActionState.Completed;
+        }
+
+        private bool ValidTargets(ref UnsafePathfindData graph, UnsafeList<PathTarget> targets)
+        {
+            if (targets.Length == 0) return false;
+            var usable = false;
+            for (var i = 0; i < targets.Length; i++)
+            {
+                var target = targets[i];
+                if (!math.isfinite(target.m_Cost) || !math.isfinite(target.m_Delta) || target.m_Delta < 0 || target.m_Delta > 1) return false;
+                EdgeID edge;
+                var exists = (target.m_Flags & EdgeFlags.Secondary) != 0 ?
+                    graph.GetSecondaryEdge(target.m_Entity, out edge) : graph.GetEdge(target.m_Entity, out edge);
+                if (exists && (target.m_Flags & (EdgeFlags.Forward | EdgeFlags.Backward)) != 0 &&
+                    (graph.GetEdge(edge).m_Specification.m_Methods & Action->m_Parameters.m_Methods) != 0) usable = true;
+            }
+            return usable;
         }
 
         private int ReadState(int index) => Volatile.Read(ref UnsafeUtility.ArrayElementAsRef<int>(NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(State), index));
@@ -291,7 +374,28 @@ internal static unsafe class RestrictionPathfindHook
         var hasGate = false;
         for (var i = 0; i < count; i++) if (lanes[i] == attempt.OwnedLane) hasGate = true;
         if (!hasGate) { lanes.Dispose(); return Refused(owner, "imminent gate lane absent from exclusion set"); }
-        var transaction = new Transaction { Lanes = lanes, State = new NativeArray<int>(8, Allocator.Persistent),
+        var graphLanes = new NativeArray<Entity>(lanes.Length, Allocator.Persistent);
+        var exactNoRouteScope = true;
+        for (var i = 0; i < count; i++)
+        {
+            graphLanes[i] = lanes[i];
+            // A direct node join uses its outbound edge. Excluding a two-way outbound edge
+            // could also remove legal access from its far end, so failure is not no-route proof.
+            if (!isRail && manager.HasComponent<Node>(attempt.Target) &&
+                manager.TryGetComponent(lanes[i], out Game.Common.Owner scopeOwner) && scopeOwner.m_Owner != attempt.Target &&
+                manager.TryGetComponent(lanes[i], out CarLane scopeLane) && (scopeLane.m_Flags & Game.Net.CarLaneFlags.Twoway) != 0)
+                exactNoRouteScope = false;
+            if (!isRail && manager.TryGetComponent(lanes[i], out SlaveLane slave) &&
+                manager.TryGetComponent(lanes[i], out Game.Common.Owner laneOwner) &&
+                manager.TryGetBuffer(laneOwner.m_Owner, true, out DynamicBuffer<SubLane> ownerLanes) && slave.m_MasterIndex < ownerLanes.Length)
+            {
+                var master = ownerLanes[slave.m_MasterIndex].m_SubLane;
+                if (manager.HasComponent<MasterLane>(master)) graphLanes[i] = master;
+            }
+        }
+        var transaction = new Transaction { Lanes = lanes, GraphLanes = graphLanes, Attempt = attempt,
+            ExactNoRouteScope = exactNoRouteScope,
+            State = new NativeArray<int>(11, Allocator.Persistent),
             Edges = new NativeArray<EdgeID>(256, Allocator.Persistent), Originals = new NativeArray<PathMethod>(256, Allocator.Persistent),
             Target = attempt.Target, Revision = index.Revision, Expiry = attempt.AbsoluteDeadlineFrame,
             Queue = queue, Action = action, Owner = owner, ResultFrame = resultFrame, System = system,
@@ -341,7 +445,8 @@ internal static unsafe class RestrictionPathfindHook
         var results = queue.GetPathfindActions();
         // Reserve before starting native work; insertion below must not allocate afterwards.
         if (results.m_Items.Capacity < results.m_Items.Count + 1) results.m_Items.Capacity = results.m_Items.Count + 8;
-        var job = new QueryTransactionJob { Lanes = transaction.Lanes, State = transaction.State,
+        var job = new QueryTransactionJob { Lanes = transaction.Lanes, GraphLanes = transaction.GraphLanes, Road = !transaction.Rail,
+            ExactNoRouteScope = transaction.ExactNoRouteScope, State = transaction.State,
             Edges = transaction.Edges, Originals = transaction.Originals,
             Action = (PathfindActionData*)transaction.Action.m_Data.GetUnsafePtr(), Heuristic = heuristic,
             PassengerSpeed = passenger, CargoSpeed = cargo, Seed = math.max(1u, frame ^ (uint)transaction.Owner.Index) };
@@ -386,8 +491,38 @@ internal static unsafe class RestrictionPathfindHook
                 Interlocked.Exchange(ref UnsafeUtility.ArrayElementAsRef<int>(NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(transaction.State), 6), 1);
             if (!transaction.Scheduled || !transaction.Handle.IsCompleted) continue;
             transaction.Handle.Complete();
+            if (!transaction.Rail)
+            {
+                var outcome = (RoadQueryOutcome)transaction.State[9];
+                var heldNoRoute = outcome == RoadQueryOutcome.ConfirmedNoAlternative;
+                if (heldNoRoute && !OwnsHeldQueueItem(transaction))
+                {
+                    // No ownership proof: do not dereference/requeue/delete an action vanilla
+                    // may have transferred elsewhere. Only our scratch arrays are disposed.
+                    if (transaction.Owner == P0Diagnostics.Vehicle) P0Diagnostics.Milestone("PathResult", "terminal=Grandfathered; held action no longer owned by exact native queue item");
+                    transaction.Dispose(); s_Transactions[i] = null; continue;
+                }
+                if (transaction.State[6] != 0) outcome = RoadQueryOutcome.EnforcementUncertain;
+                var road = liveWorld ? s_World.GetExistingSystemManaged<RoadEnforcementCoordinator>() : null;
+                var accepted = RoadQueryOutcome.EnforcementUncertain;
+                if (road != null && !road.ConsumeOwnedResult(transaction.Attempt, outcome, out accepted)) continue;
+                if (heldNoRoute)
+                {
+                    // Only held actions may be accessed here; vanilla may have disposed other results.
+                    if (accepted == RoadQueryOutcome.ConfirmedNoAlternative)
+                        transaction.Action.data.m_State = PathfindActionState.Completed;
+                    else
+                    {
+                        transaction.Action.data.m_Result.Clear(); transaction.Action.data.m_Path.Clear();
+                        transaction.Action.data.m_State = PathfindActionState.Pending;
+                        RoadFallbacks++; Fallbacks++;
+                        if (transaction.Owner == P0Diagnostics.Vehicle) P0Diagnostics.Record("PathResult", "terminal=Grandfathered; no-route receipt ownership/revision/lifecycle revalidation failed");
+                        ReturnToNative(transaction); continue;
+                    }
+                }
+            }
             if (transaction.Owner == P0Diagnostics.Vehicle)
-                P0Diagnostics.Record("GraphMutation", $"applied={transaction.State[1]} restored={transaction.State[2]} conflicts={transaction.State[3]} alternative={transaction.State[4]} fallback={transaction.State[5]} exception={transaction.State[7]}");
+                P0Diagnostics.Record("GraphMutation", $"generation={transaction.Attempt.Generation} applied={transaction.State[1]} restored={transaction.State[2]} conflicts={transaction.State[3]} completeExclusion={transaction.State[8]} baselineCrossesTarget={transaction.State[10]} alternative={transaction.State[4]} fallback={transaction.State[5]} exception={transaction.State[7]}");
             Applied += (uint)transaction.State[1];
             Restored += (uint)transaction.State[2]; Conflicts += (uint)transaction.State[3];
             Alternatives += (uint)transaction.State[4]; Fallbacks += (uint)transaction.State[5];
@@ -418,6 +553,21 @@ internal static unsafe class RestrictionPathfindHook
 
     private static void ReturnToNative(Transaction transaction)
     {
+        if (transaction.Scheduled)
+        {
+            // The held no-route Action is already in the scheduled portion of this same list.
+            // Transfer that ONE item back to native scheduling; never enqueue a second owner
+            // of the same unsafe Action buffers.
+            var list = transaction.Queue.GetPathfindActions();
+            var found = false;
+            for (var i = 0; i < list.m_NextIndex; i++)
+            {
+                var item = list.m_Items[i];
+                if (item.m_Owner != transaction.Owner || item.m_Action.m_Data.GetUnsafePtr() != transaction.Action.m_Data.GetUnsafePtr()) continue;
+                list.m_Items.RemoveAt(i); list.m_NextIndex--; found = true; break;
+            }
+            if (!found) throw new InvalidOperationException("Held RouteFilter action lost queue ownership; refusing duplicate enqueue");
+        }
         if (transaction.WantsEvent) transaction.Queue.Enqueue(transaction.Action, transaction.Owner,
             default, transaction.ResultFrame, transaction.System, transaction.EventData, transaction.HighPriority);
         else transaction.Queue.Enqueue(transaction.Action, transaction.Owner, default,
@@ -425,6 +575,19 @@ internal static unsafe class RestrictionPathfindHook
         for (var i = 0; i < s_Transactions.Length; i++)
             if (s_Transactions[i] == transaction) s_Transactions[i] = null;
         transaction.Dispose();
+    }
+
+    private static bool OwnsHeldQueueItem(Transaction transaction)
+    {
+        var list = transaction.Queue.GetPathfindActions();
+        for (var i = 0; i < list.m_NextIndex; i++)
+        {
+            var item = list.m_Items[i];
+            if (item.m_Owner == transaction.Owner && item.m_ResultFrame == transaction.ResultFrame &&
+                item.m_System == transaction.System && (item.m_Flags & PathFlags.Scheduled) != 0 &&
+                item.m_Action.m_Data.GetUnsafePtr() == transaction.Action.m_Data.GetUnsafePtr()) return true;
+        }
+        return false;
     }
 
     internal static void ResetCounters()

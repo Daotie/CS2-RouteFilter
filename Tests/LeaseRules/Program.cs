@@ -80,6 +80,66 @@ Check(!EnforcementPolicy.IsExpectedSetup(setup, PathFlags.Pending | PathFlags.Up
 Check(!EnforcementPolicy.IsExpectedSetup(setup, PathFlags.Pending | PathFlags.Append), "append is not our setup");
 Check(!EnforcementPolicy.IsExpectedSetup(setup, PathFlags.Obsolete), "query has not consumed our request");
 
+// ROAD-NO-ALTERNATIVE-001 / 无合法出口：仅完整、归属正确的耗尽查询允许移除。
+var exhausted = new RoadQueryProof { CompleteExclusion = true, ValidEndpoints = true,
+    QueryCompleted = true, EmptyPath = true, SearchExhausted = true, BaselineCrossesTarget = true, ExactNoRouteScope = true };
+Check(EnforcementPolicy.ClassifyRoadQuery(exhausted) == RoadQueryOutcome.ConfirmedNoAlternative,
+    "ROAD-NO-ALTERNATIVE-001: owned exhaustive exclusion has a distinct no-route terminal");
+// ROAD-ALTERNATIVE-001 / 有替代道路：成功路径必须绕开目标，不能进入删除终态。
+var alternative = exhausted; alternative.EmptyPath = false; alternative.AvoidsTarget = true;
+Check(EnforcementPolicy.ClassifyRoadQuery(alternative) == RoadQueryOutcome.AlternativePathFound,
+    "ROAD-ALTERNATIVE-001: an avoiding path is rerouted, never removed");
+var crossingPath = alternative; crossingPath.AvoidsTarget = false;
+Check(EnforcementPolicy.ClassifyRoadQuery(crossingPath) == RoadQueryOutcome.EnforcementUncertain,
+    "ROAD-ALTERNATIVE-001: a path still crossing the target is not alternative/no-route evidence");
+// ROAD-UNCERTAIN-001 / 证据不足：费用截断、无效端点、不完整排除、异常、冲突全部放行。
+for (var variant = 0; variant < 10; variant++)
+{
+    var uncertain = exhausted;
+    switch (variant)
+    {
+        case 0: uncertain.CompleteExclusion = false; break;
+        case 1: uncertain.ValidEndpoints = false; break;
+        case 2: uncertain.QueryCompleted = false; break;
+        case 3: uncertain.SearchExhausted = false; break;
+        case 4: uncertain.Cancelled = true; break;
+        case 5: uncertain.Exception = true; break;
+        case 6: uncertain.RestoreConflict = true; break;
+        case 7: uncertain.EmptyPath = false; break;
+        case 8: uncertain.BaselineCrossesTarget = false; break;
+        case 9: uncertain.ExactNoRouteScope = false; break;
+    }
+    Check(EnforcementPolicy.ClassifyRoadQuery(uncertain) == RoadQueryOutcome.EnforcementUncertain,
+        $"ROAD-UNCERTAIN-001: insufficient proof variant {variant} must not delete");
+}
+var liveAttempt = new EnforcementAttempt { Backend = EnforcementBackend.Road, QueryIntercepted = true,
+    Generation = 8, Vehicle = new Unity.Entities.Entity { Index = 100, Version = 2 },
+    Target = new Unity.Entities.Entity { Index = 200, Version = 3 }, RestrictionRevision = 9,
+    MatchedPrefab = new Unity.Entities.Entity { Index = 300 }, OwnedLane = new Unity.Entities.Entity { Index = 400 },
+    GateEntryLane = new Unity.Entities.Entity { Index = 500 }, NativeDestination = new Unity.Entities.Entity { Index = 600 } };
+Check(EnforcementPolicy.OwnsRoadReceipt(liveAttempt, liveAttempt), "exact owned receipt is accepted");
+for (var variant = 0; variant < 8; variant++)
+{
+    var stale = liveAttempt;
+    switch (variant)
+    {
+        case 0: stale.Generation++; break;
+        case 1: stale.Vehicle.Version++; break;
+        case 2: stale.Target.Version++; break;
+        case 3: stale.RestrictionRevision++; break;
+        case 4: stale.MatchedPrefab.Index++; break;
+        case 5: stale.OwnedLane.Index++; break;
+        case 6: stale.GateEntryLane.Index++; break;
+        case 7: stale.NativeDestination.Index++; break;
+    }
+    Check(!EnforcementPolicy.OwnsRoadReceipt(liveAttempt, stale), $"ROAD-UNCERTAIN-001: foreign receipt {variant}");
+}
+var endedAttempt = liveAttempt; endedAttempt.State = EnforcementAttemptState.Grandfathered;
+Check(!EnforcementPolicy.OwnsRoadReceipt(endedAttempt, liveAttempt), "ended attempt cannot accept a late no-route result");
+var notIntercepted = liveAttempt; notIntercepted.QueryIntercepted = false;
+Check(!EnforcementPolicy.OwnsRoadReceipt(notIntercepted, liveAttempt), "generic Failed/no intercepted query is never deletion evidence");
+Console.WriteLine("PASS: ROAD-NO-ALTERNATIVE-001 / ROAD-ALTERNATIVE-001 / ROAD-UNCERTAIN-001 policy and receipt fixtures. GAME TEST STILL REQUIRED.");
+
 Console.WriteLine("PASS: 65,536 lane ownership pairs, vanilla empty interval, exact expiry, frame wrap, " +
                   "ended ownership, acquire-only-on-empty, reroute admission against every PathFlags " +
                   "combination that matters, emergency exemption, exact PathOwner ownership and frame-wrap behaviour.");

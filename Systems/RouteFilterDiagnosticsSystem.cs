@@ -27,7 +27,7 @@ namespace RouteFilter.Systems;
 public sealed partial class RouteFilterDiagnosticsSystem : GameSystemBase
 {
     private const int kReportIntervalFrames = 300;
-    private const int kCounterSlots = 20;
+    private const int kCounterSlots = 21;
 
     private RoadEnforcementCoordinator m_Road = null!;
     private RailEnforcementBackend m_Rail = null!;
@@ -70,6 +70,7 @@ public sealed partial class RouteFilterDiagnosticsSystem : GameSystemBase
         public int RoadGraphMutations;
         public int RoadRefusedBudget;
         public int RoadGrandfathered;
+        public int RoadConfirmedNoAlternative;
         public int ActiveRoadLeases;
         public int ActiveRoadAttempts;
         public int RailWatchedEntryLanes;
@@ -157,6 +158,7 @@ public sealed partial class RouteFilterDiagnosticsSystem : GameSystemBase
             RoadLeasesReasserted = Delta(m_RoadCounters, m_RoadPrevious, 2),
             RoadRefusedBudget = Delta(m_RoadCounters, m_RoadPrevious, 15),
             RoadGrandfathered = Delta(m_RoadCounters, m_RoadPrevious, 19),
+            RoadConfirmedNoAlternative = Delta(m_RoadCounters, m_RoadPrevious, 20),
             ActiveRoadLeases = m_Road.ActiveLeases,
             ActiveRoadAttempts = m_Road.ActiveAttempts,
             RailWatchedEntryLanes = m_Rail.WatchedEntryLanes,
@@ -191,7 +193,7 @@ public sealed partial class RouteFilterDiagnosticsSystem : GameSystemBase
            $"roadUnknown={value.RoadUnknown} roadReroutes={value.RoadReroutesRequested} " +
            $"roadLeases={value.RoadLeasesAcquired}/{value.RoadLeasesReleased}/{value.RoadLeasesReasserted} " +
            $"roadGraphMutations={value.RoadGraphMutations} roadRefusedBudget={value.RoadRefusedBudget} " +
-           $"roadGrandfathered={value.RoadGrandfathered} roadActiveLeases={value.ActiveRoadLeases} " +
+           $"roadGrandfathered={value.RoadGrandfathered} roadConfirmedNoAlternative={value.RoadConfirmedNoAlternative} roadActiveLeases={value.ActiveRoadLeases} " +
            $"roadActiveAttempts={value.ActiveRoadAttempts} " +
            $"railWatchedLanes={value.RailWatchedEntryLanes} railLaneObjects={value.RailLaneObjectsScanned} " +
            $"railReroutes={value.RailReroutesRequested} railRefusedFixedRoute={value.RailRefusedFixedRoute} " +

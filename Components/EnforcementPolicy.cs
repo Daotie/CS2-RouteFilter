@@ -44,7 +44,18 @@ public enum EnforcementAttemptState : byte
     /// <summary>Vanilla reported Failed, Stuck, or kept Obsolete past the absolute deadline.</summary>
     Unresolved = 2,
     /// <summary>RouteFilter gave up before requesting anything; vehicle is grandfathere.</summary>
-    Grandfathered = 3
+    Grandfathered = 3,
+    Rerouted = 4,
+    ConfirmedNoAlternative = 5
+}
+
+/// <summary>Evidence from ONE owned native query, not the vehicle's generic PathOwner flags.</summary>
+public enum RoadQueryOutcome : byte { EnforcementUncertain, AlternativePathFound, ConfirmedNoAlternative }
+
+public struct RoadQueryProof
+{
+    public bool CompleteExclusion, ValidEndpoints, QueryCompleted, AvoidsTarget, EmptyPath;
+    public bool SearchExhausted, BaselineCrossesTarget, ExactNoRouteScope, Cancelled, Exception, RestoreConflict;
 }
 
 public enum EnforcementRefusalReason : byte
@@ -88,6 +99,8 @@ public struct EnforcementAttempt
     /// <summary>Imminent forbidden lane required in the query exclusion set. No physical blockage.</summary>
     public Entity OwnedLane;
     public Entity NativeDestination;
+    public Entity MatchedPrefab;
+    public ulong Generation;
     public float Braking, GeometryLength;
     public float TraversalEnd;
     public bool Forward;
@@ -130,6 +143,23 @@ public struct CanonicalApproachKey : IEquatable<CanonicalApproachKey>
 /// </summary>
 public static class EnforcementPolicy
 {
+    public static bool OwnsRoadReceipt(in EnforcementAttempt live, in EnforcementAttempt receipt)
+        => live.Backend == EnforcementBackend.Road && live.QueryIntercepted &&
+           live.State == EnforcementAttemptState.Requested && live.Generation != 0 &&
+           live.Generation == receipt.Generation && live.Vehicle == receipt.Vehicle &&
+           live.Target == receipt.Target && live.MatchedPrefab == receipt.MatchedPrefab &&
+           live.RestrictionRevision == receipt.RestrictionRevision && live.OwnedLane == receipt.OwnedLane &&
+           live.GateEntryLane == receipt.GateEntryLane && live.NativeDestination == receipt.NativeDestination;
+
+    public static RoadQueryOutcome ClassifyRoadQuery(in RoadQueryProof proof)
+    {
+        if (!proof.CompleteExclusion || !proof.ValidEndpoints || !proof.QueryCompleted ||
+            proof.Cancelled || proof.Exception || proof.RestoreConflict)
+            return RoadQueryOutcome.EnforcementUncertain;
+        if (proof.AvoidsTarget && !proof.EmptyPath) return RoadQueryOutcome.AlternativePathFound;
+        return proof.EmptyPath && proof.SearchExhausted && proof.BaselineCrossesTarget && proof.ExactNoRouteScope ? RoadQueryOutcome.ConfirmedNoAlternative :
+            RoadQueryOutcome.EnforcementUncertain;
+    }
     /// <summary>Wrap-safe expiry; no pending native request may extend the absolute deadline.</summary>
     public static bool HasExpired(uint frame, uint deadline) => unchecked((int)(frame - deadline)) >= 0;
 

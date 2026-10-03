@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Colossal.Entities;
 using Game.Pathfind;
+using Game.Net;
 using Game.Prefabs;
 using Game.Simulation;
 using Game.Vehicles;
@@ -107,6 +108,7 @@ internal static class P0Diagnostics
         var tool = world.GetExistingSystemManaged<RestrictionToolSystem>();
         if (tool?.SelectedTarget != Entity.Null && tool != null) Target = tool.SelectedTarget;
         var index = world.GetExistingSystemManaged<RestrictionIndexSystem>();
+        if (Vehicle == Entity.Null && Target != Entity.Null && index != null) ArmLocalForbiddenTruck(world, index);
         if (Target != Entity.Null && index != null && index.Revision != s_TopologyRevision)
         {
             s_TopologyRevision = index.Revision;
@@ -155,5 +157,42 @@ internal static class P0Diagnostics
         if (manager.TryGetComponent(Vehicle, out PathOwner owner))
             Record("PathResult", $"nativeState={owner.m_State} cursor={owner.m_ElementIndex}");
 
+    }
+
+    // Diagnostic pick only: at most 64 local LaneObjects, once per second, until ONE truck
+    // is locked. Works even when topology is empty, so a gate bug cannot hide the trace.
+    private static void ArmLocalForbiddenTruck(World world, RestrictionIndexSystem index)
+    {
+        var manager = world.EntityManager;
+        if (!manager.TryGetBuffer(Target, true, out DynamicBuffer<RestrictedVehicleAssetV1> restrictions) ||
+            restrictions.Length == 0 || !manager.TryGetBuffer(Target, true, out DynamicBuffer<ConnectedEdge> edges)) return;
+        var budget = 64;
+        var laneBudget = 64;
+        foreach (var edge in edges)
+        {
+            if (!manager.TryGetBuffer(edge.m_Edge, true, out DynamicBuffer<Game.Net.SubLane> lanes)) continue;
+            foreach (var lane in lanes)
+            {
+                if (--laneBudget < 0) return;
+                if (!manager.TryGetBuffer(lane.m_SubLane, true, out DynamicBuffer<LaneObject> objects)) continue;
+                foreach (var item in objects)
+                {
+                    if (--budget < 0) return;
+                    var truck = item.m_LaneObject;
+                    if (manager.TryGetComponent(truck, out Controller controller) && controller.m_Controller != Entity.Null) truck = controller.m_Controller;
+                    if (!manager.Exists(truck) || (!manager.HasComponent<Game.Vehicles.CargoTransport>(truck) && !manager.HasComponent<Game.Vehicles.DeliveryTruck>(truck)) ||
+                        !manager.HasComponent<CarCurrentLane>(truck)) continue;
+                    var prefabs = new List<Entity>(8);
+                    if (manager.TryGetComponent(truck, out PrefabRef prefab)) prefabs.Add(prefab.m_Prefab);
+                    if (manager.TryGetBuffer(truck, true, out DynamicBuffer<LayoutElement> layout))
+                        for (var p = 0; p < layout.Length && p < 64; p++)
+                            if (manager.TryGetComponent(layout[p].m_Vehicle, out PrefabRef part)) prefabs.Add(part.m_Prefab);
+                    if (!index.TargetRestricts(Target, prefabs)) continue;
+                    var selectedTarget = Target; Arm(world, truck); Target = selectedTarget;
+                    Milestone("PrefabMatch", $"matched=True prefabs={string.Join(",", prefabs)} revision={index.Revision}; target-local diagnostic pick");
+                    return;
+                }
+            }
+        }
     }
 }
