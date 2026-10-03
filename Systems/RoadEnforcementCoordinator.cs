@@ -209,6 +209,9 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
                         (part.m_Vehicle != attempt.Vehicle && (!EntityManager.TryGetComponent(part.m_Vehicle, out Controller partOwner) ||
                          partOwner.m_Controller != attempt.Vehicle))) return RefuseReceipt(captured, $"LayoutOwnershipInvalid part={part.m_Vehicle} canonical={attempt.Vehicle}");
             var commands = World.GetOrCreateSystemManaged<EndFrameBarrier>().CreateCommandBuffer();
+            // An action audit, not vehicle scanning/logging. Record every destructive RF action
+            // even when the temporary single-actor trace is armed on a different vehicle.
+            Mod.Log.Warn($"[RouteFilter.NoRouteRemoval] nativeApi=VehicleUtils.DeleteVehicle vehicle={attempt.Vehicle} prefab={attempt.MatchedPrefab} target={attempt.Target} revision={attempt.RestrictionRevision} generation={attempt.Generation} frame={m_Simulation.frameIndex} deadline={attempt.AbsoluteDeadlineFrame} outcome={outcome} build={Mod.BuildId}");
             VehicleUtils.DeleteVehicle(commands, attempt.Vehicle, layout);
             var includesHead = false;
             if (layout.IsCreated) foreach (var part in layout) if (part.m_Vehicle == attempt.Vehicle) includesHead = true;

@@ -181,6 +181,9 @@ internal static class P0Diagnostics
                 if (value.m_EntryLane == current.m_Lane && value.m_NextLane == next) { gate = true; break; }
         Record("Gate", $"entry={current.m_Lane} next={next} directGate={gate} watched={world.GetExistingSystemManaged<RestrictionCandidateSystem>()?.WatchedEntryLaneCount} curve={current.m_CurvePosition}");
         Record("EntryLane", current.m_Lane.ToString()); Record("NextLane", next.ToString()); Record("DirectedGateMatched", gate.ToString());
+        if (index.TryGetConnectionLane(current.m_Lane, out Lane entryConnection) &&
+            index.TryGetConnectionLane(next, out Lane nextConnection))
+            Record("NativeDirectConnection", $"entryEnd={entryConnection.m_EndNode} nextStart={nextConnection.m_StartNode} samePathNode={entryConnection.m_EndNode.Equals(nextConnection.m_StartNode)} endOwnerIndex={entryConnection.m_EndNode.GetOwnerIndex()} targetIndex={Target.Index}");
         if (gate && manager.TryGetComponent(next, out Game.Net.CarLane actualLane))
         {
             Milestone("OriginalBlockage", $"({actualLane.m_BlockageStart},{actualLane.m_BlockageEnd}); read-only snapshot, no RouteFilter write");

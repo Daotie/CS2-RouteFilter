@@ -272,24 +272,21 @@ public sealed partial class RestrictionIndexSystem : GameSystemBase
         var internalLanes = topology.InternalLanesFor(node);
         foreach (var traversal in m_InternalTraversals) internalLanes.Add(traversal.Lane);
 
-        // A straight-through highway node may have no node-owned connector lanes.
+        // Direct edge-to-edge paths can coexist with node-owned connector lanes.
         // Its adjacent edge lanes join directly on the SAME native PathNode at this node.
         // Only exact directed connections qualify; adjacency alone never creates a gate.
-        if (internalLanes.Count == 0)
+        foreach (var inbound in m_AdjacentTraversals)
+        foreach (var outbound in m_AdjacentTraversals)
         {
-            foreach (var inbound in m_AdjacentTraversals)
-            foreach (var outbound in m_AdjacentTraversals)
-            {
-                if (inbound.Owner == outbound.Owner || inbound.To.GetOwnerIndex() != node.Index ||
-                    !inbound.To.Equals(outbound.From)) continue;
-                AddGate(topology, new DirectedEntryGate { m_EntryLane = inbound.Lane,
-                    m_NextLane = outbound.Lane, m_Target = node, m_EntryDirection = inbound.Direction,
-                    m_NextDirection = outbound.Direction, m_TargetEndpoint = RestrictionEndpoint.None });
-                // Query-local exclusion of the outbound edge prevents this directed crossing.
-                // It never changes the physical lane or another vehicle's query.
-                internalLanes.Add(outbound.Lane);
-                topology.OutboundLanesFor(node).Add(outbound.Lane);
-            }
+            if (inbound.Owner == outbound.Owner || inbound.To.GetOwnerIndex() != node.Index ||
+                !inbound.To.Equals(outbound.From)) continue;
+            AddGate(topology, new DirectedEntryGate { m_EntryLane = inbound.Lane,
+                m_NextLane = outbound.Lane, m_Target = node, m_EntryDirection = inbound.Direction,
+                m_NextDirection = outbound.Direction, m_TargetEndpoint = RestrictionEndpoint.None });
+            // Query-local exclusion of the outbound edge prevents this directed crossing.
+            // It never changes the physical lane or another vehicle's query.
+            internalLanes.Add(outbound.Lane);
+            topology.OutboundLanesFor(node).Add(outbound.Lane);
         }
         if (internalLanes.Count == 0)
             AddAmbiguity(topology, node, node, Entity.Null,
