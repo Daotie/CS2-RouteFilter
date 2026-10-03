@@ -72,7 +72,7 @@ public static class SafeToAttemptRerouteEvaluator
               input.m_Speed * VanillaRoadNavigationTimeStep
             : float.NaN;
         var latencyDistance = input.m_Speed * calibration.m_ExpectedLatencySeconds;
-        var requiredDistance = latencyDistance + brakingDistance +
+        var requiredDistance = input.m_QueryOnly ? 0f : latencyDistance + brakingDistance +
                                calibration.m_VehicleGeometryMargin +
                                calibration.m_LaneChangeMargin +
                                calibration.m_UncertaintyMargin;
@@ -118,7 +118,8 @@ public static class SafeToAttemptRerouteEvaluator
         {
             verdict = RerouteSafetyVerdict.Unknown;
         }
-        else if (!(calibration.m_DistanceToLastSafeDecisionPoint > requiredDistance))
+        else if (input.m_QueryOnly ? !EnforcementPolicy.CanRunQueryBeforeGate(input.m_DistanceToGateAnchor) :
+                 !(calibration.m_DistanceToLastSafeDecisionPoint > requiredDistance))
         {
             reasons |= SafetyReason.InsufficientAvailableDistance;
             verdict = RerouteSafetyVerdict.Unsafe;

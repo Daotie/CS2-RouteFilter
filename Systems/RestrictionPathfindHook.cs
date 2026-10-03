@@ -309,7 +309,7 @@ internal static unsafe class RestrictionPathfindHook
         if (persistence == null || !persistence.ConfigurationEditable) return Refused(owner, "configuration not editable");
         var manager = s_World.EntityManager;
         if (!manager.Exists(owner) || manager.HasComponent<Deleted>(owner) || manager.HasComponent<Temp>(owner)) return Refused(owner, "owner invalid/deleted/temp");
-        var isRail = manager.HasComponent<Train>(owner);
+        var isRail = manager.HasBuffer<TrainNavigationLane>(owner);
         EnforcementAttempt attempt;
         if (isRail)
         {
@@ -336,8 +336,10 @@ internal static unsafe class RestrictionPathfindHook
         var nextIndex = attempt.ViaLane2 != Entity.Null ? 2 : attempt.ViaLane == Entity.Null ? 0 : 1;
         if (isRail)
         {
-            if (!manager.HasComponent<TrainCurrentLane>(owner) ||
-                manager.GetComponentData<TrainCurrentLane>(owner).m_Front.m_Lane != attempt.GateEntryLane) return Refused(owner, "rail current lane changed");
+            if (!manager.TryGetBuffer(owner, true, out DynamicBuffer<LayoutElement> layout) || layout.Length == 0 ||
+                layout[0].m_Vehicle != attempt.NavigationVehicle ||
+                !manager.HasComponent<TrainCurrentLane>(attempt.NavigationVehicle) ||
+                manager.GetComponentData<TrainCurrentLane>(attempt.NavigationVehicle).m_Front.m_Lane != attempt.GateEntryLane) return Refused(owner, "rail current lane changed");
             if (manager.TryGetBuffer(owner, true, out DynamicBuffer<TrainNavigationLane> nav) &&
                 ((nav.Length > nextIndex && nav[nextIndex].m_Lane != attempt.OwnedLane) ||
                  (nextIndex == 1 && nav.Length > 0 && nav[0].m_Lane != attempt.ViaLane))) return Refused(owner, "rail immediate navigation changed");
@@ -356,20 +358,20 @@ internal static unsafe class RestrictionPathfindHook
         // Admission can precede CompleteSetup by many frames. Recheck the live approach,
         // not the old candidate's distance. Too late or unknown means native grandfathering.
         if (!manager.TryGetComponent(attempt.GateEntryLane, out Curve approachCurve) ||
-            !manager.TryGetComponent(owner, out Moving moving) ||
+            !manager.TryGetComponent(isRail ? attempt.NavigationVehicle : owner, out Moving moving) ||
             !math.isfinite(attempt.Braking) || attempt.Braking <= 0 ||
             !math.isfinite(attempt.GeometryLength) || attempt.GeometryLength <= 0) return Refused(owner, "curve/movement/braking/geometry missing");
         var speed = math.length(moving.m_Velocity);
         // Pending clears navigation and can shorten the current traversal end. Use the admitted
         // gate endpoint on the unchanged entry lane; validate live position and destination.
-        var position = isRail ? manager.GetComponentData<TrainCurrentLane>(owner).m_Front.m_CurvePosition.y :
+        var position = isRail ? manager.GetComponentData<TrainCurrentLane>(attempt.NavigationVehicle).m_Front.m_CurvePosition.y :
             manager.GetComponentData<CarCurrentLane>(owner).m_CurvePosition.x;
         if (attempt.Forward ? position >= attempt.TraversalEnd : position <= attempt.TraversalEnd) return Refused(owner, "at/past admitted gate endpoint");
         var remaining = GateApproachDistance.Remaining(approachCurve, position, attempt.TraversalEnd);
-        var required = speed * math.clamp(Mod.Settings?.RerouteLatencySeconds ?? 2.4f, 2.4f, 4f) +
-            speed * speed / (2 * attempt.Braking) + speed * SafeToAttemptRerouteEvaluator.VanillaRoadNavigationTimeStep +
-            attempt.GeometryLength + (Mod.Settings?.RerouteUncertaintyMetres ?? 5f);
-        if (!math.isfinite(speed) || !math.isfinite(remaining) || !math.isfinite(required) || remaining <= required)
+        // This transaction edits only the graph seen by one query. Braking distance
+        // is not a prerequisite; destructive result handling rechecks before-gate position.
+        var required = 0f;
+        if (!math.isfinite(speed) || !math.isfinite(remaining) || !EnforcementPolicy.CanRunQueryBeforeGate(remaining))
             return Refused(owner, $"LiveApproachDistanceInvariant remaining={remaining:F2} required={required:F2} speed={speed:F2} position={position:F4} endpoint={attempt.TraversalEnd:F4}");
         RetireCompleted();
         if (frame - s_Window >= 64) { s_Window = frame; s_Admissions = 0; }

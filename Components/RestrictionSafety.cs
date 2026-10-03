@@ -71,6 +71,8 @@ public struct RerouteSafetyCalibration
 
 public struct RerouteSafetyInput
 {
+    // Native request-local exclusion neither stops vehicles nor writes physical blockage.
+    public bool m_QueryOnly;
     public CandidateMatch m_Candidate;
     public uint m_EvaluationFrame;
     public int m_CurrentRestrictionRevision;

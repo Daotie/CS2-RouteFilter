@@ -93,6 +93,8 @@ public struct EnforcementAttempt
 {
     /// <summary>Canonical vehicle (road) or locomotive (rail). Holds the vanilla PathOwner.</summary>
     public Entity Vehicle;
+    /// <summary>Physical lead in LayoutElement[0], independent of the rail path owner.</summary>
+    public Entity NavigationVehicle;
     public Entity Target;
     public Entity GateEntryLane;
     public Entity ViaLane;
@@ -144,6 +146,11 @@ public struct CanonicalApproachKey : IEquatable<CanonicalApproachKey>
 /// </summary>
 public static class EnforcementPolicy
 {
+    // Query-only exclusion does not require braking distance: it never changes physical lanes.
+    // It must still be upstream; results independently revalidate live position before deletion.
+    public static bool CanRunQueryBeforeGate(float remaining)
+        => remaining > 0f && !float.IsNaN(remaining) && !float.IsInfinity(remaining);
+
     public static bool OwnsRoadReceipt(in EnforcementAttempt live, in EnforcementAttempt receipt)
         => OwnsReceipt(live, receipt, EnforcementBackend.Road);
 
@@ -154,6 +161,7 @@ public static class EnforcementPolicy
         => live.Backend == backend && receipt.Backend == backend && live.QueryIntercepted &&
            live.State == EnforcementAttemptState.Requested && live.Generation != 0 &&
            live.Generation == receipt.Generation && live.Vehicle == receipt.Vehicle &&
+           live.NavigationVehicle == receipt.NavigationVehicle &&
            live.Target == receipt.Target && live.MatchedPrefab == receipt.MatchedPrefab &&
            live.RestrictionRevision == receipt.RestrictionRevision && live.OwnedLane == receipt.OwnedLane &&
            live.GateEntryLane == receipt.GateEntryLane && live.NativeDestination == receipt.NativeDestination &&

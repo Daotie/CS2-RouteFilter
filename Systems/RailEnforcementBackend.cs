@@ -46,7 +46,8 @@ internal readonly struct DirectedTrackGate
 
 internal struct RailCandidate
 {
-    public Entity Consist;      // locomotive; the entity that owns Target, PathOwner and navigation.
+    public Entity Consist;      // Controller owns Target, PathOwner and navigation.
+    public Entity Front;        // Layout[0] owns physical movement and TrainCurrentLane.
     public Entity EntryLane;
     public Entity NextLane;
     public Entity Target;
@@ -155,7 +156,8 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         /// <summary>
         /// Canonicalises a physical rail entity to the single entity that owns the consist's
         /// pathfind state. <c>Game.Simulation.TrainNavigationSystem</c> reads <c>Target</c>,
-        /// <c>PathOwner</c> and the navigation buffers from <c>LayoutElement[0]</c>, so anything
+        /// <c>PathOwner</c> and the navigation buffers from the controller; physical state
+        /// comes from <c>LayoutElement[0]</c>. Anything
         /// else in the consist is a member and must never be acted on. A long train therefore
         /// costs one candidate, one safety evaluation and at most one reroute, not one per carriage.
         /// </summary>
@@ -186,17 +188,19 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
             }
 
             if (!EntityStorage.Exists(head) || DeletedData.HasComponent(head) ||
-                !Trains.HasComponent(head) || !CurrentLanes.HasComponent(head) ||
-                !Vehicles.HasComponent(head))
+                !Navigation.HasBuffer(head))
             {
                 head = Entity.Null;
                 return false;
             }
 
-            // LayoutElement[0] is the consist's authoritative owner. If the controller chain
-            // disagrees, refuse rather than guess.
+            // Vanilla navigation reads route buffers from the controller and physical state
+            // from layout[0]. A reversed consist need not put the controller first.
             if (!Layouts.TryGetBuffer(head, out var layout) || layout.Length == 0 ||
-                layout[0].m_Vehicle != head)
+                !EntityStorage.Exists(layout[0].m_Vehicle) || DeletedData.HasComponent(layout[0].m_Vehicle) ||
+                !Trains.HasComponent(layout[0].m_Vehicle) || !CurrentLanes.HasComponent(layout[0].m_Vehicle) ||
+                (layout[0].m_Vehicle != head && (!Controllers.TryGetComponent(layout[0].m_Vehicle, out var frontController) ||
+                    frontController.m_Controller != head)))
             {
                 WorkCounters[2]++;
                 head = Entity.Null;
@@ -211,7 +215,8 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
             curveLength = 0f;
             if (!EntityStorage.Exists(gate.Target) || !EntityStorage.Exists(gate.NextLane)) return false;
 
-            var current = CurrentLanes[head];
+            var front = Layouts[head][0].m_Vehicle;
+            var current = CurrentLanes[front];
             if (current.m_Front.m_Lane != gate.EntryLane) return false;
             if ((current.m_Front.m_LaneFlags & (TrainLaneFlags.Obsolete | TrainLaneFlags.Return |
                                                  TrainLaneFlags.ParkingSpace | TrainLaneFlags.Connection)) != 0)
@@ -233,9 +238,10 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
 
         private RailCandidate Build(Entity head, DirectedTrackGate gate, Entity prefab, float distanceToGate, float curveLength)
         {
-            var speed = MovingData.TryGetComponent(head, out var moving) ? math.length(moving.m_Velocity) : 0f;
+            var front = Layouts[head][0].m_Vehicle;
+            var speed = MovingData.TryGetComponent(front, out var moving) ? math.length(moving.m_Velocity) : 0f;
             var braking = 0f;
-            if (PrefabRefs.TryGetComponent(head, out var prefabRef) &&
+            if (PrefabRefs.TryGetComponent(front, out var prefabRef) &&
                 PrefabTrainData.TryGetComponent(prefabRef.m_Prefab, out var trainData))
                 braking = trainData.m_Braking;
 
@@ -251,7 +257,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
 
             return new RailCandidate
             {
-                Consist = head,
+                Consist = head, Front = front,
                 EntryLane = gate.EntryLane,
                 NextLane = gate.NextLane,
                 Target = gate.Target,
@@ -296,7 +302,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
                 var attempt = Attempts[i];
                 var valid = Entities.Exists(attempt.Vehicle) && Entities.Exists(attempt.Target) &&
                     !Deleted.HasComponent(attempt.Vehicle) && !Deleted.HasComponent(attempt.Target) &&
-                    Current.TryGetComponent(attempt.Vehicle, out var current) && current.m_Front.m_Lane == attempt.GateEntryLane;
+                    Current.TryGetComponent(attempt.NavigationVehicle, out var current) && current.m_Front.m_Lane == attempt.GateEntryLane;
                 if (!valid || attempt.RestrictionRevision != Revision)
                 {
                     RestoreRequest(attempt);
@@ -316,14 +322,14 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
                 var c = Candidates[i];
                 if (c.RestrictionRevision != Revision || Frame - c.DetectionFrame > 2 ||
                     !Entities.Exists(c.Consist) || !Entities.Exists(c.Target) || Deleted.HasComponent(c.Target) || Deleted.HasComponent(c.Consist) ||
-                    !Current.TryGetComponent(c.Consist, out var current) || current.m_Front.m_Lane != c.EntryLane ||
+                    !Current.TryGetComponent(c.Front, out var current) || current.m_Front.m_Lane != c.EntryLane ||
                     !Navigation.TryGetBuffer(c.Consist, out var nav) ||
                     (c.ViaLane == Entity.Null ? nav.Length == 0 || nav[0].m_Lane != c.NextLane :
                         nav.Length < 2 || nav[0].m_Lane != c.ViaLane || nav[1].m_Lane != c.NextLane) ||
                     !math.isfinite(c.Braking) || c.Braking <= 0 || c.ConsistLength <= 0 ||
                     !math.isfinite(c.Speed) || !math.isfinite(c.DistanceToGateAnchor)) { Counters[9]++; continue; }
-                var required = c.Speed * Latency + c.Speed * c.Speed / (2 * c.Braking) + c.ConsistLength + Margin;
-                if (c.DistanceToGateAnchor <= required) { Counters[9]++; continue; }
+                // Query-only admission: no physical braking/stop mutation is performed.
+                if (!EnforcementPolicy.CanRunQueryBeforeGate(c.DistanceToGateAnchor)) { Counters[9]++; continue; }
                 if (ByVehicle.ContainsKey(c.Consist) || Attempts.Length >= 64) continue;
                 if (!Destinations.TryGetComponent(c.Consist, out var destination) || destination.m_Target == Entity.Null) continue;
                 if (Frame - Counters[16] >= 64) { Counters[16] = Frame; Counters[18] = 0; }
@@ -331,7 +337,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
                 if (!Owners.TryGetComponent(c.Consist, out var owner) || !EnforcementPolicy.CanRequestReroute(owner.m_State)) continue;
                 var before = owner.m_State; owner.m_State |= PathFlags.Obsolete; Owners[c.Consist] = owner;
                 ByVehicle.TryAdd(c.Consist, Attempts.Length);
-                Attempts.Add(new EnforcementAttempt { Vehicle = c.Consist, Target = c.Target, GateEntryLane = c.EntryLane, ViaLane = c.ViaLane,
+                Attempts.Add(new EnforcementAttempt { Vehicle = c.Consist, NavigationVehicle = c.Front, Target = c.Target, GateEntryLane = c.EntryLane, ViaLane = c.ViaLane,
                     OwnedLane = c.NextLane, MatchedPrefab = c.MatchedPrefab, Generation = ++Generations[0],
                     RestrictionRevision = Revision, RequestedFrame = Frame, AbsoluteDeadlineFrame = Frame + 240,
                     OriginalPathState = before, WrittenPathState = owner.m_State, OriginalElementIndex = owner.m_ElementIndex,
@@ -469,16 +475,15 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
                     P0Diagnostics.Milestone("CandidateCreated", "True");
                     P0Diagnostics.Milestone("DirectedGateMatched", "True");
                     P0Diagnostics.Record("RemainingDistance", candidate.DistanceToGateAnchor.ToString("F2"));
-                    var required = candidate.Speed * ExpectedLatencySeconds + candidate.Speed * candidate.Speed / (2 * candidate.Braking) + candidate.ConsistLength + UncertaintyMargin;
-                    P0Diagnostics.Record("RequiredDistance", required.ToString("F2"));
+                    P0Diagnostics.Record("RequiredDistance", "0.00 (query-only; no physical stop mutation)");
                     if (m_ByVehicle.TryGetValue(candidate.Consist, out var admitted))
                     {
                         P0Diagnostics.Milestone("SafetyVerdict", "Safe");
                         P0Diagnostics.Milestone("RerouteRequested", "True");
                         P0Diagnostics.Record("AttemptGeneration", m_Attempts[admitted].Generation.ToString());
                     }
-                    else if (!math.isfinite(required) || candidate.DistanceToGateAnchor <= required)
-                        P0Diagnostics.Grandfather(candidate.Consist, $"RailInsufficientAvailableDistance remaining={candidate.DistanceToGateAnchor:F2} required={required:F2} speed={candidate.Speed:F2} braking={candidate.Braking:F2} consistLength={candidate.ConsistLength:F2}");
+                    else if (!EnforcementPolicy.CanRunQueryBeforeGate(candidate.DistanceToGateAnchor))
+                        P0Diagnostics.Grandfather(candidate.Consist, $"RailInsufficientAvailableDistance remaining={candidate.DistanceToGateAnchor:F2} required=0 (query-only) speed={candidate.Speed:F2} braking={candidate.Braking:F2} consistLength={candidate.ConsistLength:F2}");
                 }
         }
 
@@ -625,12 +630,12 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
             EntityManager.Exists(live.Target) && !EntityManager.HasComponent<Deleted>(live.Target) &&
             EntityManager.Exists(live.OwnedLane) && !EntityManager.HasComponent<Deleted>(live.OwnedLane) &&
             EntityManager.TryGetComponent(live.Vehicle, out Game.Common.Target destination) && destination.m_Target == live.NativeDestination &&
-            EntityManager.TryGetComponent(live.Vehicle, out TrainCurrentLane current) && current.m_Front.m_Lane == live.GateEntryLane &&
+            EntityManager.TryGetComponent(live.NavigationVehicle, out TrainCurrentLane current) && current.m_Front.m_Lane == live.GateEntryLane &&
             EntityManager.TryGetBuffer(live.Vehicle, true, out DynamicBuffer<LayoutElement> layout) &&
-            layout.Length > 0 && layout[0].m_Vehicle == live.Vehicle && StillForbidden(live);
+            layout.Length > 0 && layout[0].m_Vehicle == live.NavigationVehicle && StillForbidden(live);
         if (outcome == RoadQueryOutcome.ConfirmedNoAlternative && valid)
         {
-            var front = EntityManager.GetComponentData<TrainCurrentLane>(live.Vehicle).m_Front;
+            var front = EntityManager.GetComponentData<TrainCurrentLane>(live.NavigationVehicle).m_Front;
             valid = EntityManager.TryGetComponent(live.Vehicle, out PathOwner owner) && EnforcementPolicy.IsExpectedSetup(live, owner.m_State) &&
                 (live.Forward ? front.m_CurvePosition.y < live.TraversalEnd : front.m_CurvePosition.y > live.TraversalEnd);
             var members = EntityManager.GetBuffer<LayoutElement>(live.Vehicle, true);

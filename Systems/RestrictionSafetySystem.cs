@@ -185,6 +185,7 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
                 var evaluation = SafeToAttemptRerouteEvaluator.Evaluate(new RerouteSafetyInput
                 {
                     m_Candidate = candidate,
+                    m_QueryOnly = true,
                     m_EvaluationFrame = EvaluationFrame,
                     m_CurrentRestrictionRevision = RestrictionRevision,
                     m_VehicleValid = vehicleValid,

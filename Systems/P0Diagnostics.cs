@@ -69,7 +69,7 @@ internal static class P0Diagnostics
         s_PhysicalVehicle = selected;
         for (var i = 0; i < 4 && manager.Exists(selected) && manager.TryGetComponent(selected, out Controller controller)
             && controller.m_Controller != Entity.Null && controller.m_Controller != selected; i++) selected = controller.m_Controller;
-        if (!manager.Exists(selected) || (!manager.HasComponent<CarCurrentLane>(selected) && !manager.HasComponent<TrainCurrentLane>(selected))) return;
+        if (!manager.Exists(selected) || (!manager.HasComponent<CarCurrentLane>(selected) && !manager.HasBuffer<TrainNavigationLane>(selected))) return;
         Vehicle = selected; Target = Entity.Null; s_Pending.Clear(); s_Last.Clear(); s_Milestones.Clear();
         s_OwnedResult = s_ExpectedAlternative = false;
         foreach (var field in new[] { "DirectedGateMatched", "GateDirectionValid", "CandidateCreated", "CandidateRejected",
@@ -121,7 +121,7 @@ internal static class P0Diagnostics
             Arm(world, s_PhysicalVehicle); // Never reuse evidence from a different restriction target.
         if (tool?.SelectedTarget != Entity.Null && tool != null) Target = tool.SelectedTarget;
         var index = world.GetExistingSystemManaged<RestrictionIndexSystem>();
-        if (Vehicle == Entity.Null && Target != Entity.Null && index != null) ArmLocalForbiddenTruck(world, index);
+        if (Vehicle == Entity.Null && Target != Entity.Null && index != null) ArmLocalForbiddenVehicle(world, index);
         if (Target != Entity.Null && index != null && index.Revision != s_TopologyRevision)
         {
             s_TopologyRevision = index.Revision;
@@ -172,7 +172,9 @@ internal static class P0Diagnostics
         Record("LayoutTrailerPrefabs", string.Join(",", layoutNames));
         Record("ForbiddenPrefabMatch", index.TargetRestricts(Target, prefabs).ToString());
         Record("PrefabMatch", $"matched={index.TargetRestricts(Target, prefabs)} prefabs={string.Join(",", prefabs)} revision={index.Revision} dirty={Mod.RestrictionsDirty}");
-        if (manager.TryGetComponent(Vehicle, out TrainCurrentLane trainCurrent))
+        if (manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<TrainNavigationLane> railNavigation) &&
+            manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<LayoutElement> railLayout) && railLayout.Length > 0 &&
+            manager.TryGetComponent(railLayout[0].m_Vehicle, out TrainCurrentLane trainCurrent))
         { ObserveRail(world, trainCurrent); return; }
         if (!manager.TryGetComponent(Vehicle, out CarCurrentLane current)) return;
         var next = Entity.Null;
@@ -262,9 +264,9 @@ internal static class P0Diagnostics
         s_ExpectedAlternative = false;
     }
 
-    // Diagnostic pick only: at most 64 local LaneObjects, once per second, until ONE truck
+    // Diagnostic pick only: at most 64 local LaneObjects, once per second, until ONE vehicle
     // is locked. Works even when topology is empty, so a gate bug cannot hide the trace.
-    private static void ArmLocalForbiddenTruck(World world, RestrictionIndexSystem index)
+    private static void ArmLocalForbiddenVehicle(World world, RestrictionIndexSystem index)
     {
         var manager = world.EntityManager;
         if (!manager.TryGetBuffer(Target, true, out DynamicBuffer<RestrictedVehicleAssetV1> restrictions) ||
@@ -283,8 +285,11 @@ internal static class P0Diagnostics
                     if (--budget < 0) return;
                     var truck = item.m_LaneObject;
                     if (manager.TryGetComponent(truck, out Controller controller) && controller.m_Controller != Entity.Null) truck = controller.m_Controller;
-                    if (!manager.Exists(truck) || (!manager.HasComponent<Game.Vehicles.CargoTransport>(truck) && !manager.HasComponent<Game.Vehicles.DeliveryTruck>(truck)) ||
-                        !manager.HasComponent<CarCurrentLane>(truck)) continue;
+                    if (!manager.Exists(truck)) continue;
+                    var roadTruck = manager.HasComponent<CarCurrentLane>(truck) &&
+                        (manager.HasComponent<Game.Vehicles.CargoTransport>(truck) || manager.HasComponent<Game.Vehicles.DeliveryTruck>(truck));
+                    var railConsist = manager.HasBuffer<TrainNavigationLane>(truck);
+                    if (!roadTruck && !railConsist) continue;
                     var prefabs = new List<Entity>(8);
                     if (manager.TryGetComponent(truck, out PrefabRef prefab)) prefabs.Add(prefab.m_Prefab);
                     if (manager.TryGetBuffer(truck, true, out DynamicBuffer<LayoutElement> layout))

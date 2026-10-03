@@ -172,3 +172,14 @@ Console.WriteLine("PASS: 65,536 lane ownership pairs, vanilla empty interval, ex
                   "combination that matters, emergency exemption, exact PathOwner ownership and frame-wrap behaviour.");
 Console.WriteLine("NOT TESTED HERE: Unity jobs, ECS scheduling, the game's SerializerSystem, and live " +
                   "pathfinding. Those need the game running.");
+
+// Reproduced case: 70 m to gate at 50 m/s was blocked by a 253 m stop budget.
+Check(EnforcementPolicy.CanRunQueryBeforeGate(70.15f), "query-only 70.15 m approach is reachable");
+foreach (var distance in new[] { 0f, -1f, float.NaN, float.PositiveInfinity, float.NegativeInfinity })
+    Check(!EnforcementPolicy.CanRunQueryBeforeGate(distance), "query-only rejects at/past/unknown gate");
+var reversedRail = railReceipt;
+reversedRail.NavigationVehicle = new Unity.Entities.Entity { Index = 701, Version = 2 };
+Check(EnforcementPolicy.OwnsRailReceipt(reversedRail, reversedRail), "reversed rail front may differ from path owner");
+var changedFront = reversedRail; changedFront.NavigationVehicle.Version++;
+Check(!EnforcementPolicy.OwnsRailReceipt(reversedRail, changedFront), "changed rail front invalidates no-route receipt");
+Console.WriteLine("PASS: query-only before-gate admission and independent rail physical-front receipt.");
