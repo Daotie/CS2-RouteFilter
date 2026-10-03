@@ -400,7 +400,7 @@ internal static unsafe class RestrictionPathfindHook
                 manager.TryGetComponent(lanes[i], out Game.Common.Owner scopeOwner) && scopeOwner.m_Owner != attempt.Target &&
                 manager.TryGetComponent(lanes[i], out CarLane scopeLane) && (scopeLane.m_Flags & Game.Net.CarLaneFlags.Twoway) != 0)
                 exactNoRouteScope = false;
-            if (!isRail && manager.TryGetComponent(lanes[i], out SlaveLane slave) &&
+            if (manager.TryGetComponent(lanes[i], out SlaveLane slave) &&
                 manager.TryGetComponent(lanes[i], out Game.Common.Owner laneOwner) &&
                 manager.TryGetBuffer(laneOwner.m_Owner, true, out DynamicBuffer<SubLane> ownerLanes) && slave.m_MasterIndex < ownerLanes.Length)
             {
@@ -567,6 +567,13 @@ internal static unsafe class RestrictionPathfindHook
                         ReturnToNative(transaction); continue;
                     }
                 }
+            }
+            else if (liveWorld)
+            {
+                var rail = s_World.GetExistingSystemManaged<RailEnforcementBackend>();
+                if (rail != null && !rail.ConsumeOwnedResult(transaction.Attempt,
+                    transaction.State[4] != 0 && transaction.State[5] == 0 && transaction.State[6] == 0 &&
+                    transaction.State[7] == 0 && transaction.State[8] != 0 && transaction.State[3] == 0)) continue;
             }
             if (transaction.Owner == P0Diagnostics.Vehicle)
                 P0Diagnostics.Record("GraphMutation", $"generation={transaction.Attempt.Generation} applied={transaction.State[1]} restored={transaction.State[2]} conflicts={transaction.State[3]} completeExclusion={transaction.State[8]} baselineCrossesTarget={transaction.State[10]} alternative={transaction.State[4]} fallback={transaction.State[5]} exception={transaction.State[7]}");

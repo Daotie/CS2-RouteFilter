@@ -69,7 +69,7 @@ internal static class P0Diagnostics
         s_PhysicalVehicle = selected;
         for (var i = 0; i < 4 && manager.Exists(selected) && manager.TryGetComponent(selected, out Controller controller)
             && controller.m_Controller != Entity.Null && controller.m_Controller != selected; i++) selected = controller.m_Controller;
-        if (!manager.Exists(selected) || !manager.HasComponent<CarCurrentLane>(selected)) return;
+        if (!manager.Exists(selected) || (!manager.HasComponent<CarCurrentLane>(selected) && !manager.HasComponent<TrainCurrentLane>(selected))) return;
         Vehicle = selected; Target = Entity.Null; s_Pending.Clear(); s_Last.Clear(); s_Milestones.Clear();
         s_OwnedResult = s_ExpectedAlternative = false;
         foreach (var field in new[] { "DirectedGateMatched", "GateDirectionValid", "CandidateCreated", "CandidateRejected",
@@ -172,6 +172,8 @@ internal static class P0Diagnostics
         Record("LayoutTrailerPrefabs", string.Join(",", layoutNames));
         Record("ForbiddenPrefabMatch", index.TargetRestricts(Target, prefabs).ToString());
         Record("PrefabMatch", $"matched={index.TargetRestricts(Target, prefabs)} prefabs={string.Join(",", prefabs)} revision={index.Revision} dirty={Mod.RestrictionsDirty}");
+        if (manager.TryGetComponent(Vehicle, out TrainCurrentLane trainCurrent))
+        { ObserveRail(world, trainCurrent); return; }
         if (!manager.TryGetComponent(Vehicle, out CarCurrentLane current)) return;
         var next = Entity.Null;
         if (manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<CarNavigationLane> nav) && nav.Length > 0) next = nav[0].m_Lane;
@@ -234,6 +236,30 @@ internal static class P0Diagnostics
             }
         }
 
+    }
+
+    private static void ObserveRail(World world, TrainCurrentLane current)
+    {
+        var manager = world.EntityManager;
+        var rail = world.GetExistingSystemManaged<RailEnforcementBackend>();
+        Record("Backend", "Rail"); Record("EntryLane", current.m_Front.m_Lane.ToString());
+        Record("TrainFrontPosition", current.m_Front.m_CurvePosition.ToString());
+        if (manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<TrainNavigationLane> nav) && nav.Length > 0)
+            Record("NextLane", nav[0].m_Lane.ToString());
+        if (!manager.TryGetComponent(Vehicle, out PathOwner owner)) return;
+        Record("PathOwnerAfter", owner.m_State.ToString());
+        if ((owner.m_State & (PathFlags.Pending | PathFlags.Scheduled)) != 0) Milestone("PendingObserved", "True");
+        if ((owner.m_State & PathFlags.Failed) != 0) Milestone("FailedObserved", "True");
+        if (!manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<PathElement> path)) return;
+        Record("PathElementCount", path.Length.ToString());
+        if (!s_OwnedResult || !s_ExpectedAlternative || rail == null ||
+            (owner.m_State & (PathFlags.Pending | PathFlags.Scheduled | PathFlags.Obsolete)) != 0) return;
+        var crosses = rail.PathCrossesTarget(Target, path);
+        var adopted = path.Length > 0 && (owner.m_State & (PathFlags.Failed | PathFlags.Stuck)) == 0;
+        Milestone("ResultObserved", "True"); Record("NewPathStillCrossesTarget", crosses.ToString());
+        if (crosses || !adopted) Record("EnforcementFailureReason", crosses ? "RestrictedTrackTargetStillPresent" : "OwnedRailAlternativeNotAdopted");
+        Record("FinalOutcome", !crosses && adopted ? "Rerouted" : "EnforcementFailed");
+        s_ExpectedAlternative = false;
     }
 
     // Diagnostic pick only: at most 64 local LaneObjects, once per second, until ONE truck

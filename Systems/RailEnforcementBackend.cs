@@ -285,6 +285,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         public NativeList<EnforcementAttempt> Attempts;
         public NativeParallelHashMap<Entity, int> ByVehicle;
         public NativeArray<uint> Counters;
+        public NativeArray<ulong> Generations;
         public uint Frame;
         public int Revision;
         public float Latency, Margin;
@@ -331,7 +332,8 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
                 var before = owner.m_State; owner.m_State |= PathFlags.Obsolete; Owners[c.Consist] = owner;
                 ByVehicle.TryAdd(c.Consist, Attempts.Length);
                 Attempts.Add(new EnforcementAttempt { Vehicle = c.Consist, Target = c.Target, GateEntryLane = c.EntryLane, ViaLane = c.ViaLane,
-                    OwnedLane = c.NextLane, RestrictionRevision = Revision, RequestedFrame = Frame, AbsoluteDeadlineFrame = Frame + 240,
+                    OwnedLane = c.NextLane, MatchedPrefab = c.MatchedPrefab, Generation = ++Generations[0],
+                    RestrictionRevision = Revision, RequestedFrame = Frame, AbsoluteDeadlineFrame = Frame + 240,
                     OriginalPathState = before, WrittenPathState = owner.m_State, OriginalElementIndex = owner.m_ElementIndex,
                     Braking = c.Braking, GeometryLength = c.ConsistLength,
                     NativeDestination = destination.m_Target, TraversalEnd = current.m_Front.m_CurvePosition.w,
@@ -365,6 +367,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
     private NativeList<EnforcementAttempt> m_Attempts;
     private NativeParallelHashMap<Entity, int> m_ByVehicle;
     private NativeArray<uint> m_EnforcementCounters;
+    private NativeArray<ulong> m_Generations;
     private int m_LastLaneObjectsScanned;
     public int LastCandidateCount { get; private set; }
     private JobHandle m_Work;
@@ -403,6 +406,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         m_Attempts = new NativeList<EnforcementAttempt>(64, Allocator.Persistent);
         m_ByVehicle = new NativeParallelHashMap<Entity, int>(64, Allocator.Persistent);
         m_EnforcementCounters = new NativeArray<uint>(20, Allocator.Persistent);
+        m_Generations = new NativeArray<ulong>(1, Allocator.Persistent);
     }
 
     protected override void OnDestroy()
@@ -414,7 +418,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         m_Candidates.Dispose();
         m_ConsistSeen.Dispose();
         m_WorkCounters.Dispose();
-        m_Attempts.Dispose(); m_ByVehicle.Dispose(); m_EnforcementCounters.Dispose();
+        m_Attempts.Dispose(); m_ByVehicle.Dispose(); m_EnforcementCounters.Dispose(); m_Generations.Dispose();
         base.OnDestroy();
     }
 
@@ -459,6 +463,23 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
             m_DetectPending = false;
             m_LastLaneObjectsScanned = m_WorkCounters[0];
             LastCandidateCount = m_Candidates.Length;
+            foreach (var candidate in m_Candidates)
+                if (candidate.Consist == P0Diagnostics.Vehicle && candidate.Target == P0Diagnostics.Target)
+                {
+                    P0Diagnostics.Milestone("CandidateCreated", "True");
+                    P0Diagnostics.Milestone("DirectedGateMatched", "True");
+                    P0Diagnostics.Record("RemainingDistance", candidate.DistanceToGateAnchor.ToString("F2"));
+                    var required = candidate.Speed * ExpectedLatencySeconds + candidate.Speed * candidate.Speed / (2 * candidate.Braking) + candidate.ConsistLength + UncertaintyMargin;
+                    P0Diagnostics.Record("RequiredDistance", required.ToString("F2"));
+                    if (m_ByVehicle.TryGetValue(candidate.Consist, out var admitted))
+                    {
+                        P0Diagnostics.Milestone("SafetyVerdict", "Safe");
+                        P0Diagnostics.Milestone("RerouteRequested", "True");
+                        P0Diagnostics.Record("AttemptGeneration", m_Attempts[admitted].Generation.ToString());
+                    }
+                    else if (!math.isfinite(required) || candidate.DistanceToGateAnchor <= required)
+                        P0Diagnostics.Grandfather(candidate.Consist, $"RailInsufficientAvailableDistance remaining={candidate.DistanceToGateAnchor:F2} required={required:F2} speed={candidate.Speed:F2} braking={candidate.Braking:F2} consistLength={candidate.ConsistLength:F2}");
+                }
         }
 
         m_Candidates.Clear();
@@ -498,7 +519,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
             Deleted = GetComponentLookup<Deleted>(true), Current = GetComponentLookup<TrainCurrentLane>(true),
             Navigation = GetBufferLookup<TrainNavigationLane>(true), Owners = GetComponentLookup<PathOwner>(),
             Destinations = GetComponentLookup<Game.Common.Target>(true),
-            Attempts = m_Attempts, ByVehicle = m_ByVehicle, Counters = m_EnforcementCounters,
+            Attempts = m_Attempts, ByVehicle = m_ByVehicle, Counters = m_EnforcementCounters, Generations = m_Generations,
             Frame = m_Simulation.frameIndex, Revision = m_RuntimeRevision, Latency = ExpectedLatencySeconds,
             Margin = UncertaintyMargin }.Schedule(m_DetectHandle);
         Dependency = m_Work;
@@ -539,6 +560,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         m_PrefabTargets.Clear();
         m_InternalTraversals.Clear();
         m_AdjacentTraversals.Clear();
+        m_TargetLanes.Clear();
         m_RuntimeRevision = -1;
         for (var i = 0; i < m_WorkCounters.Length; i++) m_WorkCounters[i] = 0;
         m_LastLaneObjectsScanned = 0;
@@ -566,17 +588,71 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
     { if (m_ByVehicle.TryGetValue(vehicle, out var i)) { var a = m_Attempts[i]; a.QueryIntercepted = true; m_Attempts[i] = a; } }
     internal int CopyTargetLanes(Entity target, NativeArray<Entity> output)
     {
-        m_InternalTraversals.Clear();
-        CollectTrackTraversals(target, m_InternalTraversals);
-        if (m_InternalTraversals.Count > output.Length) return -1;
-        for (var i = 0; i < m_InternalTraversals.Count; i++) output[i] = m_InternalTraversals[i];
-        return m_InternalTraversals.Count;
+        if (!m_TargetLanes.TryGetValue(target, out var lanes)) return 0;
+        if (lanes.Count > output.Length) return -1;
+        var count = 0;
+        foreach (var lane in lanes) output[count++] = lane;
+        return count;
+    }
+
+    internal bool PathCrossesTarget(Entity target, DynamicBuffer<PathElement> path)
+    {
+        if (!m_TargetLanes.TryGetValue(target, out var lanes) || lanes.Count == 0) return true;
+        for (var p = 0; p < path.Length; p++)
+            foreach (var lane in lanes)
+            {
+                if (path[p].m_Target == lane) return true;
+                if (EntityManager.TryGetComponent(lane, out SlaveLane slave) &&
+                    EntityManager.TryGetComponent(lane, out Owner owner) &&
+                    EntityManager.TryGetBuffer(owner.m_Owner, true, out DynamicBuffer<NetSubLane> subs) &&
+                    slave.m_MasterIndex < subs.Length && path[p].m_Target == subs[slave.m_MasterIndex].m_SubLane) return true;
+            }
+        return false;
+    }
+
+    internal bool ConsumeOwnedResult(in EnforcementAttempt captured, bool alternative)
+    {
+        if (!m_Work.IsCompleted) return false;
+        m_Work.Complete();
+        if (!m_ByVehicle.TryGetValue(captured.Vehicle, out var i)) return true;
+        var live = m_Attempts[i];
+        if (!live.QueryIntercepted || live.Generation != captured.Generation || live.Generation == 0 ||
+            live.Target != captured.Target || live.RestrictionRevision != captured.RestrictionRevision ||
+            live.MatchedPrefab != captured.MatchedPrefab || live.State != EnforcementAttemptState.Requested) return true;
+        var valid = m_Index.Revision == live.RestrictionRevision && !Mod.RestrictionsDirty &&
+            !EnforcementPolicy.HasExpired(m_Simulation.frameIndex, live.AbsoluteDeadlineFrame) &&
+            EntityManager.Exists(live.Vehicle) && !EntityManager.HasComponent<Deleted>(live.Vehicle) &&
+            EntityManager.TryGetComponent(live.Vehicle, out Game.Common.Target destination) && destination.m_Target == live.NativeDestination &&
+            EntityManager.TryGetComponent(live.Vehicle, out TrainCurrentLane current) && current.m_Front.m_Lane == live.GateEntryLane &&
+            EntityManager.TryGetBuffer(live.Vehicle, true, out DynamicBuffer<LayoutElement> layout) &&
+            layout.Length > 0 && layout[0].m_Vehicle == live.Vehicle && StillForbidden(live);
+        live.State = alternative && valid ? EnforcementAttemptState.Rerouted : EnforcementAttemptState.Grandfathered;
+        m_Attempts[i] = live;
+        if (alternative && valid) P0Diagnostics.OwnedResult(live.Vehicle, RoadQueryOutcome.AlternativePathFound, live.Generation);
+        else P0Diagnostics.Grandfather(live.Vehicle, "RailOwnedQueryDidNotProveAvoidanceOrReceiptExpired");
+        return true;
+    }
+
+    private bool StillForbidden(in EnforcementAttempt attempt)
+    {
+        if (!EntityManager.TryGetBuffer(attempt.Target, true, out DynamicBuffer<RestrictedVehicleAssetV1> restrictions)) return false;
+        var restricted = false;
+        foreach (var item in restrictions) if (item.m_Prefab == attempt.MatchedPrefab) restricted = true;
+        if (!restricted) return false;
+        if (EntityManager.TryGetComponent(attempt.Vehicle, out PrefabRef prefab) && prefab.m_Prefab == attempt.MatchedPrefab) return true;
+        if (!EntityManager.TryGetBuffer(attempt.Vehicle, true, out DynamicBuffer<LayoutElement> layout)) return false;
+        foreach (var member in layout)
+            if (EntityManager.TryGetComponent(member.m_Vehicle, out PrefabRef part) && part.m_Prefab == attempt.MatchedPrefab &&
+                (member.m_Vehicle == attempt.Vehicle || EntityManager.TryGetComponent(member.m_Vehicle, out Controller controller) &&
+                    controller.m_Controller == attempt.Vehicle)) return true;
+        return false;
     }
 
     public int LaneObjectsScanned => m_LastLaneObjectsScanned;
 
     private readonly Dictionary<Entity, HashSet<Entity>> m_PrefabTargets = new();
     private readonly List<DirectedTrackGate> m_GateList = new();
+    private readonly Dictionary<Entity, HashSet<Entity>> m_TargetLanes = new();
 
     /// <summary>
     /// Rebuilds the rail gate index. Runs only when the restriction configuration revision
@@ -589,6 +665,7 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         m_TargetPrefabs.Clear();
         m_GateList.Clear();
         m_LaneSet.Clear();
+        m_TargetLanes.Clear();
 
         using var nodes = m_RestrictedNodes.ToEntityArray(Allocator.Temp);
         for (var i = 0; i < nodes.Length; i++) CollectTarget(nodes[i]);
@@ -627,6 +704,8 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         m_InternalTraversals.Clear();
         m_AdjacentTraversals.Clear();
         CollectTrackTraversals(target, m_InternalTraversals);
+        var exclusion = new HashSet<Entity>(m_InternalTraversals);
+        m_TargetLanes[target] = exclusion;
 
         if (EntityManager.HasComponent<NetEdge>(target))
         {
@@ -646,12 +725,12 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         for (var i = 0; i < m_InternalTraversals.Count; i++)
         {
             var internalLane = m_InternalTraversals[i];
-            if (!EntityManager.TryGetComponent(internalLane, out NetLane to)) continue;
+            if (!m_Index.TryGetConnectionLane(internalLane, out NetLane to)) continue;
             for (var j = 0; j < m_AdjacentTraversals.Count; j++)
             {
                 var adjacent = m_AdjacentTraversals[j];
                 if (adjacent == Entity.Null || adjacent == internalLane) continue;
-                if (!EntityManager.TryGetComponent(adjacent, out NetLane from)) continue;
+                if (!m_Index.TryGetConnectionLane(adjacent, out NetLane from)) continue;
                 var fromTwoWay = (EntityManager.GetComponentData<TrackLane>(adjacent).m_Flags & TrackLaneFlags.Twoway) != 0;
                 var toTwoWay = (EntityManager.GetComponentData<TrackLane>(internalLane).m_Flags & TrackLaneFlags.Twoway) != 0;
                 if (!from.m_EndNode.Equals(to.m_StartNode) &&
@@ -662,6 +741,24 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
                 if (EntityManager.HasComponent<NetEdge>(target)) AddUpstreamTrackWatches(adjacent, internalLane, target);
             }
         }
+        // Native direct track joins may coexist with node connectors, just like roads.
+        if (EntityManager.HasComponent<Node>(target))
+            foreach (var inbound in m_AdjacentTraversals)
+            foreach (var outbound in m_AdjacentTraversals)
+            {
+                if (inbound == outbound || !EntityManager.TryGetComponent(inbound, out Owner entryOwner) ||
+                    !EntityManager.TryGetComponent(outbound, out Owner exitOwner) || entryOwner.m_Owner == exitOwner.m_Owner ||
+                    !m_Index.TryGetConnectionLane(inbound, out NetLane from) || !m_Index.TryGetConnectionLane(outbound, out NetLane to)) continue;
+                var fromTwoWay = (EntityManager.GetComponentData<TrackLane>(inbound).m_Flags & TrackLaneFlags.Twoway) != 0;
+                var toTwoWay = (EntityManager.GetComponentData<TrackLane>(outbound).m_Flags & TrackLaneFlags.Twoway) != 0;
+                var join = from.m_EndNode.GetOwnerIndex() == target.Index &&
+                    (from.m_EndNode.Equals(to.m_StartNode) || (toTwoWay && from.m_EndNode.Equals(to.m_EndNode))) ||
+                    fromTwoWay && from.m_StartNode.GetOwnerIndex() == target.Index &&
+                    (from.m_StartNode.Equals(to.m_StartNode) || (toTwoWay && from.m_StartNode.Equals(to.m_EndNode)));
+                if (!join) continue;
+                m_GateList.Add(new DirectedTrackGate(inbound, outbound, target));
+                exclusion.Add(outbound);
+            }
     }
 
     private void AddUpstreamTrackWatches(Entity connectorEntity, Entity targetLane, Entity target)
