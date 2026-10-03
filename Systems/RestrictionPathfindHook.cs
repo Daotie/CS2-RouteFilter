@@ -184,6 +184,10 @@ internal static unsafe class RestrictionPathfindHook
             State[8] = proof.CompleteExclusion ? 1 : 0;
             State[9] = (int)outcome;
             State[10] = proof.BaselineCrossesTarget ? 1 : 0;
+            State[12] = !proof.ValidEndpoints ? 1 : !proof.CompleteExclusion ? 2 : proof.Exception ? 3 :
+                proof.RestoreConflict ? 4 : proof.Cancelled ? 5 : !proof.ExactNoRouteScope ? 6 :
+                !proof.EmptyPath && !proof.AvoidsTarget ? 7 : !proof.SearchExhausted && proof.EmptyPath ? 8 :
+                proof.EmptyPath && !proof.BaselineCrossesTarget ? 9 : 0;
             // A single bounded grandfather query prevents a failed exclusion from discarding the
             // original path and stranding a vehicle. This is the SAME native request, not another
             // Obsolete write or an attempt retry. The graph is already restored for this fallback.
@@ -240,6 +244,7 @@ internal static unsafe class RestrictionPathfindHook
             Edges[count] = id;
             Originals[count++] = edge.m_Specification.m_Methods;
             edge.m_Specification.m_Methods = 0;
+            if (edge.m_Specification.m_Methods == 0) State[11]++; // Actual read-back in the owning graph job.
         }
     }
 
@@ -291,9 +296,13 @@ internal static unsafe class RestrictionPathfindHook
     private static bool TryIntercept(PathfindQueueSystem queue, PathfindAction action, Entity owner,
         JobHandle dependencies, uint resultFrame, object system, PathEventData eventData, bool wantsEvent, bool highPriority)
     {
-        if (!Available || s_World == null || !s_World.IsCreated || !dependencies.IsCompleted) return Refused(owner, "queue unavailable/world invalid/setup dependency still pending");
+        if (!Available) return Refused(owner, "QueryHookUnavailable");
+        if (s_World == null || !s_World.IsCreated) return Refused(owner, "RuntimeWorldUnavailable");
+        if (!dependencies.IsCompleted) return Refused(owner, "NativeSetupDependencyStillPending");
         var index = s_World.GetExistingSystemManaged<RestrictionIndexSystem>();
-        if (index == null || index.ActiveTargetCount == 0 || Mod.RestrictionsDirty) return Refused(owner, "index absent/zero active targets/dirty restriction");
+        if (index == null) return Refused(owner, "RestrictionIndexMissing");
+        if (index.ActiveTargetCount == 0) return Refused(owner, "NoActiveRestrictionTargets");
+        if (Mod.RestrictionsDirty) return Refused(owner, "RestrictionIndexDirty");
         var persistence = s_World.GetExistingSystemManaged<RestrictionPersistenceSystem>();
         if (persistence == null || !persistence.ConfigurationEditable) return Refused(owner, "configuration not editable");
         var manager = s_World.EntityManager;
@@ -305,8 +314,13 @@ internal static unsafe class RestrictionPathfindHook
             if (Mod.Settings?.EnableRailEnforcement == false ||
                 s_World.GetExistingSystemManaged<RailEnforcementBackend>()?.TryGetRequest(owner, out attempt) != true) return Refused(owner, "rail disabled/no owned attempt");
         }
-        else if (Mod.Settings?.EnableRoadEnforcement == false ||
-                 s_World.GetExistingSystemManaged<RoadEnforcementCoordinator>()?.TryGetRequest(owner, out attempt) != true) return Refused(owner, "road disabled/no owned attempt");
+        else
+        {
+            if (Mod.Settings?.EnableRoadEnforcement == false) return Refused(owner, "RoadEnforcementDisabledInSettings");
+            var road = s_World.GetExistingSystemManaged<RoadEnforcementCoordinator>();
+            if (road == null) return Refused(owner, "RoadCoordinatorMissing");
+            if (!road.TryGetRequest(owner, out attempt, out var invariant)) return Refused(owner, invariant);
+        }
         var frame = s_World.GetExistingSystemManaged<SimulationSystem>().frameIndex;
         if (attempt.RestrictionRevision != index.Revision || EnforcementPolicy.HasExpired(frame, attempt.AbsoluteDeadlineFrame) ||
             !manager.Exists(attempt.Target) || !manager.Exists(attempt.OwnedLane) ||
@@ -352,7 +366,8 @@ internal static unsafe class RestrictionPathfindHook
         var required = speed * math.clamp(Mod.Settings?.RerouteLatencySeconds ?? 2.4f, 2.4f, 4f) +
             speed * speed / (2 * attempt.Braking) + speed * SafeToAttemptRerouteEvaluator.VanillaRoadNavigationTimeStep +
             attempt.GeometryLength + (Mod.Settings?.RerouteUncertaintyMetres ?? 5f);
-        if (!math.isfinite(speed) || !math.isfinite(remaining) || !math.isfinite(required) || remaining <= required) return Refused(owner, "remaining distance insufficient/nonfinite");
+        if (!math.isfinite(speed) || !math.isfinite(remaining) || !math.isfinite(required) || remaining <= required)
+            return Refused(owner, $"LiveApproachDistanceInvariant remaining={remaining:F2} required={required:F2} speed={speed:F2} position={position:F4} endpoint={attempt.TraversalEnd:F4}");
         RetireCompleted();
         if (frame - s_Window >= 64) { s_Window = frame; s_Admissions = 0; }
         if (s_Admissions >= 8) return Refused(owner, "native query admission budget exhausted");
@@ -395,7 +410,7 @@ internal static unsafe class RestrictionPathfindHook
         }
         var transaction = new Transaction { Lanes = lanes, GraphLanes = graphLanes, Attempt = attempt,
             ExactNoRouteScope = exactNoRouteScope,
-            State = new NativeArray<int>(11, Allocator.Persistent),
+            State = new NativeArray<int>(13, Allocator.Persistent),
             Edges = new NativeArray<EdgeID>(256, Allocator.Persistent), Originals = new NativeArray<PathMethod>(256, Allocator.Persistent),
             Target = attempt.Target, Revision = index.Revision, Expiry = attempt.AbsoluteDeadlineFrame,
             Queue = queue, Action = action, Owner = owner, ResultFrame = resultFrame, System = system,
@@ -404,7 +419,20 @@ internal static unsafe class RestrictionPathfindHook
         // Capture only here. The postfix runs after those updates are scheduled, so its graph
         // writer dependencies include the current publication, not the previous graph generation.
         s_Transactions[slot] = transaction;
-        if (owner == P0Diagnostics.Vehicle) { P0Diagnostics.Milestone("Lease", $"query-only transaction target={attempt.Target} expiry={attempt.AbsoluteDeadlineFrame} lanes={count}"); P0Diagnostics.Milestone("Reroute", "native enqueue intercepted"); }
+        if (owner == P0Diagnostics.Vehicle)
+        {
+            P0Diagnostics.Milestone("Lease", $"query-only transaction target={attempt.Target} expiry={attempt.AbsoluteDeadlineFrame} lanes={count}");
+            P0Diagnostics.Record("LeaseRequested", "NOT_APPLICABLE: no physical lane lease");
+            P0Diagnostics.Record("LeaseCreated", "NOT_APPLICABLE: no physical lane lease");
+            P0Diagnostics.Record("ExclusionTransactionCreated", "True");
+            P0Diagnostics.Milestone("RerouteRequested", "True");
+            P0Diagnostics.Milestone("PathOwnerBefore", attempt.OriginalPathState.ToString());
+            P0Diagnostics.Record("PathOwnerAfter", pathOwner.m_State.ToString());
+            P0Diagnostics.Record("AttemptGeneration", attempt.Generation.ToString());
+            P0Diagnostics.Record("LeaseGeneration", attempt.Generation.ToString()); P0Diagnostics.Record("LeaseExpiry", attempt.AbsoluteDeadlineFrame.ToString());
+            P0Diagnostics.Milestone("PendingObserved", "True");
+            P0Diagnostics.Milestone("Reroute", "native enqueue intercepted");
+        }
         s_Admissions++; Queries++;
         if (isRail) { RailQueries++; s_World.GetExistingSystemManaged<RailEnforcementBackend>().MarkIntercepted(owner); }
         else { RoadQueries++; s_World.GetExistingSystemManaged<RoadEnforcementCoordinator>().MarkIntercepted(owner); }
@@ -413,7 +441,8 @@ internal static unsafe class RestrictionPathfindHook
 
     private static bool Refused(Entity owner, string reason)
     {
-        if (owner == P0Diagnostics.Vehicle) P0Diagnostics.Record("Reroute", reason);
+        if (owner == P0Diagnostics.Vehicle)
+        { P0Diagnostics.Record("Reroute", reason); P0Diagnostics.Record("NativeEnqueueBypassReason", reason); }
         return false;
     }
 
@@ -491,6 +520,24 @@ internal static unsafe class RestrictionPathfindHook
                 Interlocked.Exchange(ref UnsafeUtility.ArrayElementAsRef<int>(NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(transaction.State), 6), 1);
             if (!transaction.Scheduled || !transaction.Handle.IsCompleted) continue;
             transaction.Handle.Complete();
+            if (transaction.Owner == P0Diagnostics.Vehicle)
+            {
+                P0Diagnostics.Record("GraphMutationIssued", (transaction.State[1] > 0).ToString());
+                P0Diagnostics.Record("GraphEdgesWritten", transaction.State[1].ToString());
+                P0Diagnostics.Record("ActualGraphEdgesAfterWrite", transaction.State[11].ToString());
+                P0Diagnostics.Record("GraphReadbackMatchesWrite", (transaction.State[1] > 0 && transaction.State[11] == transaction.State[1]).ToString());
+                P0Diagnostics.Record("UpdatedIssued", "False");
+                P0Diagnostics.Record("GraphPublicationMechanism", "Native queue writer dependency; exclusion + query + restore in same owning job; no ECS Updated");
+                if ((RoadQueryOutcome)transaction.State[9] == RoadQueryOutcome.EnforcementUncertain)
+                    P0Diagnostics.Grandfather(transaction.Owner, "QueryProofInvariant: " + transaction.State[12] switch
+                    {
+                        1 => "ValidNativeEndpoints=false", 2 => "CompleteExclusion=false (required primary graph edge missing or already externally disabled)",
+                        3 => "NativeQueryException", 4 => "OwnedGraphRestoreConflict", 5 => "AttemptCancelledDuringQuery",
+                        6 => "NoRouteScopeNotExact (two-way outbound edge)", 7 => "NativePathStillContainsExcludedTarget",
+                        8 => "NativeSearchNotExhausted (cost cutoff, skip/ignore path, error or empty traversal)",
+                        9 => "OriginalGraphCounterfactualDidNotProveTargetCrossing", _ => "QueryProofNotCompleted"
+                    });
+            }
             if (!transaction.Rail)
             {
                 var outcome = (RoadQueryOutcome)transaction.State[9];

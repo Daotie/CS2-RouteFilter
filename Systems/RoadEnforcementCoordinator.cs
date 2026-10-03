@@ -129,7 +129,14 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         if (!m_Work.IsCompleted) return;
         m_Work.Complete(); ActiveAttempts = m_Attempts.Length;
         foreach (var attempt in m_Attempts)
-            if (attempt.Vehicle == P0Diagnostics.Vehicle) P0Diagnostics.Record("AttemptState", $"state={attempt.State} intercepted={attempt.QueryIntercepted} entry={attempt.GateEntryLane} next={attempt.OwnedLane} expiry={attempt.AbsoluteDeadlineFrame}");
+            if (attempt.Vehicle == P0Diagnostics.Vehicle && attempt.Target == P0Diagnostics.Target)
+            {
+                P0Diagnostics.Milestone("RerouteRequested", "True");
+                P0Diagnostics.Record("AttemptGeneration", attempt.Generation.ToString());
+                P0Diagnostics.Milestone("PathOwnerBefore", attempt.OriginalPathState.ToString());
+                P0Diagnostics.Milestone("PathOwnerAfterRequest", attempt.WrittenPathState.ToString());
+                P0Diagnostics.Record("AttemptState", $"state={attempt.State} intercepted={attempt.QueryIntercepted} entry={attempt.GateEntryLane} next={attempt.OwnedLane} expiry={attempt.AbsoluteDeadlineFrame}");
+            }
         if (!P0Diagnostics.Restriction || !EnforcementEnabled || !RestrictionPathfindHook.Available || Mod.Settings?.EnableRoadEnforcement == false ||
             !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable || Mod.RestrictionsDirty)
         { if (m_Attempts.Length > 0) ReleaseAll(); return; }
@@ -145,12 +152,19 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         m_Safety.AddEvaluationReader(m_Work); Dependency = m_Work;
     }
     internal bool TryGetRequest(Entity vehicle, out EnforcementAttempt attempt)
+        => TryGetRequest(vehicle, out attempt, out _);
+
+    internal bool TryGetRequest(Entity vehicle, out EnforcementAttempt attempt, out string invariant)
     {
         attempt = default;
-        if (!m_Work.IsCompleted) return false;
+        invariant = "None";
+        if (!m_Work.IsCompleted) { invariant = "RoadAdmissionJobStillPending"; return false; }
         m_Work.Complete();
-        if (!m_ByVehicle.TryGetValue(vehicle, out var index)) return false;
-        attempt = m_Attempts[index]; return attempt.State == EnforcementAttemptState.Requested && !attempt.QueryIntercepted;
+        if (!m_ByVehicle.TryGetValue(vehicle, out var index)) { invariant = "NoOwnedRoadAttemptForCanonicalVehicle"; return false; }
+        attempt = m_Attempts[index];
+        if (attempt.State != EnforcementAttemptState.Requested) { invariant = "RoadAttemptAlreadyTerminal"; return false; }
+        if (attempt.QueryIntercepted) { invariant = "OwnedQueryAlreadyIntercepted"; return false; }
+        return true;
     }
     internal void MarkIntercepted(Entity vehicle)
     { if (m_ByVehicle.TryGetValue(vehicle, out var i)) { var a = m_Attempts[i]; a.QueryIntercepted = true; m_Attempts[i] = a; } }
@@ -163,24 +177,29 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         accepted = RoadQueryOutcome.EnforcementUncertain;
         if (!m_Work.IsCompleted) return false; // Keep the no-route native result held; no blocking wait.
         m_Work.Complete();
-        if (!m_ByVehicle.TryGetValue(captured.Vehicle, out var i)) return true;
+        if (!m_ByVehicle.TryGetValue(captured.Vehicle, out var i)) return RefuseReceipt(captured, "AttemptMissingFromVehicleMap");
         var attempt = m_Attempts[i];
-        if (!EnforcementPolicy.OwnsRoadReceipt(attempt, captured) ||
-            m_Index.Revision != attempt.RestrictionRevision || Mod.RestrictionsDirty ||
-            EnforcementPolicy.HasExpired(m_Simulation.frameIndex, attempt.AbsoluteDeadlineFrame) ||
-            !ValidLive(attempt.Vehicle) || !ValidLive(attempt.Target) || !ValidLive(attempt.OwnedLane) || !ValidLive(attempt.NativeDestination) ||
-            EntityManager.HasComponent<Train>(attempt.Vehicle)) return true;
+        if (!EnforcementPolicy.OwnsRoadReceipt(attempt, captured)) return RefuseReceipt(captured, $"ReceiptIdentityMismatch liveGeneration={attempt.Generation} receiptGeneration={captured.Generation} state={attempt.State} intercepted={attempt.QueryIntercepted}");
+        if (m_Index.Revision != attempt.RestrictionRevision) return RefuseReceipt(captured, $"RestrictionRevisionChanged current={m_Index.Revision} admitted={attempt.RestrictionRevision}");
+        if (Mod.RestrictionsDirty) return RefuseReceipt(captured, "RestrictionIndexDirty");
+        if (EnforcementPolicy.HasExpired(m_Simulation.frameIndex, attempt.AbsoluteDeadlineFrame)) return RefuseReceipt(captured, $"AbsoluteDeadlineExpired frame={m_Simulation.frameIndex} deadline={attempt.AbsoluteDeadlineFrame}");
+        if (!ValidLive(attempt.Vehicle)) return RefuseReceipt(captured, "CanonicalVehicleDeletedOrTemporary");
+        if (!ValidLive(attempt.Target)) return RefuseReceipt(captured, "RestrictedTargetDeletedOrTemporary");
+        if (!ValidLive(attempt.OwnedLane)) return RefuseReceipt(captured, "ExcludedLaneDeletedOrTemporary");
+        if (!ValidLive(attempt.NativeDestination)) return RefuseReceipt(captured, "NativeDestinationDeletedOrTemporary");
+        if (EntityManager.HasComponent<Train>(attempt.Vehicle)) return RefuseReceipt(captured, "CanonicalVehicleIsRail");
         if (EntityManager.TryGetComponent(attempt.Vehicle, out Controller controller) &&
-            controller.m_Controller != Entity.Null && controller.m_Controller != attempt.Vehicle) return true;
+            controller.m_Controller != Entity.Null && controller.m_Controller != attempt.Vehicle) return RefuseReceipt(captured, "CanonicalControllerChanged");
         if (!EntityManager.TryGetComponent(attempt.Vehicle, out Game.Common.Target destination) ||
-            destination.m_Target != attempt.NativeDestination || !StillForbidden(attempt)) return true;
+            destination.m_Target != attempt.NativeDestination) return RefuseReceipt(captured, "NativeDestinationChangedOrMissing");
+        if (!StillForbidden(attempt)) return RefuseReceipt(captured, "ForbiddenPrefabNoLongerMatchesCurrentTargetAndLayout");
         if (!EntityManager.TryGetComponent(attempt.Vehicle, out CarCurrentLane current) ||
             current.m_Lane != attempt.GateEntryLane || current.m_ChangeLane != Entity.Null || current.m_ChangeProgress != 0 ||
-            (attempt.Forward ? current.m_CurvePosition.x >= attempt.TraversalEnd : current.m_CurvePosition.x <= attempt.TraversalEnd)) return true;
+            (attempt.Forward ? current.m_CurvePosition.x >= attempt.TraversalEnd : current.m_CurvePosition.x <= attempt.TraversalEnd)) return RefuseReceipt(captured, $"ApproachInvariantChanged currentLane={current.m_Lane} expectedEntry={attempt.GateEntryLane} changeLane={current.m_ChangeLane} changeProgress={current.m_ChangeProgress} position={current.m_CurvePosition.x} endpoint={attempt.TraversalEnd}");
         if (outcome == RoadQueryOutcome.ConfirmedNoAlternative)
         {
             if (!EntityManager.TryGetComponent(attempt.Vehicle, out PathOwner owner) ||
-                !EnforcementPolicy.IsExpectedSetup(attempt, owner.m_State)) return true;
+                !EnforcementPolicy.IsExpectedSetup(attempt, owner.m_State)) return RefuseReceipt(captured, $"OwnedPendingLifecycleChanged current={owner.m_State} expected={attempt.OriginalPathState | PathFlags.Pending}");
             // Vanilla's own deletion entry point marks the canonical vehicle and articulated layout
             // for normal cleanup; never delete lane/PathOwner state or scan unrelated vehicles.
             EntityManager.TryGetBuffer(attempt.Vehicle, true, out DynamicBuffer<LayoutElement> layout);
@@ -188,7 +207,7 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
                 foreach (var part in layout)
                     if (!ValidLive(part.m_Vehicle) ||
                         (part.m_Vehicle != attempt.Vehicle && (!EntityManager.TryGetComponent(part.m_Vehicle, out Controller partOwner) ||
-                         partOwner.m_Controller != attempt.Vehicle))) return true;
+                         partOwner.m_Controller != attempt.Vehicle))) return RefuseReceipt(captured, $"LayoutOwnershipInvalid part={part.m_Vehicle} canonical={attempt.Vehicle}");
             var commands = World.GetOrCreateSystemManaged<EndFrameBarrier>().CreateCommandBuffer();
             VehicleUtils.DeleteVehicle(commands, attempt.Vehicle, layout);
             var includesHead = false;
@@ -201,10 +220,14 @@ public sealed partial class RoadEnforcementCoordinator : GameSystemBase
         { attempt.State = EnforcementAttemptState.Rerouted; m_Counters[7]++; }
         else { attempt.State = EnforcementAttemptState.Grandfathered; m_Counters[8]++; m_Counters[19]++; }
         m_Attempts[i] = attempt; accepted = outcome;
+        P0Diagnostics.OwnedResult(attempt.Vehicle, outcome, attempt.Generation);
         if (attempt.Vehicle == P0Diagnostics.Vehicle)
-            P0Diagnostics.Milestone("PathResult", $"terminal={attempt.State} generation={attempt.Generation} prefab={attempt.MatchedPrefab} target={attempt.Target} revision={attempt.RestrictionRevision}");
+            P0Diagnostics.Milestone("PathResult", $"ownedQueryOutcome={outcome} generation={attempt.Generation} prefab={attempt.MatchedPrefab} target={attempt.Target} revision={attempt.RestrictionRevision}; adopted path verification is separate");
         return true;
     }
+
+    private static bool RefuseReceipt(in EnforcementAttempt attempt, string invariant)
+    { P0Diagnostics.Grandfather(attempt.Vehicle, invariant); return true; }
 
     private bool ValidLive(Entity entity) => entity != Entity.Null && EntityManager.Exists(entity) &&
         !EntityManager.HasComponent<Deleted>(entity) && !EntityManager.HasComponent<Temp>(entity);

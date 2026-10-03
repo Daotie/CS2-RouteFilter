@@ -19,6 +19,9 @@ internal static class P0Diagnostics
 {
     internal static bool Tool = true, Highlight = true, Catalog = true, Restriction = true, Overlay = true;
     internal static Entity Vehicle, Target;
+    internal static bool HasOwnedRequest => s_Milestones.Contains("RerouteRequested");
+    private static Entity s_PhysicalVehicle;
+    private static bool s_OwnedResult, s_ExpectedAlternative;
     internal static readonly string ControlPath = Path.GetFullPath(Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "..", "LocalLow", "Colossal Order", "Cities Skylines II", "RouteFilter-p0.txt"));
@@ -37,18 +40,18 @@ internal static class P0Diagnostics
         if (Vehicle == Entity.Null || !s_Milestones.Add(stage)) return;
         s_Pending.Remove(stage);
         s_Last[stage] = value;
-        Mod.Log.Info($"[RouteFilter.P0.Trace] vehicle={Vehicle} target={Target} {stage}: {value}");
+        Mod.Log.Info($"[RF.Trace] Vehicle={Vehicle} Target={Target} {stage}={value}");
     }
 
     internal static void Record(string stage, string value)
     {
         if (Vehicle == Entity.Null) return;
-        if (stage == "GraphMutation" || stage == "GateCrossing")
+        if (stage == "GraphMutation" || stage == "GateCrossing" || stage == "FinalOutcome")
         {
             s_Pending.Remove(stage);
             if (!s_Last.TryGetValue(stage, out var previous) || previous != value)
             {
-                Mod.Log.Info($"[RouteFilter.P0.Trace] vehicle={Vehicle} target={Target} {stage}: {value}");
+                Mod.Log.Info($"[RF.Trace] Vehicle={Vehicle} Target={Target} {stage}={value}");
                 s_Last[stage] = value;
                 if (stage == "GateCrossing" && value.EndsWith("=True"))
                     foreach (var step in new[] { "PrefabMatch", "Gate", "Candidate", "RejectReason", "Safety", "Lease", "GraphMutation", "Reroute", "PathResult" })
@@ -63,10 +66,18 @@ internal static class P0Diagnostics
     internal static void Arm(World world, Entity selected)
     {
         var manager = world.EntityManager;
+        s_PhysicalVehicle = selected;
         for (var i = 0; i < 4 && manager.Exists(selected) && manager.TryGetComponent(selected, out Controller controller)
             && controller.m_Controller != Entity.Null && controller.m_Controller != selected; i++) selected = controller.m_Controller;
         if (!manager.Exists(selected) || !manager.HasComponent<CarCurrentLane>(selected)) return;
         Vehicle = selected; Target = Entity.Null; s_Pending.Clear(); s_Last.Clear(); s_Milestones.Clear();
+        s_OwnedResult = s_ExpectedAlternative = false;
+        foreach (var field in new[] { "DirectedGateMatched", "GateDirectionValid", "CandidateCreated", "CandidateRejected",
+            "LeaseRequested", "LeaseCreated", "GraphMutationIssued", "UpdatedIssued", "RerouteRequested", "PendingObserved", "ResultObserved", "FailedObserved" })
+            s_Pending[field] = "False";
+        foreach (var field in new[] { "OriginalBlockage", "WrittenBlockage", "ActualBlockageAfterWrite" })
+            s_Pending[field] = "NOT_APPLICABLE: request-local graph exclusion; no physical CarLane mutation";
+        s_Pending["LeaseLane"] = "NOT_APPLICABLE: request-local transaction";
         foreach (var stage in new[] { "PrefabMatch", "Gate", "Candidate", "RejectReason", "Safety", "Lease", "GraphMutation", "Reroute", "PathResult", "GateCrossing" })
             s_Pending[stage] = "not observed yet";
         Mod.Log.Info($"[RouteFilter.P0.Trace] ARMED canonicalVehicle={Vehicle} build={Mod.BuildId}");
@@ -106,6 +117,8 @@ internal static class P0Diagnostics
         }
         catch (Exception error) { Mod.Log.Warn("[RouteFilter.P0] control read failed: " + error.Message); }
         var tool = world.GetExistingSystemManaged<RestrictionToolSystem>();
+        if (tool != null && Target != Entity.Null && tool.SelectedTarget != Entity.Null && tool.SelectedTarget != Target && Vehicle != Entity.Null)
+            Arm(world, s_PhysicalVehicle); // Never reuse evidence from a different restriction target.
         if (tool?.SelectedTarget != Entity.Null && tool != null) Target = tool.SelectedTarget;
         var index = world.GetExistingSystemManaged<RestrictionIndexSystem>();
         if (Vehicle == Entity.Null && Target != Entity.Null && index != null) ArmLocalForbiddenTruck(world, index);
@@ -119,7 +132,7 @@ internal static class P0Diagnostics
         foreach (var pair in s_Pending)
             if (!s_Last.TryGetValue(pair.Key, out var previous) || previous != pair.Value)
             {
-                Mod.Log.Info($"[RouteFilter.P0.Trace] vehicle={Vehicle} target={Target} {pair.Key}: {pair.Value}");
+                Mod.Log.Info($"[RF.Trace] Vehicle={Vehicle} Target={Target} {pair.Key}={pair.Value}");
                 s_Last[pair.Key] = pair.Value;
             }
         s_Pending.Clear();
@@ -137,10 +150,27 @@ internal static class P0Diagnostics
         var index = world.GetExistingSystemManaged<RestrictionIndexSystem>();
         if (index == null || !manager.Exists(Target)) return;
         var prefabs = new List<Entity>(8);
+        Record("Controller", Vehicle.ToString());
+        Record("PhysicalVehicle", s_PhysicalVehicle.ToString());
+        Record("PhysicalPrefab", PrefabDescription(world, s_PhysicalVehicle));
+        Record("Prefab", PrefabDescription(world, Vehicle));
+        Record("TargetType", manager.HasComponent<Node>(Target) ? "Node" : manager.HasComponent<Game.Net.Edge>(Target) ? "Segment" : "InvalidTarget");
+        Record("RestrictionRevision", index.Revision.ToString());
+        if (manager.TryGetBuffer(Target, true, out DynamicBuffer<RestrictedVehicleAssetV1> restriction))
+        {
+            var names = new List<string>(restriction.Length);
+            foreach (var item in restriction) names.Add(PrefabName(world, item.m_Prefab));
+            Record("UIForbiddenPrefabs", string.Join(",", names));
+        }
         if (manager.TryGetComponent(Vehicle, out PrefabRef own)) prefabs.Add(own.m_Prefab);
         if (manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<LayoutElement> layout))
             for (var i = 0; i < layout.Length && i < 64; i++)
                 if (manager.TryGetComponent(layout[i].m_Vehicle, out PrefabRef part)) prefabs.Add(part.m_Prefab);
+        var layoutNames = new List<string>(8);
+        if (manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<LayoutElement> parts))
+            for (var i = 0; i < parts.Length && i < 64; i++) layoutNames.Add(PrefabDescription(world, parts[i].m_Vehicle));
+        Record("LayoutTrailerPrefabs", string.Join(",", layoutNames));
+        Record("ForbiddenPrefabMatch", index.TargetRestricts(Target, prefabs).ToString());
         Record("PrefabMatch", $"matched={index.TargetRestricts(Target, prefabs)} prefabs={string.Join(",", prefabs)} revision={index.Revision} dirty={Mod.RestrictionsDirty}");
         if (!manager.TryGetComponent(Vehicle, out CarCurrentLane current)) return;
         var next = Entity.Null;
@@ -150,12 +180,56 @@ internal static class P0Diagnostics
             foreach (var value in gates)
                 if (value.m_EntryLane == current.m_Lane && value.m_NextLane == next) { gate = true; break; }
         Record("Gate", $"entry={current.m_Lane} next={next} directGate={gate} watched={world.GetExistingSystemManaged<RestrictionCandidateSystem>()?.WatchedEntryLaneCount} curve={current.m_CurvePosition}");
+        Record("EntryLane", current.m_Lane.ToString()); Record("NextLane", next.ToString()); Record("DirectedGateMatched", gate.ToString());
+        if (gate && manager.TryGetComponent(next, out Game.Net.CarLane actualLane))
+        {
+            Milestone("OriginalBlockage", $"({actualLane.m_BlockageStart},{actualLane.m_BlockageEnd}); read-only snapshot, no RouteFilter write");
+            Record("ActualCarLaneBlockage", $"({actualLane.m_BlockageStart},{actualLane.m_BlockageEnd})");
+        }
         var crossing = false;
         if (index.TryGetInternalLanes(Target, out var internals))
             foreach (var lane in internals) if (lane == current.m_Lane) { crossing = true; break; }
         Record("GateCrossing", $"insideRestrictedTarget={crossing}");
         if (manager.TryGetComponent(Vehicle, out PathOwner owner))
+        {
             Record("PathResult", $"nativeState={owner.m_State} cursor={owner.m_ElementIndex}");
+            Record("PathOwnerAfter", owner.m_State.ToString());
+            if ((owner.m_State & (PathFlags.Pending | PathFlags.Scheduled)) != 0) Milestone("PendingObserved", "True");
+            if ((owner.m_State & PathFlags.Failed) != 0) Milestone("FailedObserved", "True");
+            if (manager.TryGetBuffer(Vehicle, true, out DynamicBuffer<PathElement> path))
+            {
+                Record("PathElementCount", path.Length.ToString());
+                // Read-only upstream evidence: fixed 16-element lookahead for this one actor.
+                // This proves whether the route already advertised the forbidden target before
+                // the immediate-navigation candidate became eligible.
+                var lookahead = new List<string>(16);
+                var targetLanes = TargetPathLanes(world);
+                var firstRestricted = -1;
+                var start = Math.Max(0, owner.m_ElementIndex);
+                for (var p = start; p < path.Length && p < start + 16; p++)
+                {
+                    lookahead.Add($"{p}:{path[p].m_Target}");
+                    if (firstRestricted < 0 && targetLanes.Contains(path[p].m_Target)) firstRestricted = p;
+                }
+                Record("OriginalPathLookahead", string.Join(" -> ", lookahead));
+                Record("RestrictedTargetAheadInPath", (firstRestricted >= 0).ToString());
+                Record("FirstRestrictedPathIndex", firstRestricted.ToString());
+                Record("CurrentLaneLength", manager.TryGetComponent(current.m_Lane, out Curve curve) ? curve.m_Length.ToString("F2") : "CurveMissing");
+                // The exact owned query completed, AND vanilla has consumed its pending state.
+                // Inspect this one vehicle's adopted path, never every city path.
+                if (s_OwnedResult && s_ExpectedAlternative &&
+                    (owner.m_State & (PathFlags.Pending | PathFlags.Scheduled | PathFlags.Obsolete)) == 0)
+                {
+                    var crosses = PathCrossesTarget(world, path);
+                    Milestone("ResultObserved", "True");
+                    Record("NewPathStillCrossesTarget", crosses.ToString());
+                    var adopted = path.Length > 0 && (owner.m_State & (PathFlags.Failed | PathFlags.Stuck)) == 0;
+                    if (crosses || !adopted) Record("EnforcementFailureReason", crosses ? "RestrictedTargetStillPresent" : "OwnedAlternativeNotAdopted");
+                    Record("FinalOutcome", !crosses && adopted ? "Rerouted" : "EnforcementFailed");
+                    s_ExpectedAlternative = false;
+                }
+            }
+        }
 
     }
 
@@ -194,5 +268,54 @@ internal static class P0Diagnostics
                 }
             }
         }
+    }
+
+    internal static void OwnedResult(Entity vehicle, RoadQueryOutcome outcome, ulong generation)
+    {
+        if (vehicle != Vehicle) return;
+        s_OwnedResult = true; s_ExpectedAlternative = outcome == RoadQueryOutcome.AlternativePathFound;
+        Milestone("NativeQueryResultObserved", "True"); Record("AttemptGeneration", generation.ToString());
+        if (outcome == RoadQueryOutcome.ConfirmedNoAlternative)
+        { Milestone("ResultObserved", "True"); Record("FinalOutcome", "ConfirmedNoAlternative"); }
+    }
+
+    internal static void Grandfather(Entity vehicle, string invariant)
+    {
+        if (vehicle != Vehicle) return;
+        if (s_Last.TryGetValue("FinalOutcome", out var terminal) && (terminal == "Rerouted" || terminal == "ConfirmedNoAlternative")) return;
+        Milestone("InitialGrandfatherReason", invariant);
+        Record("GrandfatherReason", invariant); Record("FinalOutcome", "Grandfathered");
+    }
+
+    private static string PrefabName(World world, Entity entity)
+    {
+        var prefabs = world.GetExistingSystemManaged<PrefabSystem>();
+        return prefabs != null && prefabs.TryGetPrefab<PrefabBase>(entity, out var prefab) ? $"{prefab.name} [{entity}]" : entity.ToString();
+    }
+    private static string PrefabDescription(World world, Entity vehicle) =>
+        world.EntityManager.Exists(vehicle) && world.EntityManager.TryGetComponent(vehicle, out PrefabRef prefab) ? PrefabName(world, prefab.m_Prefab) : "PrefabRefMissing";
+
+    private static bool PathCrossesTarget(World world, DynamicBuffer<PathElement> path)
+    {
+        var lanes = TargetPathLanes(world);
+        if (lanes.Count == 0) return true; // Cannot certify an avoiding path against empty topology.
+        for (var i = 0; i < path.Length; i++) if (lanes.Contains(path[i].m_Target)) return true;
+        return false;
+    }
+
+    private static HashSet<Entity> TargetPathLanes(World world)
+    {
+        var index = world.GetExistingSystemManaged<RestrictionIndexSystem>();
+        var lanes = new HashSet<Entity>();
+        if (index == null || !index.TryGetInternalLanes(Target, out var internals)) return lanes;
+        foreach (var lane in internals)
+        {
+            lanes.Add(lane);
+            if (world.EntityManager.TryGetComponent(lane, out SlaveLane slave) &&
+                world.EntityManager.TryGetComponent(lane, out Game.Common.Owner owner) &&
+                world.EntityManager.TryGetBuffer(owner.m_Owner, true, out DynamicBuffer<Game.Net.SubLane> sub) && slave.m_MasterIndex < sub.Length)
+                lanes.Add(sub[slave.m_MasterIndex].m_SubLane);
+        }
+        return lanes;
     }
 }

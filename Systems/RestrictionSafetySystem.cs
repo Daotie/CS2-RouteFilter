@@ -717,8 +717,16 @@ public sealed partial class RestrictionSafetySystem : GameSystemBase
         AccumulateDetailedDiagnostics();
         if (P0Diagnostics.Vehicle != Entity.Null)
             foreach (var evaluation in m_Evaluations)
-                if (evaluation.m_Vehicle == P0Diagnostics.Vehicle)
+                if (evaluation.m_Vehicle == P0Diagnostics.Vehicle && evaluation.m_Target == P0Diagnostics.Target)
                 {
+                    P0Diagnostics.Record("SafetyVerdict", evaluation.m_Verdict.ToString());
+                    P0Diagnostics.Record("SafetyReason", evaluation.m_Reasons.ToString());
+                    P0Diagnostics.Record("RemainingDistance", evaluation.m_DistanceToGateAnchor.ToString("F2"));
+                    P0Diagnostics.Record("BrakingDistance", evaluation.m_BrakingDistance.ToString("F2"));
+                    P0Diagnostics.Record("RequiredDistance", evaluation.m_RequiredDistance.ToString("F2"));
+                    P0Diagnostics.Record("LatencyDistance", evaluation.m_ExpectedLatencyDistance.ToString("F2"));
+                    if (evaluation.m_Verdict != RerouteSafetyVerdict.Safe && !P0Diagnostics.HasOwnedRequest)
+                        P0Diagnostics.Grandfather(evaluation.m_Vehicle, $"{evaluation.m_Reasons}; remaining={evaluation.m_DistanceToGateAnchor:F2} required={evaluation.m_RequiredDistance:F2} brakingDistance={evaluation.m_BrakingDistance:F2} latencyDistance={evaluation.m_ExpectedLatencyDistance:F2} pathFlags={evaluation.m_PathState}");
                     var detail = $"verdict={evaluation.m_Verdict} reasons={evaluation.m_Reasons} remaining={evaluation.m_DistanceToGateAnchor:F1} required={evaluation.m_RequiredDistance:F1} speed={evaluation.m_Speed:F1} braking={evaluation.m_Braking:F1} path={evaluation.m_PathState}";
                     if (evaluation.m_Verdict == RerouteSafetyVerdict.Safe) P0Diagnostics.Milestone("Safety", detail);
                     else P0Diagnostics.Record("Safety", detail);

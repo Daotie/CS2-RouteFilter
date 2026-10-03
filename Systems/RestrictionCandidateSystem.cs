@@ -924,12 +924,26 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
 
         if (P0Diagnostics.Vehicle != Entity.Null)
         {
+            var traceMatched = false;
             foreach (var match in m_Matches)
-                if (match.m_Vehicle == P0Diagnostics.Vehicle)
+                if (match.m_Vehicle == P0Diagnostics.Vehicle && match.m_Target == P0Diagnostics.Target)
+                {
+                    traceMatched = true;
+                    P0Diagnostics.Milestone("CandidateCreated", "True");
+                    P0Diagnostics.Milestone("CandidateRejected", "False");
+                    P0Diagnostics.Milestone("DirectedGateMatched", "True");
+                    P0Diagnostics.Milestone("GateDirectionValid", "True");
+                    P0Diagnostics.Record("MatchedPrefab", match.m_MatchedPrefab.ToString());
                     P0Diagnostics.Milestone("Candidate", $"matched target={match.m_Target} prefab={match.m_MatchedPrefab} entry={match.m_EntryLane} next={match.m_NextLane} via={match.m_ViaLane} remaining={match.m_DirectionAwareRemainingDistanceApprox:F1}");
+                }
             foreach (var rejected in m_DebugRejections)
-                if (rejected.m_Vehicle == P0Diagnostics.Vehicle || rejected.m_PhysicalVehicle == P0Diagnostics.Vehicle)
+                if (!traceMatched && rejected.m_Target == P0Diagnostics.Target &&
+                    (rejected.m_Vehicle == P0Diagnostics.Vehicle || rejected.m_PhysicalVehicle == P0Diagnostics.Vehicle))
+                {
+                    P0Diagnostics.Record("CandidateRejected", "True");
+                    P0Diagnostics.Record("CandidateRejectReason", rejected.m_Reason.ToString());
                     P0Diagnostics.Record("RejectReason", $"reason={rejected.m_Reason} target={rejected.m_Target} expectedNext={rejected.m_NextLane} observedNext={rejected.m_ObservedNextLane}");
+                }
         }
         DumpDebugTargetMatches();
         if (m_ReportScans < 256) return;
