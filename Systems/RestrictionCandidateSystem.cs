@@ -40,6 +40,7 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
         public LaneTraversalDirection EntryDirection;
         public LaneTraversalDirection NextDirection;
         public RestrictionEndpoint TargetEndpoint;
+        public bool EntryEnabled;
     }
 
     private struct CandidateIdentity : IEquatable<CandidateIdentity>
@@ -293,6 +294,13 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                     currentLane,
                     observedNextLane,
                     reason);
+                return;
+            }
+
+            if (!gate.EntryEnabled)
+            {
+                AddDebugRejection(physical, canonical, gate.EntryLane, gate.NextLane, gate.Target,
+                    RejectedCandidateReason.NotRestrictedFromThisEntry);
                 return;
             }
 
@@ -842,7 +850,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                     TargetType = targetType,
                     EntryDirection = gate.m_EntryDirection,
                     NextDirection = gate.m_NextDirection,
-                    TargetEndpoint = gate.m_TargetEndpoint
+                    TargetEndpoint = gate.m_TargetEndpoint,
+                    EntryEnabled = m_Index.EntryEnabled(gate)
                 });
                 AddUpstreamSegmentWatches(gate, targetType, uniqueLanes, gates);
             }
@@ -881,7 +890,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
             watched.Add(first.Lane);
             gates.Add(new DirectedEntryGateRuntime { EntryLane = first.Lane, ViaLane = gate.m_EntryLane,
                 NextLane = gate.m_NextLane, Target = gate.m_Target, TargetType = type,
-                EntryDirection = first.Direction, NextDirection = gate.m_NextDirection, TargetEndpoint = gate.m_TargetEndpoint });
+                EntryDirection = first.Direction, NextDirection = gate.m_NextDirection, TargetEndpoint = gate.m_TargetEndpoint,
+                EntryEnabled = m_Index.EntryEnabled(gate) });
             foreach (var second in UpstreamRoadLanes(first.Lane, first.Direction))
             {
                 if (--budget < 0) break;
@@ -889,7 +899,8 @@ public sealed partial class RestrictionCandidateSystem : GameSystemBase
                 watched.Add(second.Lane);
                 gates.Add(new DirectedEntryGateRuntime { EntryLane = second.Lane, ViaLane = first.Lane, ViaLane2 = gate.m_EntryLane,
                     NextLane = gate.m_NextLane, Target = gate.m_Target, TargetType = type,
-                    EntryDirection = second.Direction, NextDirection = gate.m_NextDirection, TargetEndpoint = gate.m_TargetEndpoint });
+                    EntryDirection = second.Direction, NextDirection = gate.m_NextDirection, TargetEndpoint = gate.m_TargetEndpoint,
+                    EntryEnabled = m_Index.EntryEnabled(gate) });
             }
         }
     }

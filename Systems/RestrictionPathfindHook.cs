@@ -383,12 +383,17 @@ internal static unsafe class RestrictionPathfindHook
         var lanes = new NativeArray<Entity>(128, Allocator.Persistent);
         // Rail uses its own track topology, not the road index. Both exclude target-internal edges.
         if (isRail) count = s_World.GetExistingSystemManaged<RailEnforcementBackend>().CopyTargetLanes(attempt.Target, lanes);
-        else if (index.TryGetInternalLanes(attempt.Target, out var internalLanes))
-            foreach (var lane in internalLanes)
+        else
+        {
+            System.Collections.Generic.IReadOnlyCollection<Entity> excluded;
+            if (!index.TryGetDirectionExclusion(attempt.Target, out excluded))
+                excluded = index.TryGetInternalLanes(attempt.Target, out var internalLanes) ? internalLanes : null;
+            if (excluded != null) foreach (var lane in excluded)
             {
                 if (count == lanes.Length) { lanes.Dispose(); return Refused(owner, "target lane count exceeds 128"); }
                 lanes[count++] = lane;
             }
+        }
         if (count <= 0) { lanes.Dispose(); return Refused(owner, "target internal lane set empty"); }
         // The transaction must include the imminent forbidden lane; refuse incomplete topology.
         var hasGate = false;

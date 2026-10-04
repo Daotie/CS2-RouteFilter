@@ -16,6 +16,10 @@ type Props = {
   resetCompleted: number;
   buildId: string;
   configurationEditable: boolean;
+  entryCount: number;
+  enabledEntryCount: number;
+  entriesSupported: boolean;
+  showEntryDirections: boolean;
   targetMode: number;
   selectedTargetKind: number;
   selectedCount: number;
@@ -51,6 +55,14 @@ export const RouteFilterPanel = (props: Props) => {
       <PanelHeader title={props.labels.title} version={mod.version} buildId={props.buildId} closeLabel={props.labels.close} onClose={props.onClose} />
       {!props.configurationEditable && <div className={styles.resetStatus} role="status">{tr("RouteFilter.UI.PersistenceLocked", "Save data is incompatible or damaged. Editing is locked; Reset removes RouteFilter configuration.")}</div>}
       <TargetSelector mode={props.targetMode} nodeLabel={props.labels.node} segmentLabel={props.labels.segment} status={props.labels.targetStatus} targetReady={targetReady} onModeChange={props.onTargetModeChange} />
+      {props.showEntryDirections && <Tooltip tooltip={tr(props.entriesSupported ? "RouteFilter.UI.EntryDirectionsHint" : "RouteFilter.UI.EntryDirectionsUnsupported", props.entriesSupported ? "Click approach bars, then Apply." : "Entries cannot be separated reliably; all-entry restrictions remain active.")}>
+        <div className={styles.directionSummary}>
+          <span>{tr("RouteFilter.UI.EntryDirections", "Restricted entries")} {props.entriesSupported ? `${props.enabledEntryCount} / ${props.entryCount}` : tr("RouteFilter.UI.EntryDirectionsUnavailable", "All entries (unavailable)")}</span>
+          <Button variant="flat" disabled={!props.configurationEditable} onSelect={() => trigger(mod.id, "allEntryDirections")}>
+            {tr("RouteFilter.UI.AllEntries", "All entries")}
+          </Button>
+        </div>
+      </Tooltip>}
       <div className={styles.listHeading}>
         <div><strong>{props.labels.assetTitle}</strong><span>{props.labels.assetSubtitle}</span></div>
         <small>{props.selectedCount} / {props.assetCount}</small>

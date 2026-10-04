@@ -163,6 +163,7 @@ public sealed partial class RestrictionIndexSystem : GameSystemBase
     {
         m_Current.Reset();
         m_Scratch.Reset();
+        m_EditorTopology = new(); m_EditorTarget = Entity.Null; m_EditorSourceRevision = -1; m_DirectionWarnings.Clear();
         m_InternalTraversals.Clear();
         m_AdjacentTraversals.Clear();
         m_AdjacentOwners.Clear();
@@ -218,6 +219,8 @@ public sealed partial class RestrictionIndexSystem : GameSystemBase
         using var segments = m_RestrictedSegments.ToEntityArray(Allocator.Temp);
         foreach (var segment in segments)
             AddRestrictedTarget(topology, segment, RestrictionTopologyTargetType.Segment);
+        foreach (var target in topology.ActiveTargets) BuildLogicalEntries(topology, target);
+        m_DirectionWarnings.RemoveWhere(target => !topology.ActiveTargets.Contains(target) && target != m_EditorTarget);
     }
 
     private void AddRestrictedTarget(

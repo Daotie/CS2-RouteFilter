@@ -117,6 +117,8 @@ public struct PersistentRestriction
     public RestrictionTargetIdentity Target;
     /// <summary>Indices into <see cref="RouteFilterSaveData.PrefabNames"/>. Unresolved names stay in the table.</summary>
     public int[] PrefabIndices;
+    /// <summary>null = all valid entries (including old saves); empty = no road entry restricted.</summary>
+    public RestrictionEntryIdentity[] EnabledEntries;
 }
 
 /// <summary>Decoded payload. Field order is the on-disk order.</summary>
@@ -129,7 +131,8 @@ public sealed class RouteFilterSaveData
     /// Bumped whenever the on-disk body changes. A payload whose schema is newer than this is
     /// preserved byte for byte and never reinterpreted.
     /// </summary>
-    public const ushort SchemaVersion = 4;
+    public const ushort SchemaVersion = 5;
+    public const int MaxEntryCount = 64;
 
     /// <summary>Older schemas this build can still read and migrate.</summary>
     public const ushort OldestSupportedSchema = 3;
@@ -146,6 +149,8 @@ public sealed class RouteFilterSaveData
     public ushort Schema;
     public List<string> PrefabNames = new();
     public List<PersistentRestriction> Restrictions = new();
+    // Decode-only diagnostic, never serialized.
+    public int DirectionFallbackCount;
 
     public static RouteFilterSaveData CreateEmpty() => new();
 }
@@ -188,7 +193,7 @@ public sealed class SaveDecodeResult
 /// Layout:
 /// <code>
 /// uint    magic                'RFLT'
-/// ushort  schema               4 (schema 3 is accepted without a checksum)
+/// ushort  schema               5 (schema 3 and 4 remain readable)
 /// ushort  flags                bit 0: payload is RouteFilter-owned (reserved, currently 0)
 /// int     prefabNameCount
 /// string  prefabName           x prefabNameCount      (UTF-16, deduplicated)
@@ -199,7 +204,9 @@ public sealed class SaveDecodeResult
 ///   int     lengthCentimetres  segment length (segments only)
 ///   int     prefabCount
 ///   int     prefabIndex        x prefabCount         (indices into the name table)
-/// uint    checksum             schema 4 only, CRC32 of all preceding body bytes
+///   int     entryCount         -1 all, 0 none, 1..64 explicit identities (schema 5)
+///   entry   connection/endpoints/midpoint/road prefab x entryCount
+/// uint    checksum             schema 4+, CRC32 of all preceding body bytes
 /// </code>
 ///
 /// Two deliberate choices:
@@ -225,6 +232,14 @@ public static class RouteFilterSaveCodec
         foreach (var record in data.Restrictions)
             if ((record.PrefabIndices?.Length ?? 0) > RouteFilterSaveData.MaxPrefabsPerRestriction)
                 throw new ArgumentException("Target prefab count exceeds save limits");
+        foreach (var record in data.Restrictions)
+        {
+            if ((record.EnabledEntries?.Length ?? 0) > RouteFilterSaveData.MaxEntryCount)
+                throw new ArgumentException("Target entry count exceeds save limits");
+            if (record.EnabledEntries != null)
+                foreach (var entry in record.EnabledEntries)
+                    if (!entry.IsValid) throw new ArgumentException("Invalid persistent entry identity");
+        }
         var body = new RestrictionByteSink();
         EncodeBody(data, body);
         var bytes = body.ToArray();
@@ -274,6 +289,16 @@ public static class RouteFilterSaveCodec
             var count = indices?.Length ?? 0;
             sink.WriteInt(count);
             for (var j = 0; j < count; j++) sink.WriteInt(indices[j]);
+            sink.WriteInt(restriction.EnabledEntries?.Length ?? -1);
+            if (restriction.EnabledEntries != null)
+                foreach (var entry in restriction.EnabledEntries)
+                {
+                    sink.WriteInt(entry.Connection.Kind);
+                    WriteAnchor(sink, entry.Connection.Anchor); WriteAnchor(sink, entry.Connection.EndAnchor);
+                    sink.WriteInt(entry.Connection.LengthCentimetres);
+                    WriteAnchor(sink, entry.Endpoint); WriteAnchor(sink, entry.CurveMidpoint);
+                    sink.WriteString(entry.RoadPrefab);
+                }
         }
     }
 
@@ -334,7 +359,7 @@ public static class RouteFilterSaveCodec
             return result;
         }
 
-        if (schema == 4)
+        if (schema >= 4)
         {
             if (!source.ReadRemainingBytes(out var rest) || rest.Length < 4)
                 return ChecksumFailure("truncated checksum");
@@ -459,8 +484,40 @@ public static class RouteFilterSaveCodec
 
         restriction.Target = target;
         restriction.PrefabIndices = Compact(indices, data.PrefabNames.Count);
+        if (data.Schema >= 5)
+        {
+            if (!source.ReadInt(out var entryCount) || entryCount < -1 || entryCount > RouteFilterSaveData.MaxEntryCount) return false;
+            if (entryCount >= 0)
+            {
+                var entries = new RestrictionEntryIdentity[entryCount];
+                var validEntries = true;
+                for (var i = 0; i < entryCount; i++)
+                {
+                    if (!source.ReadInt(out var entryKind) ||
+                        !ReadAnchor(source, out var start) || !ReadAnchor(source, out var end) ||
+                        !source.ReadInt(out var entryLength) || !ReadAnchor(source, out var endpoint) ||
+                        !ReadAnchor(source, out var midpoint) || !source.ReadString(out var roadPrefab)) return false;
+                    entries[i] = new RestrictionEntryIdentity { Connection = new RestrictionTargetIdentity
+                        { Kind = entryKind == 1 ? (byte)1 : (byte)0, Anchor = start, EndAnchor = end, LengthCentimetres = entryLength },
+                        Endpoint = endpoint, CurveMidpoint = midpoint, RoadPrefab = roadPrefab };
+                    validEntries &= entries[i].IsValid;
+                }
+                restriction.EnabledEntries = validEntries ? entries : null;
+                if (!validEntries) data.DirectionFallbackCount++;
+            }
+        }
         data.Restrictions.Add(restriction);
         return true;
+    }
+
+    private static void WriteAnchor(IRestrictionSaveSink sink, RestrictionAnchor anchor)
+    { sink.WriteInt(anchor.X); sink.WriteInt(anchor.Y); sink.WriteInt(anchor.Z); }
+
+    private static bool ReadAnchor(IRestrictionSaveSource source, out RestrictionAnchor anchor)
+    {
+        anchor = default;
+        if (!source.ReadInt(out var x) || !source.ReadInt(out var y) || !source.ReadInt(out var z)) return false;
+        anchor = new RestrictionAnchor(x, y, z); return true;
     }
 
     private static int[] Compact(int[] indices, int nameCount)

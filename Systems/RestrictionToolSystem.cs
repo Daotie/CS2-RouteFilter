@@ -125,6 +125,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         }
 
         if (SelectedTarget != Entity.Null && !EntityManager.Exists(SelectedTarget)) ClearSelection();
+        RefreshEntryEditor();
 
         if (PointerOverUi)
         {
@@ -141,6 +142,9 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
             m_ToolSystem.selected = P0Diagnostics.Highlight ? SelectedTarget : Entity.Null;
             return inputDeps;
         }
+
+        if (UnityEngine.Time.frameCount > m_ActivationFrame && Mod.Apply != null &&
+            Mod.Apply.WasPressedThisFrame() && TryToggleEntry(hit.m_HitPosition)) return inputDeps;
 
         var target = ResolveTarget(entity, hit.m_HitPosition);
         if (HoveredTarget != target) Mod.Log.Debug($"[RouteFilter.Tool] Hover {Mod.SelectedTargetMode}={target}");
@@ -189,9 +193,10 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
     public void SelectTarget(Entity target)
     {
-        if (target == Entity.Null) return;
+        if (target == Entity.Null || target == SelectedTarget) return;
         SelectedTarget = target;
         SelectedTransportMode = GetTransportMode(target);
+        LoadEntryEditor();
         m_ToolSystem.selected = target;
         Mod.Log.Info($"[RouteFilter.Tool] Selected {(EntityManager.HasComponent<Node>(target) ? "Node" : "Segment")}={target.Index}:{target.Version}");
     }
@@ -201,6 +206,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         if (SelectedTarget != Entity.Null) Mod.Log.Info("[RouteFilter.Tool] Selection cancelled");
         SelectedTarget = Entity.Null;
         SelectedTransportMode = 0;
+        ClearEntryEditor();
         m_ToolSystem.selected = Entity.Null;
     }
 
@@ -212,7 +218,8 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
             Mod.Log.Warn("Apply ignored: no node or segment selected");
             return;
         }
-        SetRestriction(SelectedTarget, Mod.SelectedVehicleAssets);
+        RefreshEntryEditor();
+        SetRestriction(SelectedTarget, Mod.SelectedVehicleAssets, PendingEntries());
         Mod.Log.Info($"[RouteFilter.Tool] restriction applied target={SelectedTarget}");
     }
 
@@ -220,10 +227,12 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
     {
         if (SelectedTarget == Entity.Null) return;
         ClearRestriction(SelectedTarget);
+        SetAllEntryDirections();
         Mod.Log.Info($"[RouteFilter.Tool] restriction cleared target={SelectedTarget.Index}:{SelectedTarget.Version}");
     }
 
-    public void SetRestriction(Entity target, IReadOnlyCollection<Entity> vehicleAssets)
+    public void SetRestriction(Entity target, IReadOnlyCollection<Entity> vehicleAssets,
+        RouteFilter.Persistence.RestrictionEntryIdentity[] entries = null)
     {
         if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
         World.GetOrCreateSystemManaged<RoadEnforcementCoordinator>().ReleaseAll();
@@ -250,7 +259,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ForgetPending(target);
         if (isNode) SetNodeRestriction(target, compatibleAssets);
         else SetSegmentRestriction(target, compatibleAssets);
-        World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().RememberIntent(target, isNode ? (byte)0 : (byte)1);
+        World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().RememberIntent(target, isNode ? (byte)0 : (byte)1, entries);
 
         Mod.Log.Info($"{(isNode ? "Node" : "Segment")} {target.Index}:{target.Version} forbidden list set to {compatibleAssets.Count} compatible vehicle assets");
     }
@@ -272,11 +281,13 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
     /// directly; unlike <see cref="SetRestriction"/> it never clears the target when the
     /// list is empty, so an unresolved restore cannot destroy already-restored data.
     /// </summary>
-    public void RestoreRestriction(Entity target, bool isNode, IReadOnlyCollection<Entity> vehicleAssets)
+    public void RestoreRestriction(Entity target, bool isNode, IReadOnlyCollection<Entity> vehicleAssets,
+        RouteFilter.Persistence.RestrictionEntryIdentity[] entries = null)
     {
         if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
         if (isNode) SetNodeRestriction(target, vehicleAssets);
         else SetSegmentRestriction(target, vehicleAssets);
+        World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().SetDirectionIntent(target, entries);
         Mod.RestrictionsDirty = true;
     }
 

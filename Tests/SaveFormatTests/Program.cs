@@ -413,6 +413,93 @@ Section("checksum corruption containment");
     }
 }
 
+Section("directional entry persistence and stable endpoint identity");
+{
+    var a = new RestrictionAnchor(0, 0, 0); var b = new RestrictionAnchor(25600, 0, 0);
+    var road = new RestrictionTargetIdentity { Kind = 1, Anchor = a, EndAnchor = b, LengthCentimetres = 10000 };
+    var entryA = new RestrictionEntryIdentity { Connection = road, Endpoint = a,
+        CurveMidpoint = new RestrictionAnchor(12800, 0, 100), RoadPrefab = "Highway2Lane" };
+    var entryB = entryA; entryB.Endpoint = b;
+    Check(entryA.IsValid && entryB.IsValid, "both actual segment endpoints valid");
+    Check(!entryA.Equals(entryB), "entering A is distinct from entering B");
+    var reversed = entryA; reversed.Connection.Anchor = b; reversed.Connection.EndAnchor = a;
+    Check(entryA.Equals(reversed) && entryA.GetHashCode() == reversed.GetHashCode(),
+        "runtime endpoint ordering cannot flip entry identity");
+    Check(new HashSet<RestrictionEntryIdentity> { entryA }.Contains(reversed), "normalized identity supports hashed lookup");
+    Check(!new HashSet<RestrictionEntryIdentity> { entryA }.Contains(entryB), "disabled opposite endpoint remains distinct");
+    var replacement = entryA; replacement.RoadPrefab = "DifferentRoad";
+    Check(!entryA.Equals(replacement), "replaced road prefab cannot inherit entry intent");
+    replacement = entryA; replacement.CurveMidpoint.Z++;
+    Check(!entryA.Equals(replacement), "changed curve cannot borrow nearest endpoint mapping");
+    replacement = entryA; replacement.Endpoint = new RestrictionAnchor(12, 0, 0);
+    Check(!replacement.IsValid, "unrelated endpoint rejected");
+    replacement = entryA; replacement.Connection.EndAnchor = a;
+    Check(!replacement.IsValid, "coincident ambiguous endpoints rejected");
+
+    foreach (var kind in new byte[] { 0, 1 })
+    foreach (var entries in new RestrictionEntryIdentity[][] { null, Array.Empty<RestrictionEntryIdentity>(), new[] { entryA }, new[] { entryB }, new[] { entryA, entryB } })
+    {
+        var data = RouteFilterSaveData.CreateEmpty(); data.PrefabNames.Add("Truck01");
+        var target = road; target.Kind = kind;
+        data.Restrictions.Add(new PersistentRestriction { Target = target, PrefabIndices = new[] { 0 }, EnabledEntries = entries });
+        var sink = new RestrictionByteSink(); RouteFilterSaveCodec.Encode(data, sink);
+        var decoded = RouteFilterSaveCodec.Decode(new RestrictionByteSource(sink.ToArray()));
+        Check(decoded.Status == SaveDecodeStatus.Ok && decoded.Data.Restrictions.Count == 1, $"kind {kind} direction record round trips");
+        var actual = decoded.Data.Restrictions[0].EnabledEntries;
+        Check(entries == null ? actual == null : actual != null && actual.SequenceEqual(entries),
+            $"kind {kind} preserves all/none/subset distinction");
+    }
+
+    // Encode the actual pre-feature record layout rather than relabeling a schema-5 body.
+    foreach (var schema in new ushort[] { 3, 4 })
+    {
+        var old = new RestrictionByteSink(); old.WriteUInt(RouteFilterSaveData.Magic); old.WriteUShort(schema); old.WriteUShort(0);
+        old.WriteInt(1); old.WriteString("Truck01"); old.WriteInt(2);
+        for (var kind = 0; kind <= 1; kind++)
+        {
+            old.WriteInt(kind); old.WriteInt(0); old.WriteInt(0); old.WriteInt(0);
+            old.WriteInt(b.X); old.WriteInt(b.Y); old.WriteInt(b.Z); old.WriteInt(10000);
+            old.WriteInt(1); old.WriteInt(0);
+        }
+        var bytes = old.ToArray();
+        if (schema == 4)
+        {
+            uint crc = uint.MaxValue;
+            foreach (var value in bytes) { crc ^= value; for (var bit = 0; bit < 8; bit++) crc = (crc >> 1) ^ ((crc & 1) != 0 ? 0xEDB88320u : 0u); }
+            old.WriteUInt(~crc); bytes = old.ToArray();
+        }
+        var decoded = RouteFilterSaveCodec.Decode(new RestrictionByteSource(bytes));
+        Check(decoded.Status == SaveDecodeStatus.Ok && decoded.Data.Restrictions.Count == 2, $"actual schema {schema} node and segment accepted");
+        Check(decoded.Data.Restrictions.All(record => record.EnabledEntries == null), $"old schema {schema} means ALL entries");
+    }
+    var invalid = RouteFilterSaveData.CreateEmpty(); invalid.Restrictions.Add(new PersistentRestriction { Target = road,
+        EnabledEntries = new[] { replacement } });
+    var refused = false;
+    try { RouteFilterSaveCodec.Encode(invalid, new RestrictionByteSink()); } catch (ArgumentException) { refused = true; }
+    Check(refused, "invalid entry identity cannot be written");
+    invalid.Restrictions[0] = new PersistentRestriction { Target = road, EnabledEntries = Enumerable.Repeat(entryA, 65).ToArray() };
+    refused = false;
+    try { RouteFilterSaveCodec.Encode(invalid, new RestrictionByteSink()); } catch (ArgumentException) { refused = true; }
+    Check(refused, "entry count is bounded before encode");
+    var semantic = RouteFilterSaveData.CreateEmpty(); semantic.PrefabNames.Add("Truck01");
+    semantic.Restrictions.Add(new PersistentRestriction { Target = road, PrefabIndices = new[] { 0 }, EnabledEntries = new[] { entryA } });
+    var semanticSink = new RestrictionByteSink(); RouteFilterSaveCodec.Encode(semantic, semanticSink);
+    var damaged = semanticSink.ToArray();
+    // Entry endpoint begins 20 bytes before the midpoint and road-prefab string.
+    var roadNameBytes = 4 + "Highway2Lane".Length * 2;
+    var endpointOffset = damaged.Length - 4 - roadNameBytes - 12 - 12;
+    BitConverter.GetBytes(12345).CopyTo(damaged, endpointOffset);
+    uint repairCrc = uint.MaxValue;
+    for (var i = 0; i < damaged.Length - 4; i++)
+    { repairCrc ^= damaged[i]; for (var bit = 0; bit < 8; bit++) repairCrc = (repairCrc >> 1) ^ ((repairCrc & 1) != 0 ? 0xEDB88320u : 0u); }
+    BitConverter.GetBytes(~repairCrc).CopyTo(damaged, damaged.Length - 4);
+    var recovered = RouteFilterSaveCodec.Decode(new RestrictionByteSource(damaged));
+    Check(recovered.Status == SaveDecodeStatus.Ok && recovered.Data.Restrictions.Count == 1 &&
+        recovered.Data.Restrictions[0].PrefabIndices.SequenceEqual(new[] { 0 }), "semantically invalid direction retains forbidden prefabs");
+    Check(recovered.Data.DirectionFallbackCount == 1 && recovered.Data.Restrictions[0].EnabledEntries == null,
+        "invalid direction falls back to ALL with explicit diagnostic");
+}
+
 // ---------------------------------------------------------------- report
 
 Console.WriteLine();

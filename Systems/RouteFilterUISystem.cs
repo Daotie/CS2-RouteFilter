@@ -37,6 +37,9 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private readonly Dictionary<Entity, int> m_IdsByAsset = new();
     private readonly Dictionary<Entity, int> m_ModeByAsset = new();
     private readonly Dictionary<Entity, List<Entity>> m_ChildrenByAsset = new();
+    private ValueBinding<int> m_EntryCountBinding = null!;
+    private ValueBinding<int> m_EnabledEntryCountBinding = null!;
+    private ValueBinding<bool> m_EntrySupportedBinding = null!;
     private ValueBinding<bool> m_ToolActiveBinding = null!;
     private ValueBinding<int> m_TargetModeBinding = null!;
     private ValueBinding<int> m_TargetTransportBinding = null!;
@@ -71,6 +74,10 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         m_TargetModeBinding = CreateValue("targetMode", (int)Mod.SelectedTargetMode);
         m_TargetTransportBinding = CreateValue("targetTransport", 0);
         m_SelectedTargetKindBinding = CreateValue("selectedTargetKind", 0);
+        m_EntryCountBinding = CreateValue("entryDirectionCount", 0);
+        m_EnabledEntryCountBinding = CreateValue("enabledEntryDirectionCount", 0);
+        m_EntrySupportedBinding = CreateValue("entryDirectionsSupported", false);
+        AddBinding(new TriggerBinding(Mod.Id, "allEntryDirections", m_RestrictionTool.SetAllEntryDirections));
         m_AssetCatalogBinding = CreateValue("assetCatalog", string.Empty);
         m_SelectedAssetsBinding = CreateValue("selectedAssetIds", string.Empty);
         m_ResetCompletedBinding = CreateValue("resetCompleted", 0);
@@ -178,6 +185,9 @@ public sealed partial class RouteFilterUISystem : UISystemBase
             m_SelectedTargetBinding.Update(m_LastSelectedTarget == Entity.Null ? string.Empty : $"{m_LastSelectedTarget.Index}:{m_LastSelectedTarget.Version}");
             LoadSelectedTargetAssets(m_LastSelectedTarget);
         }
+        m_EntryCountBinding.Update(m_RestrictionTool.EntryDirectionCount);
+        m_EnabledEntryCountBinding.Update(m_RestrictionTool.EnabledEntryDirectionCount);
+        m_EntrySupportedBinding.Update(m_RestrictionTool.EntryDirectionsSupported);
         base.OnUpdate();
     }
 

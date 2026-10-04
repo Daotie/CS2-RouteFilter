@@ -11,6 +11,7 @@
          contract, including migration and corruption containment, is verifiable without the game. -->
     <Compile Include="../../Components/RestrictionByteCodec.cs" Link="RestrictionByteCodec.cs" />
     <Compile Include="../../Components/RouteFilterSaveData.cs" Link="RouteFilterSaveData.cs" />
+    <Compile Include="../../Components/RestrictionEntryIdentity.cs" Link="RestrictionEntryIdentity.cs" />
     <Compile Include="../../Components/LegacyRouteFilterSaveData.cs" Link="LegacyRouteFilterSaveData.cs" />
   </ItemGroup>
 </Project>

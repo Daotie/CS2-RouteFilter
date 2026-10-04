@@ -40,6 +40,7 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
         public readonly HashSet<string> AssetNames = new();
         public readonly HashSet<string> ResolvedNames = new();
         public int Attempts;
+        public RestrictionEntryIdentity[] EnabledEntries;
     }
 
     private EntityQuery m_RestrictedNodes;
@@ -51,6 +52,7 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
     private readonly List<IntentRecord> m_IntentRecord = new();
     private readonly Dictionary<string, Entity> m_PrefabEntitiesByName = new();
     private readonly Dictionary<RestrictionAnchor, Entity> m_NodeIndex = new();
+    private readonly Dictionary<Entity, RestrictionEntryIdentity[]> m_DirectionIntent = new();
     private readonly List<Entity> m_ResolvedAssets = new();
 
     private bool m_NameMapStale = true;
@@ -125,6 +127,7 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
     private void ClearTransientState()
     {
         m_IntentRecord.Clear();
+        m_DirectionIntent.Clear();
         m_RestoreCursor = 0;
         m_RestoreVisitsRemaining = 0;
         m_PrefabEntitiesByName.Clear();
@@ -187,6 +190,7 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
     private void LockPayload(string reason, byte[] original)
     {
         m_IntentRecord.Clear();
+        m_DirectionIntent.Clear();
         m_PersistenceLocked = true;
         DataTrusted = false;
         m_LockReason = reason;
@@ -230,6 +234,8 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
 
     private void QueueRestrictions(RouteFilterSaveData data)
     {
+        if (data.DirectionFallbackCount != 0)
+            Mod.Log.Warn($"[RouteFilter.Directions] {data.DirectionFallbackCount} invalid direction records restored as ALL entries; forbidden prefab intent retained");
         if (data == null || data.Restrictions.Count == 0) return;
         var unique = new Dictionary<RestrictionTargetIdentity, IntentRecord>();
         for (var i = 0; i < data.Restrictions.Count; i++)
@@ -238,7 +244,13 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
             if (!unique.TryGetValue(restriction.Target, out var pending))
             {
                 pending = new IntentRecord { Identity = restriction.Target };
+                pending.EnabledEntries = restriction.EnabledEntries;
                 unique.Add(restriction.Target, pending);
+            }
+            else if (!SameEntries(pending.EnabledEntries, restriction.EnabledEntries))
+            {
+                pending.EnabledEntries = null;
+                Mod.Log.Warn("[RouteFilter.Directions] conflicting duplicate target direction sets; keeping all-entry compatibility");
             }
             var indices = restriction.PrefabIndices;
             if (indices != null)
@@ -306,11 +318,12 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
         data.Restrictions.Add(new PersistentRestriction
         {
             Target = identity,
-            PrefabIndices = indices.ToArray()
+            PrefabIndices = indices.ToArray(),
+            EnabledEntries = GetDirectionIntent(target)
         });
     }
 
-    private bool TryDescribeTarget(Entity target, byte kind, out RestrictionTargetIdentity identity)
+    internal bool TryDescribeTarget(Entity target, byte kind, out RestrictionTargetIdentity identity)
     {
         identity = default;
         if (!EntityManager.Exists(target) || EntityManager.HasComponent<Deleted>(target) ||
@@ -366,18 +379,19 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
                 m_ResolvedAssets.Add(prefab);
                 changed |= record.ResolvedNames.Add(name);
             }
-            if (changed) tool.RestoreRestriction(target, record.Identity.Kind == 0, m_ResolvedAssets);
+            if (changed) tool.RestoreRestriction(target, record.Identity.Kind == 0, m_ResolvedAssets, record.EnabledEntries);
             // Retain the complete player intent even after successful resolution. The ECS
             // buffer cannot preserve a name if its asset becomes unavailable later.
         }
     }
 
-    public void RememberIntent(Entity target, byte kind)
+    public void RememberIntent(Entity target, byte kind, RestrictionEntryIdentity[] entries = null)
     {
         if (!ConfigurationEditable || !TryDescribeTarget(target, kind, out var identity)) return;
         if (!EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets)) return;
         ForgetPending(target);
-        var intent = new IntentRecord { Identity = identity, ResolvedTarget = target };
+        var intent = new IntentRecord { Identity = identity, ResolvedTarget = target, EnabledEntries = entries };
+        SetDirectionIntent(target, entries);
         foreach (var asset in assets)
         {
             var name = m_PrefabSystem.GetPrefabName(asset.m_Prefab);
@@ -386,8 +400,24 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
         if (intent.AssetNames.Count != 0) m_IntentRecord.Add(intent);
     }
 
+    internal RestrictionEntryIdentity[] GetDirectionIntent(Entity target)
+        => m_DirectionIntent.TryGetValue(target, out var entries) ? entries : null;
+
+    internal void SetDirectionIntent(Entity target, RestrictionEntryIdentity[] entries)
+    {
+        if (entries == null) m_DirectionIntent.Remove(target);
+        else m_DirectionIntent[target] = (RestrictionEntryIdentity[])entries.Clone();
+    }
+
+    private static bool SameEntries(RestrictionEntryIdentity[] a, RestrictionEntryIdentity[] b)
+    {
+        if (a == null || b == null) return a == b;
+        return new HashSet<RestrictionEntryIdentity>(a).SetEquals(b);
+    }
+
     public void ForgetPending(Entity target)
     {
+        m_DirectionIntent.Remove(target);
         for (var i = m_IntentRecord.Count - 1; i >= 0; i--)
         {
             var record = m_IntentRecord[i];
@@ -401,9 +431,13 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
     {
         // A target known to have been deleted is different from a target missing during load.
         // Retire known deletions; unresolved identities remain quarantined player intent.
-        m_IntentRecord.RemoveAll(record => record.ResolvedTarget != Entity.Null &&
-            (!EntityManager.Exists(record.ResolvedTarget) || EntityManager.HasComponent<Deleted>(record.ResolvedTarget) ||
-             EntityManager.HasComponent<Temp>(record.ResolvedTarget)));
+        for (var i = m_IntentRecord.Count - 1; i >= 0; i--)
+        {
+            var target = m_IntentRecord[i].ResolvedTarget;
+            if (target == Entity.Null || (EntityManager.Exists(target) && !EntityManager.HasComponent<Deleted>(target) &&
+                !EntityManager.HasComponent<Temp>(target))) continue;
+            m_DirectionIntent.Remove(target); m_IntentRecord.RemoveAt(i);
+        }
         var recordIndices = new Dictionary<RestrictionTargetIdentity, int>();
         for (var i = 0; i < data.Restrictions.Count; i++) recordIndices[data.Restrictions[i].Target] = i;
         foreach (var pending in m_IntentRecord)
@@ -433,7 +467,7 @@ public sealed partial class RestrictionPersistenceSystem : GameSystemBase, IDefa
             }
             var array = new int[indices.Count];
             indices.CopyTo(array);
-            var record = new PersistentRestriction { Target = pending.Identity, PrefabIndices = array };
+            var record = new PersistentRestriction { Target = pending.Identity, PrefabIndices = array, EnabledEntries = pending.EnabledEntries };
             if (recordIndex >= 0) data.Restrictions[recordIndex] = record;
             else { recordIndices[pending.Identity] = data.Restrictions.Count; data.Restrictions.Add(record); }
         }

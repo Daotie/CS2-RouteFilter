@@ -5,7 +5,7 @@ No all-city vehicle or lane query runs each simulation frame. No physical barrie
 
 | System / 系统 | Work grows with / 工作量随什么增长 | Bound / 上限 |
 |---|---|---|
-| Index / 索引 | Dirty restrictions and relevant local topology / 脏限制与相关局部拓扑 | Revision driven / 修订触发 |
+| Index / 索引 | Dirty restrictions and relevant local topology / 脏限制与相关局部拓扑 | Existing dirty/periodic rebuild cadence / 保持现有脏标记及周期重建频率 |
 | Road candidate / 道路候选 | Watched lanes + relevant LaneObjects + matching gates / 监视车道、相关对象与门 | 4096 candidates, 8192 observations |
 | Safety / 安全 | New candidates + periodic retained-observation pruning / 新候选及周期清理 | 4096 evaluations, 8192 observations |
 | Road coordinator / 道路协调 | New evaluations + active approaches / 新评估与接近记录 | 64 records; 4 requests/64 simulation frames |
@@ -14,6 +14,10 @@ No all-city vehicle or lane query runs each simulation frame. No physical barrie
 | Query transaction / 查询事务 | Target lanes + returned path length + normal native explored graph / 目标车道、路径长度与原生搜索规模 | 128 lanes, 256 edges; at most 2 native queries/action |
 | Restore / 配置恢复 | Pending intent on load/content events / 加载事件中的待恢复配置 | 64 visits/update, 3 passes/event |
 | Diagnostics / 诊断 | Fixed counters / 固定计数 | Requested or opt-in window only |
+| Entry direction filter / 入口方向过滤 | One copied boolean after prefab and directed-navigation match / 匹配后一次布尔检查 | O(1), no extra scan |
+| Logical entry derivation / 逻辑入口推导 | Existing restricted-target gate rebuild / 现有目标门重建 | Same rebuild cadence; no new resident system |
+| Selected-target direction editor / 选中目标方向编辑 | One target tag/revision check; cached bars on dirty change / 一个目标标签及修订检查，变化时缓存控制条 | Up to 64 local entries; no hover topology rebuild |
+| Direction overlay / 方向浮层 | Cached bars on selected road target / 已选道路目标的缓存控制条 | Scalar job copies; no frame allocations or native buffers |
 
 Native hook cost includes a prefix on every actual native path query, even unselected owners.
 It does not enumerate vehicles. With no restrictions it exits before owner/component reads.

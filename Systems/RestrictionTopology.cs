@@ -17,6 +17,9 @@ internal sealed class RestrictionTopology
     internal readonly Dictionary<Entity, HashSet<Entity>> InternalLanesByTarget = new();
     internal readonly Dictionary<Entity, HashSet<Entity>> OutboundLanesByTarget = new();
     internal readonly Dictionary<Entity, HashSet<RestrictionTopologyAmbiguity>> AmbiguitiesByTarget = new();
+    internal readonly Dictionary<Entity, List<LogicalEntryGroup>> EntryGroups = new();
+    internal readonly Dictionary<Entity, HashSet<DirectedEntryGate>> DisabledGatesByTarget = new();
+    internal readonly Dictionary<Entity, HashSet<Entity>> DirectionExclusionLanes = new();
 
     internal void Reset()
     {
@@ -29,6 +32,9 @@ internal sealed class RestrictionTopology
         ClearValues(InternalLanesByTarget);
         ClearValues(OutboundLanesByTarget);
         ClearValues(AmbiguitiesByTarget);
+        EntryGroups.Clear();
+        DisabledGatesByTarget.Clear();
+        DirectionExclusionLanes.Clear();
     }
 
     internal HashSet<Entity> PrefabsFor(Entity target) => GetSet(TargetPrefabs, target);
@@ -37,6 +43,8 @@ internal sealed class RestrictionTopology
     internal HashSet<Entity> InternalLanesFor(Entity target) => GetSet(InternalLanesByTarget, target);
     internal HashSet<Entity> OutboundLanesFor(Entity target) => GetSet(OutboundLanesByTarget, target);
     internal HashSet<RestrictionTopologyAmbiguity> AmbiguitiesFor(Entity target) => GetSet(AmbiguitiesByTarget, target);
+    internal HashSet<DirectedEntryGate> DisabledGatesFor(Entity target) => GetSet(DisabledGatesByTarget, target);
+    internal HashSet<Entity> DirectionLanesFor(Entity target) => GetSet(DirectionExclusionLanes, target);
 
     internal bool ContentEquals(RestrictionTopology other)
     {
@@ -54,7 +62,25 @@ internal sealed class RestrictionTopology
                DictionarySetsEqual(InternalLanesByTarget, other.InternalLanesByTarget, ActiveTargets) &&
                DictionarySetsEqual(OutboundLanesByTarget, other.OutboundLanesByTarget, ActiveTargets) &&
                DictionarySetsEqual(AmbiguitiesByTarget, other.AmbiguitiesByTarget, ActiveTargets) &&
+               DictionarySetsEqual(DisabledGatesByTarget, other.DisabledGatesByTarget, ActiveTargets) &&
+               EntryGroupsEqual(other) &&
                EntryGateMapsEqual(other);
+    }
+
+    private bool EntryGroupsEqual(RestrictionTopology other)
+    {
+        foreach (var target in ActiveTargets)
+        {
+            if (!EntryGroups.TryGetValue(target, out var groups) || !other.EntryGroups.TryGetValue(target, out var peers) || groups.Count != peers.Count) return false;
+            foreach (var group in groups)
+            {
+                var found = false;
+                foreach (var peer in peers)
+                    if (group.Identity.Equals(peer.Identity) && group.Enabled == peer.Enabled && group.CustomSupported == peer.CustomSupported) { found = true; break; }
+                if (!found) return false;
+            }
+        }
+        return true;
     }
 
     private bool EntryGateMapsEqual(RestrictionTopology other)

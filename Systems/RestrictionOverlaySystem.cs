@@ -144,6 +144,7 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
 
         }
         if (P0Diagnostics.Overlay) DrawRoutePreview();
+        if (P0Diagnostics.Highlight) DrawEntryDirections();
 
         // Gate restriction badges behind EnableRestrictionBadges
         if (P0Diagnostics.Highlight && Mod.Settings.EnableRestrictionBadges)

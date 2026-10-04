@@ -395,7 +395,11 @@ internal static class P0Diagnostics
     {
         var index = world.GetExistingSystemManaged<RestrictionIndexSystem>();
         var lanes = new HashSet<Entity>();
-        if (index == null || !index.TryGetInternalLanes(Target, out var internals)) return lanes;
+        if (index == null) return lanes;
+        System.Collections.Generic.IReadOnlyCollection<Entity> internals;
+        if (!index.TryGetDirectionExclusion(Target, out internals))
+            internals = index.TryGetInternalLanes(Target, out var all) ? all : null;
+        if (internals == null) return lanes;
         foreach (var lane in internals)
         {
             lanes.Add(lane);

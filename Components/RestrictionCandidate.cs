@@ -32,7 +32,8 @@ public enum RejectedCandidateReason : byte
     MasterLaneUnsupported = 19,
     StaleRevision = 20,
     EmergencyProtectionExempt = 21,
-    Count = 22
+    NotRestrictedFromThisEntry = 22,
+    Count = 23
 }
 
 /// <summary>Per-window work counters. Every field is a real, measured quantity.</summary>

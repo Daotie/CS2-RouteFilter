@@ -16,6 +16,9 @@ const resetCompleted$ = bindValue<number>(mod.id, "resetCompleted", 0);
 const panelClose$ = bindValue<number>(mod.id, "panelClose", 0);
 const buildId$ = bindValue<string>(mod.id, "buildId", "unknown");
 const configurationEditable$ = bindValue<boolean>(mod.id, "configurationEditable", true);
+const entryCount$ = bindValue<number>(mod.id, "entryDirectionCount", 0);
+const enabledEntryCount$ = bindValue<number>(mod.id, "enabledEntryDirectionCount", 0);
+const entriesSupported$ = bindValue<boolean>(mod.id, "entryDirectionsSupported", false);
 
 export const RouteFilterShell = () => {
   const [search, setSearch] = useState("");
@@ -36,6 +39,9 @@ export const RouteFilterShell = () => {
   }, [panelOpen]);
   const buildId = useValue(buildId$);
   const configurationEditable = useValue(configurationEditable$);
+  const entryCount = useValue(entryCount$);
+  const enabledEntryCount = useValue(enabledEntryCount$);
+  const entriesSupported = useValue(entriesSupported$);
   useEffect(() => {
     if (!resetCompleted) return;
     setSearch("");
@@ -140,6 +146,10 @@ export const RouteFilterShell = () => {
       resetCompleted={resetCompleted}
       buildId={buildId}
       configurationEditable={configurationEditable}
+      entryCount={entryCount}
+      enabledEntryCount={enabledEntryCount}
+      entriesSupported={entriesSupported}
+      showEntryDirections={selectedTargetKind !== 0 && (targetTransport & 1) !== 0}
       targetMode={targetMode}
       selectedTargetKind={selectedTargetKind}
       selectedCount={relevant.filter(asset => selected.has(asset.id)).length}
