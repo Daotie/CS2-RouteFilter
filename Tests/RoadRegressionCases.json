@@ -1,0 +1,23 @@
+{
+  "verification": "Game execution required / 必须在游戏内执行；策略 fixture 通过不代表此验收通过",
+  "cases": [
+    {
+      "id": "ROAD-NO-ALTERNATIVE-001",
+      "setup": "One-way highway, restricted Node or Segment, forbidden truck prefab, destination beyond target, no legal alternative. Include an allowed control vehicle. / 单向高速节点或路段禁用指定卡车；目的地在目标之后，无替代路线，同时放行对照车辆。",
+      "pass": "Owned exclusion search exhausted; identical original query succeeds across target; exact receipt revalidated; forbidden canonical truck and its layout removed before crossing. Allowed vehicle passes. / 排除查询耗尽，原图同请求可穿过，归属复核通过后在越界前移除禁用卡车及挂车；允许车辆通过。",
+      "fail": "Forbidden crossing, repeated reroute, lasting lane blockage, deletion of allowed/unrelated vehicles. / 禁用车辆越界、重复重寻路、永久堵塞或误删允许/无关车辆。"
+    },
+    {
+      "id": "ROAD-ALTERNATIVE-001",
+      "setup": "Same restricted target and truck, with a legal alternative to the same destination. / 同一禁用资产和目标，提供通往相同目的地的合法替代路线。",
+      "pass": "Terminal Rerouted; truck actually uses alternative and survives; allowed vehicle passes target. / 终态 Rerouted，卡车实际绕行并保留，允许车辆正常通过。",
+      "fail": "Forbidden crossing, any RouteFilter deletion of truck with an alternative, unrelated traffic affected. / 禁用车辆穿过、有替代路线却被删除或影响无关交通。"
+    },
+    {
+      "id": "ROAD-UNCERTAIN-001",
+      "setup": "Invalidate restriction revision or native destination while its owned query is pending, or use an approach that cannot safely admit a request. / 在查询处理中改变限制 revision 或原生目的地，或使用无法安全发起请求的接近情况。",
+      "pass": "Grandfathered; no RouteFilter deletion; owned graph overlay restored; no infinite retry. / Grandfathered，不由 RouteFilter 删除车辆，自有排除已恢复，无无限重试。",
+      "fail": "Generic Failed/stale receipt triggers RouteFilter deletion, stuck held action, residual graph exclusion. / 普通 Failed 或旧结果触发 RouteFilter 删除，结果永久挂起或图排除残留。"
+    }
+  ]
+}

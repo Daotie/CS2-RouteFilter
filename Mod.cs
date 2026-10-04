@@ -8,6 +8,7 @@ using RouteFilter.Components;
 using RouteFilter.Systems;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Unity.Entities;
 
 namespace RouteFilter;
@@ -15,7 +16,10 @@ namespace RouteFilter;
 public sealed class Mod : IMod
 {
     public const string Id = "RouteFilter";
-    public const string Version = "1.0.5";
+    public const string Version = "2.1.0-dev";
+    // Bump this for every deployable build so the in-game panel and log identify
+    // exactly which compiled payload is loaded by the active playset.
+    public const string BuildId = "RF2-20261004-UX-LIBRARY-29";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";
@@ -33,6 +37,24 @@ public sealed class Mod : IMod
 
     /// <summary>Set whenever restriction data changes so cached indexes can be rebuilt.</summary>
     public static bool RestrictionsDirty { get; set; }
+    private static int s_ResetRequested;
+    private static int s_DiagnosticsRequested;
+    private static int s_NativeProtocolRequested;
+    private World m_RuntimeWorld;
+    internal static void RequestDiagnosticsReport() => Interlocked.Exchange(ref s_DiagnosticsRequested, 1);
+    internal static bool ConsumeDiagnosticsRequest() => Interlocked.Exchange(ref s_DiagnosticsRequested, 0) != 0;
+    internal static void RequestNativeProtocolTest() => Interlocked.Exchange(ref s_NativeProtocolRequested, 1);
+    internal static bool ConsumeNativeProtocolRequest() => Interlocked.Exchange(ref s_NativeProtocolRequested, 0) != 0;
+
+    internal static void RequestReset()
+    {
+        if (GameManager.instance.gameMode == GameMode.Game)
+            Interlocked.Exchange(ref s_ResetRequested, 1);
+    }
+    internal static bool ConsumeResetRequest() => Interlocked.Exchange(ref s_ResetRequested, 0) != 0;
+
+    /// <summary>Optional read-only development trace selector used by Phase 1C diagnostics.</summary>
+    public static Entity DebugVehicle = Entity.Null;
 
     /// <summary>
     /// True while key binding registration is waiting for a main-thread retry. Game 1.6.0f1
@@ -44,31 +66,61 @@ public sealed class Mod : IMod
 
     public void OnLoad(UpdateSystem updateSystem)
     {
-        Log.Info(nameof(OnLoad));
+        m_RuntimeWorld = updateSystem.World;
+        Log.Info($"{nameof(OnLoad)} build={BuildId}");
+        try { RestrictionPathfindHook.Install(m_RuntimeWorld); }
+        catch (Exception error) { Log.Error($"[RouteFilter.QueryExclusion] hook installation FAILED: {error}"); }
 
-        Settings = new Setting(this);
-        Settings.RegisterInOptionsUI();
-        AssetDatabase.global.LoadSettings(Id, Settings, new Setting(this));
+        try
+        {
+            Log.Info("[RouteFilter.Settings] Creating settings");
+            Settings = new Setting(this);
+            Log.Info("[RouteFilter.Settings] instance created");
+            AssetDatabase.global.LoadSettings(Id, Settings, new Setting(this));
+            Log.Info("[RouteFilter.Settings] LoadSettings success");
+            // Options registration is performed in a live UI world after locales exist.
+        }
+        catch (Exception exception)
+        {
+            Log.Error($"[RouteFilter.Settings] Registration failed: {exception}");
+            throw;
+        }
         RegisterKeyBindingsSafe();
 
         GameManager.instance.localizationManager.AddSource("en-US", new LocaleEN(Settings));
         GameManager.instance.localizationManager.AddSource("zh-HANS", new LocaleZH(Settings));
         GameManager.instance.localizationManager.AddSource("zh-CN", new LocaleZH(Settings));
+        Log.Info("[RouteFilter.Settings] locale registered en-US / zh-HANS / zh-CN");
 
+        updateSystem.UpdateAt<RouteFilterSettingsUISystem>(SystemUpdatePhase.UIUpdate);
         updateSystem.UpdateAt<RestrictionShortcutSystem>(SystemUpdatePhase.ToolUpdate);
         updateSystem.UpdateAt<RestrictionToolSystem>(SystemUpdatePhase.ToolUpdate);
         updateSystem.UpdateAfter<RestrictionOverlaySystem, RestrictionToolSystem>(SystemUpdatePhase.ToolUpdate);
         updateSystem.UpdateAt<RestrictionPersistenceSystem>(SystemUpdatePhase.Serialize);
         updateSystem.UpdateAt<RestrictionPersistenceSystem>(SystemUpdatePhase.Deserialize);
         updateSystem.UpdateAt<RestrictionPersistenceSystem>(SystemUpdatePhase.ModificationEnd);
-        updateSystem.UpdateBefore<RestrictionIndexSystem, VehicleAccessSystem>(SystemUpdatePhase.GameSimulation);
+        updateSystem.UpdateAt<RestrictionIndexSystem>(SystemUpdatePhase.GameSimulation);
+        // Reset mutates native state only in the modification lifecycle, also while paused.
+        updateSystem.UpdateAt<RouteFilterResetSystem>(SystemUpdatePhase.ModificationEnd);
+        // Candidate collection must observe LaneObject buffers only after the vanilla
+        // LaneObjectUpdater.Apply job in CarNavigationSystem.Actions.
+        updateSystem.UpdateAfter<RestrictionCandidateSystem, Game.Simulation.CarNavigationSystem.Actions>(SystemUpdatePhase.GameSimulation);
+        updateSystem.UpdateAfter<RestrictionCandidateSystem, RestrictionIndexSystem>(SystemUpdatePhase.GameSimulation);
+        updateSystem.UpdateAfter<RestrictionSafetySystem, RestrictionCandidateSystem>(SystemUpdatePhase.GameSimulation);
+        updateSystem.UpdateAfter<RoadEnforcementCoordinator, RestrictionSafetySystem>(SystemUpdatePhase.GameSimulation);
+        updateSystem.UpdateAfter<RailEnforcementBackend, RestrictionSafetySystem>(SystemUpdatePhase.GameSimulation);
+        // PathOwner serializes its flags. Owned Obsolete undo and query completion must precede the
+        // game's SerializerSystem runs, not merely before RouteFilter's own callback.
+        updateSystem.UpdateBefore<RoadEnforcementCoordinator, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
+        updateSystem.UpdateBefore<RailEnforcementBackend, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
+        updateSystem.UpdateAfter<RouteFilterDiagnosticsSystem, RoadEnforcementCoordinator>(SystemUpdatePhase.GameSimulation);
         updateSystem.UpdateAt<RouteFilterUISystem>(SystemUpdatePhase.UIUpdate);
-        updateSystem.UpdateAfter<RestrictionPathSystem, Game.Pathfind.LanesModifiedSystem>(SystemUpdatePhase.ModificationEnd);
-        updateSystem.UpdateAfter<VehicleAccessSystem, Game.Simulation.CarNavigationSystem>(SystemUpdatePhase.GameSimulation);
-        updateSystem.UpdateAfter<VehicleAccessSystem, Game.Simulation.TrainNavigationSystem>(SystemUpdatePhase.GameSimulation);
-        updateSystem.UpdateBefore<VehicleAccessSystem, Game.Simulation.CarMoveSystem>(SystemUpdatePhase.GameSimulation);
-        updateSystem.UpdateBefore<VehicleAccessSystem, Game.Simulation.TrainMoveSystem>(SystemUpdatePhase.GameSimulation);
-        updateSystem.UpdateAfter<VehicleDetourSystem, VehicleAccessSystem>(SystemUpdatePhase.GameSimulation);
+        // Register static visuals before Objects.SearchSystem (Modification5).
+        // UIUpdate is too late: next-frame cleanup strips Created/Updated first.
+        updateSystem.UpdateAt<RoadRestrictionVisualSignsSystem>(SystemUpdatePhase.Modification4);
+        updateSystem.UpdateBefore<RoadRestrictionSignSaveGuardSystem, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
+        updateSystem.UpdateAt<RoadRestrictionSignGeometryChangedSystem>(SystemUpdatePhase.ModificationEnd);
+        updateSystem.UpdateAfter<RoadRestrictionSignSaveFinishSystem, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
     }
 
     /// <summary>
@@ -119,6 +171,16 @@ public sealed class Mod : IMod
 
     public void OnDispose()
     {
+        RestrictionPathfindHook.Uninstall();
+        if (m_RuntimeWorld != null && m_RuntimeWorld.IsCreated)
+        {
+            m_RuntimeWorld.GetExistingSystemManaged<RoadEnforcementCoordinator>()?.ReleaseAll();
+            m_RuntimeWorld.GetExistingSystemManaged<RailEnforcementBackend>()?.ReleaseAll();
+            m_RuntimeWorld.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.ClearOwned();
+        }
+        Interlocked.Exchange(ref s_DiagnosticsRequested, 0);
+        Interlocked.Exchange(ref s_NativeProtocolRequested, 0);
+        Interlocked.Exchange(ref s_ResetRequested, 0);
         Settings?.UnregisterInOptionsUI();
         Log.Info(nameof(OnDispose));
     }

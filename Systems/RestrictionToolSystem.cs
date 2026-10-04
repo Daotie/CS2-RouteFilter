@@ -1,10 +1,12 @@
 using Colossal.Entities;
 using Game.Common;
+using Game.Input;
 using Game.Net;
 using Game.Prefabs;
 using Game.Tools;
 using RouteFilter.Components;
 using System.Collections.Generic;
+using System.Reflection;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -14,6 +16,9 @@ namespace RouteFilter.Systems;
 
 public sealed partial class RestrictionToolSystem : ToolBaseSystem
 {
+    private DisplayNameOverride m_MouseApplyDisplay = null!;
+    private DisplayNameOverride m_MouseCancelDisplay = null!;
+    private int m_ActivationFrame;
     public Entity HoveredTarget { get; private set; } = Entity.Null;
     public int HoveredTransportMode { get; private set; }
     public Entity SelectedTarget { get; private set; } = Entity.Null;
@@ -23,29 +28,96 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
     public override string toolID => "RouteFilterTool";
     public override bool allowUnderground => true;
 
+    protected override void OnCreate()
+    {
+        base.OnCreate();
+        // ToolBaseSystem obtains these actions from its internal tool collection.
+        // Resolve the same collection so the game's InputHintsTooltipSystem can
+        // place the hint beside the cursor instead of drawing a web overlay.
+        var inputType = typeof(InputManager);
+        var collection = inputType.GetProperty("toolActionCollection", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(InputManager.instance)
+            ?? inputType.GetField("toolActionCollection", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(InputManager.instance);
+        var getAction = collection?.GetType().GetMethod("GetActionState", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        var source = GetType().Name;
+        var mouseApply = getAction?.Invoke(collection, new object[] { "Mouse Apply", source }) as ProxyAction;
+        var mouseCancel = getAction?.Invoke(collection, new object[] { "Mouse Cancel", source }) as ProxyAction;
+        if (mouseApply != null)
+        {
+            m_MouseApplyDisplay = new DisplayNameOverride(Mod.Id, mouseApply, "RouteFilter.UI.Select", DisplayNameOverride.kToolTipPriority, InputManager.DeviceType.Mouse);
+            m_MouseApplyDisplay.active = false;
+        }
+        if (mouseCancel != null)
+        {
+            m_MouseCancelDisplay = new DisplayNameOverride(Mod.Id, mouseCancel, "RouteFilter.UI.Cancel", DisplayNameOverride.kToolTipPriority, InputManager.DeviceType.Mouse);
+            m_MouseCancelDisplay.active = false;
+        }
+        Mod.Log.Info($"[RouteFilter.Tool] native hints apply={(mouseApply != null)} cancel={(mouseCancel != null)} source={source}");
+    }
+
+    protected override void OnDestroy()
+    {
+        m_MouseApplyDisplay?.Dispose();
+        m_MouseCancelDisplay?.Dispose();
+        base.OnDestroy();
+    }
+
     public override PrefabBase GetPrefab() => null;
     public override bool TrySetPrefab(PrefabBase prefab) => false;
 
     public void Toggle()
     {
         if (m_ToolSystem.activeTool == this)
-        {
-            HoveredTarget = Entity.Null;
-            HoveredTransportMode = 0;
-            ClearSelection();
-            m_ToolSystem.selected = Entity.Null;
-            m_ToolSystem.activeTool = m_DefaultToolSystem;
-        }
+            Deactivate();
         else
-        {
-            m_ToolSystem.selected = Entity.Null;
-            m_ToolSystem.activeTool = this;
-        }
+            Activate();
+    }
+
+    public void Activate()
+    {
+        Mod.Log.Info($"[RouteFilter.Tool] Activated {Mod.SelectedTargetMode}");
+        PointerOverUi = false;
+        m_ActivationFrame = UnityEngine.Time.frameCount;
+        if (m_ToolSystem.activeTool == this) return;
+        P0Diagnostics.Arm(World, m_ToolSystem.selected);
+        m_ToolSystem.selected = Entity.Null;
+        m_ToolSystem.activeTool = this;
+    }
+
+    public void Deactivate()
+    {
+        if (m_ToolSystem.activeTool != this) return;
+        HoveredTarget = Entity.Null;
+        HoveredTransportMode = 0;
+        ClearSelection();
+        m_ToolSystem.selected = Entity.Null;
+        m_ToolSystem.activeTool = m_DefaultToolSystem;
+    }
+
+    protected override void OnStopRunning()
+    {
+        if (m_MouseApplyDisplay != null) m_MouseApplyDisplay.active = false;
+        if (m_MouseCancelDisplay != null) m_MouseCancelDisplay.active = false;
+        HoveredTarget = Entity.Null;
+        HoveredTransportMode = 0;
+        PointerOverUi = false;
+        SelectedTarget = Entity.Null;
+        SelectedTransportMode = 0;
+        ClearEntryEditor();
+        World.GetExistingSystemManaged<RouteFilterUISystem>()?.NotifyPanelClose();
+        base.OnStopRunning();
+    }
+
+    protected override void OnStartRunning()
+    {
+        base.OnStartRunning();
+        if (m_MouseApplyDisplay != null) m_MouseApplyDisplay.active = true;
+        if (m_MouseCancelDisplay != null) m_MouseCancelDisplay.active = true;
     }
 
     public override void InitializeRaycast()
     {
         base.InitializeRaycast();
+        if (!P0Diagnostics.Tool) { m_ToolRaycastSystem.typeMask = (TypeMask)0; return; }
         m_ToolRaycastSystem.typeMask = TypeMask.Net;
         m_ToolRaycastSystem.netLayerMask = Layer.Road | Layer.PublicTransportRoad |
                                                Layer.TrainTrack | Layer.TramTrack | Layer.SubwayTrack;
@@ -58,14 +130,29 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         // active session every frame would otherwise schedule a net raycast and write
         // m_ToolSystem.selected, fighting the active vanilla tool.
         if (m_ToolSystem.activeTool != this) return inputDeps;
+        if (!P0Diagnostics.Tool) { m_ToolSystem.selected = Entity.Null; return inputDeps; }
+
+        // Handle native cancel independently of raycast/pointer state. First cancel clears
+        // the selected target; another cancel with no target closes the panel.
+        if ((Mod.Clear != null && Mod.Clear.WasPressedThisFrame()) || cancelAction.WasPressedThisFrame())
+        {
+            if (SelectedTarget != Entity.Null) ClearSelection();
+            else
+            {
+                Deactivate();
+                World.GetOrCreateSystemManaged<RouteFilterUISystem>().NotifyPanelClose();
+            }
+            return inputDeps;
+        }
 
         if (SelectedTarget != Entity.Null && !EntityManager.Exists(SelectedTarget)) ClearSelection();
+        RefreshEntryEditor();
 
         if (PointerOverUi)
         {
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
-            m_ToolSystem.selected = SelectedTarget;
+            m_ToolSystem.selected = P0Diagnostics.Highlight ? SelectedTarget : Entity.Null;
             return inputDeps;
         }
 
@@ -73,21 +160,20 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         {
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
-            m_ToolSystem.selected = SelectedTarget;
-            if (Mod.Clear != null && Mod.Clear.WasPressedThisFrame()) ClearSelection();
+            m_ToolSystem.selected = P0Diagnostics.Highlight ? SelectedTarget : Entity.Null;
             return inputDeps;
         }
 
+        if (UnityEngine.Time.frameCount > m_ActivationFrame && Mod.Apply != null &&
+            Mod.Apply.WasPressedThisFrame() && TryToggleEntry(hit.m_HitPosition)) return inputDeps;
+
         var target = ResolveTarget(entity, hit.m_HitPosition);
+        if (HoveredTarget != target) Mod.Log.Debug($"[RouteFilter.Tool] Hover {Mod.SelectedTargetMode}={target}");
         HoveredTarget = target;
         HoveredTransportMode = GetTransportMode(target);
-        m_ToolSystem.selected = SelectedTarget != Entity.Null ? SelectedTarget : target;
-        if (Mod.Clear != null && Mod.Clear.WasPressedThisFrame())
-        {
-            ClearSelection();
-            return inputDeps;
-        }
-        if (target != Entity.Null && Mod.Apply != null && Mod.Apply.WasPressedThisFrame()) SelectTarget(target);
+        m_ToolSystem.selected = P0Diagnostics.Highlight ? (SelectedTarget != Entity.Null ? SelectedTarget : target) : Entity.Null;
+        if (target != Entity.Null && UnityEngine.Time.frameCount > m_ActivationFrame &&
+            Mod.Apply != null && Mod.Apply.WasPressedThisFrame()) SelectTarget(target);
 
         return inputDeps;
     }
@@ -128,39 +214,51 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
     public void SelectTarget(Entity target)
     {
-        if (target == Entity.Null) return;
+        if (target == Entity.Null || target == SelectedTarget) return;
         SelectedTarget = target;
         SelectedTransportMode = GetTransportMode(target);
+        LoadEntryEditor();
         m_ToolSystem.selected = target;
-        Mod.Log.Info($"Selected {(EntityManager.HasComponent<Node>(target) ? "node" : "segment")} {target.Index}:{target.Version}");
+        Mod.Log.Info($"[RouteFilter.Tool] Selected {(EntityManager.HasComponent<Node>(target) ? "Node" : "Segment")}={target.Index}:{target.Version}");
     }
 
     public void ClearSelection()
     {
+        if (SelectedTarget != Entity.Null) Mod.Log.Info("[RouteFilter.Tool] Selection cancelled");
         SelectedTarget = Entity.Null;
         SelectedTransportMode = 0;
+        ClearEntryEditor();
         m_ToolSystem.selected = Entity.Null;
     }
 
     public void ApplySelection()
     {
+        if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
         if (SelectedTarget == Entity.Null)
         {
             Mod.Log.Warn("Apply ignored: no node or segment selected");
             return;
         }
-        SetRestriction(SelectedTarget, Mod.SelectedVehicleAssets);
+        RefreshEntryEditor();
+        SetRestriction(SelectedTarget, Mod.SelectedVehicleAssets, PendingEntries());
+        World.GetExistingSystemManaged<RouteFilterUISystem>()?.RecordRecentApply();
+        Mod.Log.Info($"[RouteFilter.Tool] restriction applied target={SelectedTarget}");
     }
 
     public void ClearSelectedRestriction()
     {
         if (SelectedTarget == Entity.Null) return;
         ClearRestriction(SelectedTarget);
-        Mod.Log.Info($"Restrictions cleared from {SelectedTarget.Index}:{SelectedTarget.Version}");
+        SetAllEntryDirections();
+        Mod.Log.Info($"[RouteFilter.Tool] restriction cleared target={SelectedTarget.Index}:{SelectedTarget.Version}");
     }
 
-    public void SetRestriction(Entity target, IReadOnlyCollection<Entity> vehicleAssets)
+    public void SetRestriction(Entity target, IReadOnlyCollection<Entity> vehicleAssets,
+        RouteFilter.Persistence.RestrictionEntryIdentity[] entries = null)
     {
+        if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
+        World.GetOrCreateSystemManaged<RoadEnforcementCoordinator>().ReleaseAll();
+        World.GetOrCreateSystemManaged<RailEnforcementBackend>().ReleaseAll();
         var isNode = EntityManager.HasComponent<Node>(target);
         var isSegment = EntityManager.HasComponent<Edge>(target);
         if (!isNode && !isSegment) return;
@@ -180,20 +278,26 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
             return;
         }
 
+        World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ForgetPending(target);
         if (isNode) SetNodeRestriction(target, compatibleAssets);
         else SetSegmentRestriction(target, compatibleAssets);
+        World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().RememberIntent(target, isNode ? (byte)0 : (byte)1, entries);
+        World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.MarkDirty(target);
 
-        MarkTargetLanesUpdated(target);
         Mod.Log.Info($"{(isNode ? "Node" : "Segment")} {target.Index}:{target.Version} forbidden list set to {compatibleAssets.Count} compatible vehicle assets");
     }
 
     public void ClearRestriction(Entity target)
     {
+        if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
+        World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ForgetPending(target);
+        World.GetOrCreateSystemManaged<RoadEnforcementCoordinator>().ReleaseAll();
+        World.GetOrCreateSystemManaged<RailEnforcementBackend>().ReleaseAll();
         Mod.RestrictionsDirty = true;
         if (EntityManager.HasComponent<NodeAssetRestrictionV1>(target)) EntityManager.RemoveComponent<NodeAssetRestrictionV1>(target);
         if (EntityManager.HasComponent<SegmentAssetRestrictionV1>(target)) EntityManager.RemoveComponent<SegmentAssetRestrictionV1>(target);
         if (EntityManager.HasBuffer<RestrictedVehicleAssetV1>(target)) EntityManager.RemoveComponent<RestrictedVehicleAssetV1>(target);
-        MarkTargetLanesUpdated(target);
+        World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.MarkDirty(target);
     }
 
     /// <summary>
@@ -201,11 +305,14 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
     /// directly; unlike <see cref="SetRestriction"/> it never clears the target when the
     /// list is empty, so an unresolved restore cannot destroy already-restored data.
     /// </summary>
-    public void RestoreRestriction(Entity target, bool isNode, IReadOnlyCollection<Entity> vehicleAssets)
+    public void RestoreRestriction(Entity target, bool isNode, IReadOnlyCollection<Entity> vehicleAssets,
+        RouteFilter.Persistence.RestrictionEntryIdentity[] entries = null)
     {
+        if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
         if (isNode) SetNodeRestriction(target, vehicleAssets);
         else SetSegmentRestriction(target, vehicleAssets);
-        MarkTargetLanesUpdated(target);
+        World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().SetDirectionIntent(target, entries);
+        World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.MarkDirty(target);
         Mod.RestrictionsDirty = true;
     }
 
@@ -231,14 +338,6 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         buffer.Clear();
         foreach (var prefab in vehicleAssets)
             if (prefab != Entity.Null) buffer.Add(new RestrictedVehicleAssetV1(prefab));
-    }
-
-    private void MarkTargetLanesUpdated(Entity target)
-    {
-        if (!EntityManager.TryGetBuffer(target, true, out DynamicBuffer<NetSubLane> lanes)) return;
-        foreach (var subLane in lanes)
-            if (!EntityManager.HasComponent<Updated>(subLane.m_SubLane))
-                EntityManager.AddComponent<Updated>(subLane.m_SubLane);
     }
 
     public int GetTransportMode(Entity target)

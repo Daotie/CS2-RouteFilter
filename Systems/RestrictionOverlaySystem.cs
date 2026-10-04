@@ -43,32 +43,35 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
         }
     }
 
-    private struct DrawBadgesJob : IJobParallelFor
+    private struct DrawBadgesJob : IJob
     {
         public OverlayRenderSystem.Buffer Buffer;
         [ReadOnly] public NativeArray<float3> Positions;
         [ReadOnly] public NativeArray<bool> Prominent;
 
-        public void Execute(int index)
+        public void Execute()
         {
-            var isProminent = Prominent[index];
-            var alpha = isProminent ? 1f : 0.62f;
-            var outline = new Color(0.92f, 0.16f, 0.10f, alpha);
-            var fill = new Color(0.92f, 0.16f, 0.10f, alpha * (isProminent ? 0.82f : 0.32f));
-            var bar = new Color(1f, 1f, 1f, alpha);
-            var diameter = isProminent ? kBadgeDiameterProminent : kBadgeDiameter;
+            for (int index = 0; index < Positions.Length; index++)
+            {
+                var isProminent = Prominent[index];
+                var alpha = isProminent ? 1f : 0.62f;
+                var outline = new Color(0.92f, 0.16f, 0.10f, alpha);
+                var fill = new Color(0.92f, 0.16f, 0.10f, alpha * (isProminent ? 0.82f : 0.32f));
+                var bar = new Color(1f, 1f, 1f, alpha);
+                var diameter = isProminent ? kBadgeDiameterProminent : kBadgeDiameter;
 
-            // Flat tag: a horizontal prohibition disc floating above the target, sized
-            // close to the selection highlight. It does not rotate with the camera.
-            Buffer.DrawCircle(outline, fill, isProminent ? 0.9f : 0.8f, 0,
-                new float2(0f, 1f), Positions[index], diameter);
+                // Flat tag: a horizontal prohibition disc floating above the target, sized
+                // close to the selection highlight. It does not rotate with the camera.
+                Buffer.DrawCircle(outline, fill, isProminent ? 0.9f : 0.8f, 0,
+                    new float2(0f, 1f), Positions[index], diameter);
 
-            var half = diameter * 0.32f;
-            var barWidth = isProminent ? 1.7f : 1.4f;
-            var line = new Colossal.Mathematics.Line3.Segment(
-                Positions[index] + new float3(-half, 0f, half),
-                Positions[index] + new float3(half, 0f, -half));
-            Buffer.DrawLine(bar, line, barWidth, false);
+                var half = diameter * 0.32f;
+                var barWidth = isProminent ? 1.7f : 1.4f;
+                var line = new Colossal.Mathematics.Line3.Segment(
+                    Positions[index] + new float3(-half, 0f, half),
+                    Positions[index] + new float3(half, 0f, -half));
+                Buffer.DrawLine(bar, line, barWidth, false);
+            }
         }
     }
 
@@ -98,24 +101,39 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
             ComponentType.ReadOnly<RestrictedVehicleAssetV1>());
         m_BadgePositions = new NativeList<float3>(64, Allocator.Persistent);
         m_BadgeProminent = new NativeList<bool>(64, Allocator.Persistent);
+        InitializeRoutePreview();
     }
 
     protected override void OnDestroy()
     {
         m_BadgeJobHandle.Complete();
+        DisposeRoutePreview();
         m_BadgePositions.Dispose();
         m_BadgeProminent.Dispose();
         base.OnDestroy();
     }
 
+    public void ResetRuntimeState()
+    {
+        m_BadgeJobHandle.Complete();
+        m_BadgeJobHandle = default;
+        m_BadgePositions.Clear();
+        m_BadgeProminent.Clear();
+        ClearRoutePreview();
+    }
+
     protected override void OnUpdate()
     {
         if (m_ToolSystem.activeTool != m_Tool) return;
+        if (!P0Diagnostics.Highlight && !P0Diagnostics.Overlay) return;
+        if (!m_BadgeJobHandle.IsCompleted) return;
 
         // The badge job from the previous frame reads the scratch arrays; finish it before
         // refilling them so they are never overwritten while a worker still uses them.
         m_BadgeJobHandle.Complete();
 
+        if (P0Diagnostics.Highlight)
+        {
         if (m_Tool.SelectedTarget == m_Tool.HoveredTarget)
             Draw(m_Tool.SelectedTarget, true);
         else
@@ -123,7 +141,16 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
             Draw(m_Tool.HoveredTarget, false);
             Draw(m_Tool.SelectedTarget, true);
         }
-        DrawRestrictionBadges();
+
+        }
+        if (P0Diagnostics.Overlay) DrawRoutePreview();
+        if (P0Diagnostics.Highlight) DrawEntryDirections();
+
+        // Gate restriction badges behind EnableRestrictionBadges
+        if (P0Diagnostics.Highlight && Mod.Settings.EnableRestrictionBadges)
+        {
+            DrawRestrictionBadges();
+        }
     }
 
     private void DrawRestrictionBadges()
@@ -146,7 +173,7 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
             Positions = m_BadgePositions.AsArray(),
             Prominent = m_BadgeProminent.AsArray()
         };
-        m_BadgeJobHandle = job.Schedule(m_BadgePositions.Length, 16, JobHandle.CombineDependencies(Dependency, dependencies));
+        m_BadgeJobHandle = job.Schedule(JobHandle.CombineDependencies(Dependency, dependencies));
         Dependency = m_BadgeJobHandle;
         m_Overlay.AddBufferWriter(m_BadgeJobHandle);
     }

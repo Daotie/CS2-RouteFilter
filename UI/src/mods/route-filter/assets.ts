@@ -1,0 +1,21 @@
+import prohibition from "./assets/prohibition-hd.png";
+import close from "./assets/panel-close.svg";
+const search = "coui://uil/Standard/MagnifierThin.svg";
+import info from "./assets/info-hd.png";
+const reset = "coui://uil/Standard/Reset.svg";
+import trash from "./assets/trash-hd.png";
+const check = "coui://uil/Standard/Checkmark.svg";
+import chevron from "./assets/chevron-hd.png";
+import car from "./assets/car-hd.png";
+import bike from "./assets/bike-hd.png";
+import suv from "./assets/suv-hd.png";
+import pickup from "./assets/pickup-hd.png";
+import van from "./assets/van-hd.png";
+import truck from "./assets/truck-hd.png";
+import bus from "./assets/bus-hd.png";
+import tram from "./assets/tram-hd.png";
+import train from "./assets/train-hd.png";
+import subway from "./assets/subway-hd.png";
+import partialSelection from "./assets/partial-selection-hd.png";
+
+export const icons = { prohibition, close, search, info, reset, trash, check, chevron, car, bike, suv, pickup, van, truck, bus, tram, train, subway, partialSelection };

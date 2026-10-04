@@ -41,21 +41,9 @@ public struct RestrictedVehicleAssetV1 : IBufferElementData, ISerializable
     public void Deserialize<TReader>(TReader reader) where TReader : IReader => reader.Read(out m_Prefab);
 }
 
-/// <summary>A short-lived pathfinding barrier; never serialized.</summary>
-public struct AccessDetourBlock : IComponentData
-{
-    public ushort m_RequestCount;
-}
-
-/// <summary>Tracks a vehicle while its path is recalculated; never serialized.</summary>
-public struct VehicleDetourRequest : IComponentData
-{
-    public Entity m_Target;
-    public byte m_Ticks;
-
-    public VehicleDetourRequest(Entity target)
-    {
-        m_Target = target;
-        m_Ticks = 0;
-    }
-}
+// Legacy 1.x runtime components (AccessDetourBlock, VehicleDetourRequest, RerouteCooldown) were
+// retired with the 1.x enforcement systems. They were never ISerializable, so a city saved by
+// 1.x never carried them and no migration or compatibility code is required for them. Their only
+// remaining reason to exist would be a cleanup pass, and that belongs to the standalone
+// RouteFilterCleanup mod, not to RouteFilter itself: a startup full-city scan on every load would
+// reintroduce the performance, safety and ownership risks the 2.0 rewrite exists to remove.

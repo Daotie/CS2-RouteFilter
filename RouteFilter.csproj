@@ -3,9 +3,11 @@
     <Configurations>Debug;Release</Configurations>
     <AssemblyName>RouteFilter</AssemblyName>
     <RootNamespace>RouteFilter</RootNamespace>
-    <Version>1.0.5</Version>
-    <AssemblyVersion>1.0.5.0</AssemblyVersion>
-    <FileVersion>1.0.5.0</FileVersion>
+    <Version>2.1.0-dev</Version>
+    <AssemblyVersion>2.1.0.0</AssemblyVersion>
+    <FileVersion>2.1.0.0</FileVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <HarmonyPath Condition="'$(HarmonyPath)' == ''">$(MSBuildProjectDirectory)\tools\dependencies\0Harmony.dll</HarmonyPath>
     <Authors>Daotie</Authors>
     <Description>Asset-level vehicle access restrictions for road and rail nodes or segments in Cities: Skylines II.</Description>
     <Title>RouteFilter</Title>
@@ -19,6 +21,8 @@
     <ManagedPath Condition="'$(ManagedPath)' == '' AND Exists('D:\SteamLibrary\steamapps\common\Cities Skylines II\Cities2_Data\Managed\Game.dll')">D:\SteamLibrary\steamapps\common\Cities Skylines II\Cities2_Data\Managed</ManagedPath>
     <MSCORLIBPath Condition="'$(MSCORLIBPath)' == '' AND Exists('$(ManagedPath)\mscorlib.dll')">$(ManagedPath)\mscorlib.dll</MSCORLIBPath>
     <EnableDefaultItems>true</EnableDefaultItems>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
   </PropertyGroup>
 
   <Import Project="$(ToolchainPath)\Mod.props" Condition="Exists('$(ToolchainPath)\Mod.props')" />
@@ -28,6 +32,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Reference Include="0Harmony" Condition="Exists('$(HarmonyPath)')"><HintPath>$(HarmonyPath)</HintPath><Private>true</Private></Reference>
+    <PackageReference Include="Lib.Harmony" Version="2.2.2" Condition="!Exists('$(HarmonyPath)')" />
     <Reference Include="Game"><HintPath>$(ManagedPath)\Game.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Colossal.Core"><HintPath>$(ManagedPath)\Colossal.Core.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Colossal.Logging"><HintPath>$(ManagedPath)\Colossal.Logging.dll</HintPath><Private>false</Private></Reference>
@@ -45,7 +51,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="Mod.cs;Setting.cs;Components\**\*.cs;Systems\**\*.cs" />
     <Compile Remove="tools\**\*.cs" />
+    <Compile Remove="tmp\**\*.cs;RouteFilterCleanup\**\*.cs" />
     <None Remove="tools\**" />
   </ItemGroup>
 

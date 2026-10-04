@@ -2,7 +2,7 @@ name: Quality
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2]
   pull_request:
   workflow_dispatch:
 
@@ -10,6 +10,20 @@ permissions:
   contents: read
 
 jobs:
+  offline-rules:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Verify prefab matching and physical receipt ownership
+        run: dotnet run --project Tests/RoadCoverage/RoadCoverage.csproj -c Release
+      - name: Verify enforcement receipt rules
+        run: dotnet run --project Tests/LeaseRules/LeaseRules.csproj -c Release
+      - name: Verify save compatibility fixtures
+        run: dotnet run --project Tests/SaveFormatTests/SaveFormatTests.csproj -c Release
   ui-and-metadata:
     runs-on: windows-latest
     timeout-minutes: 10

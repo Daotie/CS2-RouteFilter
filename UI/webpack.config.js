@@ -68,7 +68,11 @@ module.exports = {
         test: /\.(png|jpe?g|gif|svg)$/i,
         type: "asset/resource",
         generator: {
-          filename: "images/[name][ext][query]",
+          // Include the content hash so Cohtml cannot reuse a stale image from an
+          // older RouteFilter build or another local mod with the same basename.
+          // CS2's coui://ui-mods image mount serves files directly below
+          // images/. Nested folders return 404 even when the files exist.
+          filename: "images/rf08-[name].[contenthash:8][ext][query]",
         },
       },
     ],

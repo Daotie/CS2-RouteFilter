@@ -37,19 +37,32 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private readonly Dictionary<Entity, int> m_IdsByAsset = new();
     private readonly Dictionary<Entity, int> m_ModeByAsset = new();
     private readonly Dictionary<Entity, List<Entity>> m_ChildrenByAsset = new();
+    private ValueBinding<int> m_EntryCountBinding = null!;
+    private ValueBinding<int> m_EnabledEntryCountBinding = null!;
+    private ValueBinding<bool> m_EntrySupportedBinding = null!;
     private ValueBinding<bool> m_ToolActiveBinding = null!;
+    private ValueBinding<string> m_SignCatalogBinding = null!;
+    private ValueBinding<string> m_SignSelectionBinding = null!;
+    private ValueBinding<string> m_SignResolvedBinding = null!;
+    private ValueBinding<bool> m_SignUnavailableBinding = null!;
     private ValueBinding<int> m_TargetModeBinding = null!;
     private ValueBinding<int> m_TargetTransportBinding = null!;
     private ValueBinding<int> m_SelectedTargetKindBinding = null!;
     private ValueBinding<string> m_AssetCatalogBinding = null!;
     private ValueBinding<string> m_SelectedAssetsBinding = null!;
+    private ValueBinding<int> m_ResetCompletedBinding = null!;
+    private ValueBinding<string> m_BuildIdBinding = null!;
+    private ValueBinding<bool> m_ConfigurationEditableBinding = null!;
+    private int m_ResetCompleted;
+    private ValueBinding<int> m_PanelCloseBinding = null!;
+    private int m_PanelClose;
+    private ValueBinding<string> m_SelectedTargetBinding = null!;
+    private ValueBinding<int> m_RestrictionRevisionBinding = null!;
+    private int m_RestrictionRevision;
     private Entity m_LastSelectedTarget = Entity.Null;
-    private int m_LastQueryOrderVersion = int.MinValue;
-    private int m_LastVehicleOrderVersion = int.MinValue;
-    private int m_LastCarOrderVersion = int.MinValue;
-    private int m_LastTrainOrderVersion = int.MinValue;
     private bool m_ContentAvailabilityDirty;
     private bool m_PendingLoadRefresh;
+    private float m_NextCatalogPoll;
 
     public override GameMode gameMode => GameMode.GameOrEditor;
 
@@ -62,21 +75,47 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         m_VehiclePrefabQuery = GetEntityQuery(ComponentType.ReadOnly<VehicleData>(), ComponentType.ReadOnly<PrefabData>());
 
         m_ToolActiveBinding = CreateValue("toolActive", false);
+        m_SignCatalogBinding = CreateValue("roadSignCatalog", string.Empty);
+        m_SignSelectionBinding = CreateValue("roadSignSelection", Mod.Settings.RoadSignPrefabMode == "CUSTOM" ? Mod.Settings.CustomRoadSignPrefab ?? string.Empty : string.Empty);
+        m_SignResolvedBinding = CreateValue("roadSignResolved", string.Empty);
+        m_SignUnavailableBinding = CreateValue("roadSignUnavailable", false);
+        AddBinding(new TriggerBinding<string>(Mod.Id, "selectRoadSignPrefab", name =>
+        {
+            var signs = World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>();
+            if (name.Length > 0 && (signs == null || !signs.ContainsPrefab(name))) return;
+            Mod.Settings.RoadSignPrefabMode = name.Length == 0 ? "AUTO" : "CUSTOM";
+            if (name.Length > 0) Mod.Settings.CustomRoadSignPrefab = name;
+            Mod.Settings.ApplyAndSave();
+        }));
         m_TargetModeBinding = CreateValue("targetMode", (int)Mod.SelectedTargetMode);
         m_TargetTransportBinding = CreateValue("targetTransport", 0);
         m_SelectedTargetKindBinding = CreateValue("selectedTargetKind", 0);
+        m_EntryCountBinding = CreateValue("entryDirectionCount", 0);
+        m_EnabledEntryCountBinding = CreateValue("enabledEntryDirectionCount", 0);
+        m_EntrySupportedBinding = CreateValue("entryDirectionsSupported", false);
+        AddBinding(new TriggerBinding(Mod.Id, "allEntryDirections", m_RestrictionTool.SetAllEntryDirections));
         m_AssetCatalogBinding = CreateValue("assetCatalog", string.Empty);
         m_SelectedAssetsBinding = CreateValue("selectedAssetIds", string.Empty);
+        InitializeLibrary();
+        m_ResetCompletedBinding = CreateValue("resetCompleted", 0);
+        m_PanelCloseBinding = CreateValue("panelClose", 0);
+        m_BuildIdBinding = CreateValue("buildId", Mod.BuildId);
+        m_ConfigurationEditableBinding = CreateValue("configurationEditable", true);
+        AddBinding(new TriggerBinding(Mod.Id, "openSettings", () => World.GetOrCreateSystemManaged<RouteFilterSettingsUISystem>().OpenSettings()));
+        m_SelectedTargetBinding = CreateValue("selectedTarget", string.Empty);
+        m_RestrictionRevisionBinding = CreateValue("restrictionRevision", 0);
+        AddBinding(new TriggerBinding(Mod.Id, "resetRouteFilterConfirmed", () => { Mod.Log.Info("[RouteFilter.Binding] Reset confirmed"); Mod.RequestReset(); }));
 
         AddBinding(new TriggerBinding(Mod.Id, "toggleTool", ToggleTool));
+        AddBinding(new TriggerBinding(Mod.Id, "activateTool", () => { Mod.Log.Info("[RouteFilter.Binding] activateTool"); m_RestrictionTool.Activate(); }));
+        AddBinding(new TriggerBinding(Mod.Id, "deactivateTool", m_RestrictionTool.Deactivate));
         AddBinding(new TriggerBinding<int>(Mod.Id, "toggleAsset", ToggleAsset));
         AddBinding(new TriggerBinding<int, bool>(Mod.Id, "toggleAssetGroup", ToggleAssetGroup));
         AddBinding(new TriggerBinding<int>(Mod.Id, "setTargetMode", SetTargetMode));
-        AddBinding(new TriggerBinding<int>(Mod.Id, "selectAllAssets", SelectAllAssets));
-        AddBinding(new TriggerBinding<int>(Mod.Id, "selectNoAssets", SelectNoAssets));
-        AddBinding(new TriggerBinding(Mod.Id, "refreshAssets", RefreshAssetCatalog));
-        AddBinding(new TriggerBinding(Mod.Id, "applySelection", m_RestrictionTool.ApplySelection));
-        AddBinding(new TriggerBinding(Mod.Id, "clearSelectedRestriction", m_RestrictionTool.ClearSelectedRestriction));
+        AddBinding(new TriggerBinding<string, bool>(Mod.Id, "setFilteredAssetSelection", SetFilteredAssetSelection));
+        AddBinding(new TriggerBinding(Mod.Id, "refreshAssets", () => { Mod.Log.Info("[RouteFilter.Binding] refreshAssets received"); m_NextCatalogPoll = 0; RefreshAssetCatalog(); }));
+        AddBinding(new TriggerBinding(Mod.Id, "applySelection", () => { Mod.Log.Info("[RouteFilter.Binding] applySelection received"); m_RestrictionTool.ApplySelection(); PublishRestriction(); }));
+        AddBinding(new TriggerBinding(Mod.Id, "clearSelectedRestriction", () => { Mod.Log.Info("[RouteFilter.Binding] clearSelectedRestriction received"); m_RestrictionTool.ClearSelectedRestriction(); LoadSelectedTargetAssets(m_RestrictionTool.SelectedTarget); PublishRestriction(); }));
         AddBinding(new TriggerBinding(Mod.Id, "cancelSelection", m_RestrictionTool.ClearSelection));
         AddBinding(new TriggerBinding<bool>(Mod.Id, "setPointerOverUi", m_RestrictionTool.SetPointerOverUi));
 
@@ -98,38 +137,65 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     private void HandleGameLoadingComplete(Purpose purpose, GameMode mode) => m_PendingLoadRefresh = true;
 
+    /// <summary>
+    /// Rebuilds the catalog once after a save finishes loading, and additionally whenever vehicle
+    /// prefabs or their CarData/TrainData actually change (for example asset packs that finish
+    /// streaming after the load-complete event). Nothing is rebuilt while the prefab world is
+    /// unchanged, and the panel opening never triggers a rebuild.
+    /// </summary>
+    private void PollAssetCatalog()
+    {
+        if (m_VehiclePrefabQuery.IsEmptyIgnoreFilter)
+        {
+            // Prefabs are not available (for example while loading); force a refresh once they appear.
+            return;
+        }
+
+        // Global component-order versions change for unrelated entities/archetypes.
+        // Compare actual catalog membership instead; never rebuild from a global version.
+        if (m_AssetsById.Count != 0 && !m_PendingLoadRefresh && !m_ContentAvailabilityDirty)
+        {
+            using var prefabs = m_VehiclePrefabQuery.ToEntityArray(Allocator.Temp);
+            var eligible = 0;
+            var changed = false;
+            foreach (var prefab in prefabs)
+            {
+                var mode = EntityManager.HasComponent<CarData>(prefab) ? 1 :
+                    EntityManager.HasComponent<TrainData>(prefab) ? 2 : 0;
+                if (mode == 0) continue;
+                eligible++;
+                if (!m_ModeByAsset.TryGetValue(prefab, out var oldMode) || oldMode != mode) changed = true;
+            }
+            if (!changed && eligible == m_AssetsById.Count) return;
+        }
+        RefreshAssetCatalog();
+    }
+
     protected override void OnUpdate()
     {
         // Game 1.6.0f1 can run mod OnLoad on a thread-pool continuation where the Input
         // System's Temp allocator fails; retry the key binding registration here on the
         // main thread once so the shortcut key still works in that scenario.
         Mod.RetryKeyBindings();
-
-        // Rebuild the catalog once after a save finishes loading, and additionally whenever vehicle
-        // prefabs or their CarData/TrainData actually change (for example asset packs that finish
-        // loading after the load-complete event). The version checks are O(1) per frame and never
-        // rebuild anything while the prefab world is unchanged; the panel itself never triggers
-        // a rebuild when it opens.
-        if (!m_VehiclePrefabQuery.IsEmptyIgnoreFilter)
+        var signs = World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>();
+        if (signs != null)
         {
-            var queryVersion = m_VehiclePrefabQuery.GetCombinedComponentOrderVersion(true);
-            var vehicleVersion = EntityManager.GetComponentOrderVersion<VehicleData>();
-            var carVersion = EntityManager.GetComponentOrderVersion<CarData>();
-            var trainVersion = EntityManager.GetComponentOrderVersion<TrainData>();
-            if (m_AssetsById.Count == 0 || m_PendingLoadRefresh || m_ContentAvailabilityDirty ||
-                queryVersion != m_LastQueryOrderVersion || vehicleVersion != m_LastVehicleOrderVersion ||
-                carVersion != m_LastCarOrderVersion || trainVersion != m_LastTrainOrderVersion)
-            {
-                RefreshAssetCatalog();
-            }
+            m_SignCatalogBinding.Update(signs.Catalog);
+            m_SignResolvedBinding.Update(signs.ResolvedName);
+            m_SignSelectionBinding.Update(Mod.Settings.RoadSignPrefabMode == "CUSTOM" ? Mod.Settings.CustomRoadSignPrefab ?? string.Empty : string.Empty);
+            m_SignUnavailableBinding.Update(signs.CustomUnavailable);
         }
-        else
+        if (m_ToolSystem.activeTool != m_RestrictionTool && m_RestrictionTool.SelectedTarget == Entity.Null &&
+            Mod.Clear != null && Mod.Clear.WasPressedThisFrame()) NotifyPanelClose();
+        m_ConfigurationEditableBinding.Update(World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable);
+
+        // Sample catalog membership every five real seconds, independently of paused FPS.
+        // Explicit refresh still rebuilds immediately; unchanged catalogs never reserialize.
+        P0Diagnostics.Poll(World);
+        if (P0Diagnostics.Catalog && UnityEngine.Time.realtimeSinceStartup >= m_NextCatalogPoll)
         {
-            // Prefabs are not available (for example while loading); force a refresh once they appear.
-            m_LastQueryOrderVersion = int.MinValue;
-            m_LastVehicleOrderVersion = int.MinValue;
-            m_LastCarOrderVersion = int.MinValue;
-            m_LastTrainOrderVersion = int.MinValue;
+            m_NextCatalogPoll = UnityEngine.Time.realtimeSinceStartup + 5f;
+            PollAssetCatalog();
         }
         m_ToolActiveBinding.Update(m_ToolSystem.activeTool == m_RestrictionTool);
         m_TargetModeBinding.Update((int)Mod.SelectedTargetMode);
@@ -141,8 +207,12 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         if (m_LastSelectedTarget != m_RestrictionTool.SelectedTarget)
         {
             m_LastSelectedTarget = m_RestrictionTool.SelectedTarget;
+            m_SelectedTargetBinding.Update(m_LastSelectedTarget == Entity.Null ? string.Empty : $"{m_LastSelectedTarget.Index}:{m_LastSelectedTarget.Version}");
             LoadSelectedTargetAssets(m_LastSelectedTarget);
         }
+        m_EntryCountBinding.Update(m_RestrictionTool.EntryDirectionCount);
+        m_EnabledEntryCountBinding.Update(m_RestrictionTool.EnabledEntryDirectionCount);
+        m_EntrySupportedBinding.Update(m_RestrictionTool.EntryDirectionsSupported);
         base.OnUpdate();
     }
 
@@ -153,14 +223,37 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         return binding;
     }
 
+    private void PublishRestriction() => m_RestrictionRevisionBinding.Update(++m_RestrictionRevision);
+
     private void ToggleTool()
     {
         m_RestrictionTool.Toggle();
     }
 
+    public void ResetRuntimeState()
+    {
+        m_RestrictionTool.Deactivate();
+        m_RestrictionTool.ClearSelection();
+        Mod.SelectedVehicleAssets.Clear();
+        Mod.SelectedTargetMode = Components.RestrictionTargetMode.Node;
+        m_LastSelectedTarget = Entity.Null;
+        m_SelectedTargetBinding.Update(string.Empty);
+        PublishRestriction();
+        m_TargetModeBinding.Update((int)Mod.SelectedTargetMode);
+        m_TargetTransportBinding.Update(0);
+        m_SelectedTargetKindBinding.Update(0);
+        m_SelectedAssetsBinding.Update(string.Empty);
+        m_ToolActiveBinding.Update(false);
+        m_RestrictionTool.SetPointerOverUi(false);
+    }
+
+    public void NotifyResetCompleted() => m_ResetCompletedBinding.Update(++m_ResetCompleted);
+    public void NotifyPanelClose() => m_PanelCloseBinding.Update(++m_PanelClose);
+
     private void SetTargetMode(int value)
     {
         Mod.SelectedTargetMode = value == 1 ? Components.RestrictionTargetMode.Segment : Components.RestrictionTargetMode.Node;
+        Mod.Log.Info($"[RouteFilter.Binding] TargetMode={Mod.SelectedTargetMode}");
         m_RestrictionTool.ClearSelection();
         m_TargetModeBinding.Update((int)Mod.SelectedTargetMode);
     }
@@ -256,22 +349,23 @@ public sealed partial class RouteFilterUISystem : UISystemBase
                 parentId, info.IsTrailer ? 1 : 0));
         }
 
-        Mod.SelectedVehicleAssets.RemoveWhere(entity => !m_IdsByAsset.ContainsKey(entity));
+        // Catalog visibility is not the saved source of truth. A dirty/partial catalog must
+        // not silently turn an existing restriction into allow-all on the next Apply.
+        PublishLibrary();
+        Mod.SelectedVehicleAssets.RemoveWhere(entity => !EntityManager.Exists(entity));
         m_AssetCatalogBinding.Update(string.Join("\n", lines));
         UpdateSelectedBinding();
 
         // Remember the world state this catalog was built from so later prefab or
         // component additions trigger a rebuild instead of being missed forever.
-        m_LastQueryOrderVersion = m_VehiclePrefabQuery.GetCombinedComponentOrderVersion(true);
-        m_LastVehicleOrderVersion = EntityManager.GetComponentOrderVersion<VehicleData>();
-        m_LastCarOrderVersion = EntityManager.GetComponentOrderVersion<CarData>();
-        m_LastTrainOrderVersion = EntityManager.GetComponentOrderVersion<TrainData>();
         m_ContentAvailabilityDirty = false;
         m_PendingLoadRefresh = false;
         Mod.Log.Info($"Vehicle asset catalog refreshed: {ordered.Length} assets, {m_ChildrenByAsset.Sum(pair => pair.Value.Count)} grouped trailers");
     }
 
     private static string Format(float value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    internal bool ContainsCatalogPrefab(Entity prefab) => m_IdsByAsset.ContainsKey(prefab);
 
     private void LoadSelectedTargetAssets(Entity target)
     {
@@ -280,7 +374,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
             EntityManager.TryGetBuffer(target, true, out DynamicBuffer<Components.RestrictedVehicleAssetV1> assets))
         {
             foreach (var asset in assets)
-                if (asset.m_Prefab != Entity.Null && m_IdsByAsset.ContainsKey(asset.m_Prefab))
+                if (asset.m_Prefab != Entity.Null && EntityManager.Exists(asset.m_Prefab))
                     Mod.SelectedVehicleAssets.Add(asset.m_Prefab);
         }
         UpdateSelectedBinding();
@@ -288,6 +382,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     private void ToggleAsset(int id)
     {
+        Mod.Log.Info($"[RouteFilter.Binding] toggleAsset received id={id}");
         if (!m_AssetsById.TryGetValue(id, out var entity)) { Mod.Log.Warn($"UI requested unknown asset id {id}"); return; }
         if (!Mod.SelectedVehicleAssets.Add(entity)) Mod.SelectedVehicleAssets.Remove(entity);
         UpdateSelectedBinding();
@@ -296,6 +391,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     private void ToggleAssetGroup(int id, bool includeChildren)
     {
+        Mod.Log.Info($"[RouteFilter.Binding] toggleAssetGroup received id={id}");
         if (!m_AssetsById.TryGetValue(id, out var entity)) return;
         var group = new List<Entity> { entity };
         if (includeChildren && m_ChildrenByAsset.TryGetValue(entity, out var children)) group.AddRange(children);
@@ -309,19 +405,18 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         Mod.Log.Debug($"Asset group {id} toggled (children: {includeChildren}); {Mod.SelectedVehicleAssets.Count} forbidden assets selected");
     }
 
-    private void SelectAllAssets(int mode)
+    // UI-only, user-triggered O(submitted IDs); never scans the city or expands groups.
+    private void SetFilteredAssetSelection(string assetIds, bool forbidden)
     {
-        foreach (var pair in m_AssetsById)
-            if (mode == 0 || m_ModeByAsset[pair.Value] == mode) Mod.SelectedVehicleAssets.Add(pair.Value);
+        if (string.IsNullOrEmpty(assetIds)) return;
+        foreach (var token in assetIds.Split(','))
+        {
+            if (!int.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out var id)
+                || !m_AssetsById.TryGetValue(id, out var entity)) continue;
+            if (forbidden) Mod.SelectedVehicleAssets.Add(entity);
+            else Mod.SelectedVehicleAssets.Remove(entity);
+        }
         UpdateSelectedBinding();
-        Mod.Log.Debug($"All {m_AssetsById.Count} catalog assets selected as forbidden");
-    }
-
-    private void SelectNoAssets(int mode)
-    {
-        Mod.SelectedVehicleAssets.RemoveWhere(entity => mode == 0 || (m_ModeByAsset.TryGetValue(entity, out var assetMode) && assetMode == mode));
-        UpdateSelectedBinding();
-        Mod.Log.Debug("All catalog assets set to allowed");
     }
 
     private void UpdateSelectedBinding()
@@ -330,4 +425,3 @@ public sealed partial class RouteFilterUISystem : UISystemBase
             .Where(m_IdsByAsset.ContainsKey).Select(entity => m_IdsByAsset[entity]).OrderBy(id => id)));
     }
 }
-
