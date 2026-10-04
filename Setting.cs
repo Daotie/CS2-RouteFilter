@@ -113,6 +113,7 @@ internal abstract class LocaleBase : IDictionarySource
             [Setting.GetSettingsLocaleID()] = "RouteFilter",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.ShowRoadRestrictionSigns))] = Chinese ? "显示道路禁行标志" : "Show Road Restriction Signs",
             [Setting.GetOptionDescLocaleID(nameof(Setting.ShowRoadRestrictionSigns))] = Chinese ? "在已应用的道路禁行入口两侧显示标志牌。样式可在 RouteFilter 面板选择。" : "Shows signs beside applied restricted road entries. Choose the style in the RouteFilter panel.",
+            ["RouteFilter.UI.RoadSignSearch"] = Chinese ? "搜索 prefab……" : "Search prefabs…",
             ["RouteFilter.UI.RoadSignStyle"] = Chinese ? "道路禁行标志样式" : "Road Restriction Sign Prefab",
             ["RouteFilter.UI.RoadSignAuto"] = Chinese ? "自动 — 匹配道路主题" : "Auto — Match Road Theme",
             ["RouteFilter.UI.RoadSignResolved"] = Chinese ? "自动解析" : "Auto resolved",

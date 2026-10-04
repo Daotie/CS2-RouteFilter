@@ -37,6 +37,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
         internal string Icon;
         internal EntityArchetype Archetype;
         internal float GroundOffset;
+        internal bool IsNoEntry;
     }
 
     private readonly Dictionary<string, SignPrefab> m_Prefabs = new(StringComparer.Ordinal);
@@ -70,7 +71,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
         base.OnCreate();
         m_PrefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>();
         m_Index = World.GetOrCreateSystemManaged<RestrictionIndexSystem>();
-        m_PrefabQuery = GetEntityQuery(ComponentType.ReadOnly<TrafficSignData>(), ComponentType.ReadOnly<StaticObjectData>(), ComponentType.ReadOnly<SpawnableObjectData>(), ComponentType.ReadOnly<PrefabData>());
+        m_PrefabQuery = GetEntityQuery(ComponentType.ReadOnly<StaticObjectData>(), ComponentType.ReadOnly<ObjectGeometryData>(), ComponentType.ReadOnly<PrefabData>());
         m_OwnedQuery = GetEntityQuery(new EntityQueryDesc { All = new[] { ComponentType.ReadOnly<RoadRestrictionSignOwner>() }, None = new[] { ComponentType.ReadOnly<Deleted>() } });
         m_RestrictionQuery = GetEntityQuery(ComponentType.ReadOnly<RestrictedVehicleAssetV1>());
         m_ChangedGeometryQuery = GetEntityQuery(new EntityQueryDesc
@@ -162,8 +163,8 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
         var mask = TrafficSignData.GetTypeMask(TrafficSignType.DoNotEnter);
         foreach (var entity in entities)
         {
-            var sign = EntityManager.GetComponentData<TrafficSignData>(entity);
-            if (sign.m_TypeMask != mask || !m_PrefabSystem.TryGetPrefab<StaticObjectPrefab>(entity, out var prefab) ||
+            var isNoEntry = EntityManager.TryGetComponent(entity, out TrafficSignData sign) && (sign.m_TypeMask & mask) != 0;
+            if (!m_PrefabSystem.TryGetPrefab<StaticObjectPrefab>(entity, out var prefab) ||
                 !EntityManager.TryGetComponent(entity, out ObjectGeometryData geometry) || prefab.m_Meshes == null || prefab.m_Meshes.Length == 0 ||
                 EntityManager.HasComponent<BuildingData>(entity) || EntityManager.HasComponent<VehicleData>(entity) || EntityManager.HasComponent<TreeData>(entity) ||
                 !math.all(math.isfinite(geometry.m_Bounds.min)) || !math.all(math.isfinite(geometry.m_Bounds.max)) ||
@@ -171,6 +172,9 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
                 EntityManager.HasComponent<PlaceholderObjectData>(entity)) continue;
             var components = new HashSet<ComponentType>();
             prefab.GetArchetypeComponents(components);
+            // Native BatchInstanceSystem requires Clear/Forward mesh states from NetObject.
+            // This instance component does not write network composition or lane blockage.
+            if (EntityManager.HasComponent<NetObjectData>(entity)) components.Add(ComponentType.ReadWrite<Game.Objects.NetObject>());
             components.Add(ComponentType.ReadWrite<Created>());
             components.Add(ComponentType.ReadWrite<Updated>());
             components.Add(ComponentType.ReadWrite<BatchesUpdated>());
@@ -183,18 +187,24 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
                     if (EntityManager.HasComponent<ThemeData>(requirement.m_Requirement)) { theme = requirement.m_Requirement; break; }
             m_Prefabs[prefab.name] = new SignPrefab { Entity = entity, Theme = theme, Name = prefab.name,
                 Icon = ImageSystem.GetIcon(prefab) ?? string.Empty,
-                Archetype = EntityManager.CreateArchetype(components.ToArray()), GroundOffset = -math.min(0f, geometry.m_Bounds.min.y) };
-            Mod.Log.Info($"[RouteFilter.RoadSigns] prefab={prefab.name} theme={(theme == Entity.Null ? "generic" : m_PrefabSystem.GetPrefabName(theme))} nativeIcon={ImageSystem.GetIcon(prefab) != null}");
+                IsNoEntry = isNoEntry, Archetype = EntityManager.CreateArchetype(components.ToArray()), GroundOffset = -math.min(0f, geometry.m_Bounds.min.y) };
+            if (isNoEntry) Mod.Log.Info($"[RouteFilter.RoadSigns] prefab={prefab.name} theme={(theme == Entity.Null ? "generic" : m_PrefabSystem.GetPrefabName(theme))} nativeIcon={ImageSystem.GetIcon(prefab) != null}");
+            if (isNoEntry && EntityManager.TryGetBuffer(entity, true, out DynamicBuffer<SubMesh> meshes))
+            {
+                var flags = new List<string>();
+                foreach (var mesh in meshes) flags.Add(mesh.m_Flags.ToString());
+                Mod.Log.Info($"[RouteFilter.RoadSigns] renderContract prefab={prefab.name} NetObjectData={EntityManager.HasComponent<NetObjectData>(entity)} layers={geometry.m_Layers} minLod={geometry.m_MinLod} meshFlags={string.Join(",", flags)}");
+            }
         }
         Catalog = string.Join("\n", m_Prefabs.Values.OrderBy(p => p.Name, StringComparer.Ordinal).Select(p => Encode(p.Name) + "|" + Encode(p.Icon)));
-        Mod.Log.Info($"[RouteFilter.RoadSigns] compatiblePrefabs={m_Prefabs.Count} nativeType=DoNotEnter");
+        Mod.Log.Info($"[RouteFilter.RoadSigns] compatiblePrefabs={m_Prefabs.Count} customType=RenderableStaticObject autoType=DoNotEnter");
     }
 
     private static string Encode(string value) => Uri.EscapeDataString(value);
 
-    private SignPrefab ResolveAuto(Entity theme) => m_Prefabs.Values.Where(p => p.Theme == theme && theme != Entity.Null)
+    private SignPrefab ResolveAuto(Entity theme) => m_Prefabs.Values.Where(p => p.IsNoEntry && p.Theme == theme && theme != Entity.Null)
         .OrderBy(p => p.Name, StringComparer.Ordinal).FirstOrDefault()
-        ?? m_Prefabs.Values.Where(p => p.Theme == Entity.Null).OrderBy(p => p.Name, StringComparer.Ordinal).FirstOrDefault();
+        ?? m_Prefabs.Values.Where(p => p.IsNoEntry && p.Theme == Entity.Null).OrderBy(p => p.Name, StringComparer.Ordinal).FirstOrDefault();
 
     private void Rebuild(Entity target)
     {
@@ -274,6 +284,8 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
             EntityManager.SetComponentData(entity, new PrefabRef(prefab.Entity));
             EntityManager.SetComponentData(entity, new ObjectTransform(position, rotation));
             EntityManager.SetComponentData(entity, new RoadRestrictionSignOwner { Target = target });
+            if (EntityManager.HasComponent<Game.Objects.NetObject>(entity))
+                EntityManager.SetComponentData(entity, new Game.Objects.NetObject());
             if (EntityManager.HasComponent<PseudoRandomSeed>(entity))
                 EntityManager.SetComponentData(entity, new PseudoRandomSeed((ushort)(1 + (uint)entity.Index % 65534)));
             if (!EntityManager.HasComponent<Game.Objects.Object>(entity) || !EntityManager.HasComponent<Game.Objects.Static>(entity) ||
@@ -295,7 +307,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
             var owner = EntityManager.GetComponentData<RoadRestrictionSignOwner>(entity);
             var culling = EntityManager.GetComponentData<CullingInfo>(entity);
             var batches = EntityManager.GetBuffer<MeshBatch>(entity, true);
-            Mod.Log.Info($"[RouteFilter.RoadSigns] renderInitialization Target={owner.Target} marker={entity} CullingRadius={culling.m_Radius} CullingBounds={culling.m_Bounds.min}/{culling.m_Bounds.max} MeshBatches={batches.Length} visibility=REQUIRES_GAME_CHECK");
+            Mod.Log.Info($"[RouteFilter.RoadSigns] renderInitialization Target={owner.Target} marker={entity} CullingRadius={culling.m_Radius} CullingBounds={culling.m_Bounds.min}/{culling.m_Bounds.max} CullingIndex={culling.m_CullingIndex} CullingMask={culling.m_Mask} PassedCulling={culling.m_PassedCulling} MinLod={culling.m_MinLod} NetObject={EntityManager.HasComponent<Game.Objects.NetObject>(entity)} MeshBatches={batches.Length} visibility=REQUIRES_GAME_CHECK");
         }
         m_RenderChecks.Clear();
     }

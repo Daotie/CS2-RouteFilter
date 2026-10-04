@@ -1,6 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import { bindValue, trigger, useValue } from "cs2/api";
-import { Dropdown, DropdownToggle, DropdownItem } from "cs2/ui";
+import { Button, Portal } from "cs2/ui";
 import { useLocalization } from "cs2/l10n";
 import mod from "mod.json";
 import { icons } from "../assets";
@@ -16,6 +16,12 @@ export const RoadSignSelector = () => {
   const selection = useValue(selection$);
   const resolved = useValue(resolved$);
   const unavailable = useValue(unavailable$);
+  const [popup, setPopup] = useState<{ left: number; top: number; width: number; maxHeight: number; rowHeight: number } | null>(null);
+  const [search, setSearch] = useState("");
+  const [scrollTop, setScrollTop] = useState(0);
+  const scroller = useRef<HTMLDivElement>(null);
+  const anchor = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const { translate } = useLocalization();
   const tr = (key: string, fallback: string) => String(translate(key) ?? fallback);
   const name = (value: string) => String(translate(`Assets.NAME[${value}]`, value) ?? value);
@@ -25,31 +31,64 @@ export const RoadSignSelector = () => {
       return id ? [{ id, icon: icon || icons.prohibition }] : [];
     } catch { return []; }
   }), [catalog]);
-  const selected = options.find(option => option.id === selection);
+  const close = () => { setPopup(null); trigger(mod.id, "setPointerOverUi", false); };
+  useEffect(() => {
+    if (!popup) return;
+    const outside = (event: MouseEvent) => {
+      if (!anchor.current?.contains(event.target as Node) && !menu.current?.contains(event.target as Node)) close();
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); close(); } };
+    document.addEventListener("mousedown", outside);
+    document.addEventListener("keydown", escape, true);
+    window.addEventListener("resize", close);
+    return () => { document.removeEventListener("mousedown", outside); document.removeEventListener("keydown", escape, true); window.removeEventListener("resize", close); };
+  }, [popup]);
+  const toggle = () => {
+    if (popup) { close(); return; }
+    const rect = anchor.current?.getBoundingClientRect();
+    if (!rect) return;
+    // Native Dropdown hard-codes minHeight=300 and flips upward. This menu uses
+    // native buttons/Portal, but reserves only space BELOW the actual anchor.
+    const top = rect.bottom + 4;
+    setSearch(""); setScrollTop(0);
+    setPopup({ left: rect.left, top, width: rect.width, maxHeight: Math.max(1, window.innerHeight - top - 12), rowHeight: Math.max(1, rect.height) });
+  };
+  const select = (value: string) => { trigger(mod.id, "selectRoadSignPrefab", value); close(); };
+  const selected = useMemo(() => options.find(option => option.id === selection), [options, selection]);
+  const automatic = useMemo(() => options.find(option => option.id === resolved), [options, resolved]);
   const auto = tr("RouteFilter.UI.RoadSignAuto", "Auto — Match Road Theme");
-  const title = tr("RouteFilter.UI.RoadSignStyle", "Road Restriction Sign Prefab");
-  const select = (value: string) => trigger(mod.id, "selectRoadSignPrefab", value);
+  const query = search.trim().toLocaleLowerCase();
+  const namedOptions = useMemo(() => options.map(option => ({ ...option, displayName: name(option.id) })), [options, translate]);
+  const filtered = useMemo(() => namedOptions.filter(option => !query || `${option.displayName} ${option.id}`.toLocaleLowerCase().includes(query)), [namedOptions, query]);
+  const firstRow = popup ? Math.max(0, Math.floor(scrollTop / popup.rowHeight) - 2) : 0;
+  const visibleRows = popup ? filtered.slice(firstRow, firstRow + Math.ceil(popup.maxHeight / popup.rowHeight) + 4) : [];
+  const changeSearch = (value: string) => { setSearch(value); setScrollTop(0); if (scroller.current) scroller.current.scrollTop = 0; };
   const row = (icon: string, text: string) => <span className={styles.signOption}>
     <img src={icon} alt="" onError={event => { event.currentTarget.onerror = null; event.currentTarget.src = icons.prohibition; }} />
-    <span>{text}</span>
+    <span title={text}>{text}</span>
   </span>;
-  const automatic = options.find(option => option.id === resolved);
-  const theme = { dropdownToggle: styles.signToggle, label: styles.signLabel,
-    indicator: styles.signIndicator, hiddenIcon: styles.signArrow, visibleIcon: styles.signArrowOpen,
-    dropdownPopup: styles.signDropdownPopup, dropdownMenu: styles.signMenu,
-    scrollable: styles.signScroll, dropdownItem: styles.signItem };
   return <div className={styles.signSelector}>
-    <div className={styles.signTitle}>{title}</div>
-    <Dropdown theme={theme} content={<div className={`${styles.signMenu} ${styles.signScroll}`} onMouseEnter={() => trigger(mod.id, "setPointerOverUi", true)} onMouseLeave={() => trigger(mod.id, "setPointerOverUi", false)}>
-      <DropdownItem value="" selected={selection === ""} onChange={select}>{row(icons.prohibition, auto)}</DropdownItem>
-      {options.map(option => <DropdownItem key={option.id} value={option.id} selected={selection === option.id} onChange={select}>
-        {row(option.icon, name(option.id))}
-      </DropdownItem>)}
-    </div>}>
-      <DropdownToggle theme={theme} openIconComponent={<img src={icons.chevron} alt="" />} closeIconComponent={<img src={icons.chevron} alt="" />}>
+    <div className={styles.signTitle}>{tr("RouteFilter.UI.RoadSignStyle", "Road Restriction Sign Prefab")}</div>
+    <div ref={anchor}>
+      <Button variant="flat" className={styles.signToggle} onSelect={toggle} aria-expanded={!!popup} aria-haspopup="listbox">
         {row(selected?.icon ?? automatic?.icon ?? icons.prohibition, selection ? name(selection) : auto)}
-      </DropdownToggle>
-    </Dropdown>
+        <img className={popup ? styles.signArrowOpen : styles.signArrow} src={icons.chevron} alt="" />
+      </Button>
+    </div>
+    {popup && <Portal><div ref={menu} className={styles.signDropdownPopup} style={{ left: popup.left, top: popup.top, width: popup.width, maxHeight: popup.maxHeight }} role="listbox"
+      onMouseEnter={() => trigger(mod.id, "setPointerOverUi", true)} onMouseLeave={() => trigger(mod.id, "setPointerOverUi", false)}>
+      {options.length > 12 && <input className={styles.signSearch} value={search} onChange={event => changeSearch(event.target.value)} placeholder={tr("RouteFilter.UI.RoadSignSearch", "Search prefabs…")} />}
+      <Button variant="flat" className={`${styles.signItem} ${!selection ? styles.signItemSelected : ""}`} onSelect={() => select("")}>{row(icons.prohibition, auto)}</Button>
+      <div ref={scroller} className={styles.signScroll} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}>
+        <div style={{ position: "relative", height: filtered.length * popup.rowHeight }}>
+          {visibleRows.map((option, index) => <div key={option.id} style={{ position: "absolute", left: 0, right: 0, top: (firstRow + index) * popup.rowHeight, height: popup.rowHeight }}>
+            <Button variant="flat" className={`${styles.signItem} ${selection === option.id ? styles.signItemSelected : ""}`} onSelect={() => select(option.id)}>
+              {row(option.icon, option.displayName)}
+            </Button>
+          </div>)}
+        </div>
+      </div>
+    </div></Portal>}
     {!selection && <div className={styles.signResolved}>{resolved ? `${tr("RouteFilter.UI.RoadSignResolved", "Auto resolved")}: ${name(resolved)}` : tr("RouteFilter.UI.RoadSignUnavailable", "No compatible sign; restrictions remain active")}</div>}
     {unavailable && <div className={styles.signResolved}>{tr("RouteFilter.UI.RoadSignMissing", "Custom sign unavailable; using Auto temporarily")}</div>}
   </div>;
