@@ -47,11 +47,15 @@ export const RoadSignSelector = () => {
     if (popup) { close(); return; }
     const rect = anchor.current?.getBoundingClientRect();
     if (!rect) return;
-    // Native Dropdown hard-codes minHeight=300 and flips upward. This menu uses
-    // native buttons/Portal, but reserves only space BELOW the actual anchor.
-    const top = rect.bottom + 4;
+    // Align the bottom beside the selector; keep the popup short and on-screen.
+    const rowHeight = Math.max(1, rect.height);
+    const bottom = Math.min(rect.bottom, window.innerHeight - 12);
+    const maxHeight = Math.max(1, Math.min(rowHeight * 6, bottom - 12));
+    const width = Math.min(rect.width, Math.max(1, window.innerWidth - 24));
+    const left = Math.max(12, Math.min(rect.right + 8, window.innerWidth - width - 12));
+    const top = bottom - maxHeight;
     setSearch(""); setScrollTop(0);
-    setPopup({ left: rect.left, top, width: rect.width, maxHeight: Math.max(1, window.innerHeight - top - 12), rowHeight: Math.max(1, rect.height) });
+    setPopup({ left, top, width, maxHeight, rowHeight });
   };
   const select = (value: string) => { trigger(mod.id, "selectRoadSignPrefab", value); close(); };
   const selected = useMemo(() => options.find(option => option.id === selection), [options, selection]);
@@ -75,7 +79,7 @@ export const RoadSignSelector = () => {
         <img className={popup ? styles.signArrowOpen : styles.signArrow} src={icons.chevron} alt="" />
       </Button>
     </div>
-    {popup && <Portal><div ref={menu} className={styles.signDropdownPopup} style={{ left: popup.left, top: popup.top, width: popup.width, maxHeight: popup.maxHeight }} role="listbox"
+    {popup && <Portal><div ref={menu} className={styles.signDropdownPopup} style={{ left: popup.left, top: popup.top, width: popup.width, height: popup.maxHeight, maxHeight: popup.maxHeight }} role="listbox"
       onMouseEnter={() => trigger(mod.id, "setPointerOverUi", true)} onMouseLeave={() => trigger(mod.id, "setPointerOverUi", false)}>
       {options.length > 12 && <input className={styles.signSearch} value={search} onChange={event => changeSearch(event.target.value)} placeholder={tr("RouteFilter.UI.RoadSignSearch", "Search prefabs…")} />}
       <Button variant="flat" className={`${styles.signItem} ${!selection ? styles.signItemSelected : ""}`} onSelect={() => select("")}>{row(icons.prohibition, auto)}</Button>

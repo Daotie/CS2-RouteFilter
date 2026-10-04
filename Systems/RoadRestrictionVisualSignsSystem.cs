@@ -233,7 +233,8 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
             { Skip("NO_RENDER_PREFAB", $"prefab={prefab.Name}"); continue; }
             if (!m_Index.TryGetApproachFrame(entry, true, out var center, out var forward, out var low, out var high))
             { Skip("NO_ENTRY_GEOMETRY", DescribeGeometryFailure(entry)); continue; }
-            if (!RoadSignPlacement.TryCreate(center, forward, low, high, prefab.GroundOffset, out var first, out var second, out var rotation))
+            GetSignMargins(entry, center, forward, low, high, out var leftMargin, out var rightMargin);
+            if (!RoadSignPlacement.TryCreate(center, forward, low, high, prefab.GroundOffset, out var first, out var second, out var rotation, leftMargin, rightMargin))
             { Skip("INVALID_TRANSFORM", $"connection={entry.Connection} center={center} forward={forward} bounds={low}/{high}"); continue; }
             pairs++;
             // Entries come from the same derived topology as Directional Restrictions.
@@ -245,12 +246,37 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
                 markers.Add(CreateMarker(target, anchor, prefab, first, rotation));
                 markers.Add(CreateMarker(target, anchor, prefab, second, rotation));
                 var gate = entry.Gates[0];
-                Mod.Log.Info($"[RouteFilter.RoadSigns] target={target} connection={entry.Connection} EntryLane={gate.m_EntryLane} NextLane={gate.m_NextLane} LEFT={first} RIGHT={second} Rotation={rotation.value} Scale=1 edgeMargin=0.8 laneBounds={low}/{high} prefab={prefab.Name}");
+                Mod.Log.Info($"[RouteFilter.RoadSigns] target={target} connection={entry.Connection} EntryLane={gate.m_EntryLane} NextLane={gate.m_NextLane} LEFT={first} RIGHT={second} Rotation={rotation.value} Scale=1 edgeMargins={leftMargin}/{rightMargin} laneBounds={low}/{high} prefab={prefab.Name}");
             }
             catch (Exception error) { Skip("ENTITY_CREATION_FAILED", $"connection={entry.Connection} error={error}", 2 - (markers.Count - before)); }
         }
         var emptyReason = entries.Count != 0 ? string.Empty : ExplainEmptyTarget(target);
         Mod.Log.Info($"[RouteFilter.RoadSigns] Target={target} LogicalEntries={entries.Count} RestrictedEntries={restricted} ResolvedSignPrefab={prefab?.Name ?? "NONE"} ResolvedPrefabEntity={prefab?.Entity.ToString() ?? "NONE"} PlacementPairs={pairs} CreatedMarkers={markers.Count} SkippedMarkers={skipped} SkipReasons={string.Join(",", reasons.Select(r => r.Key + "=" + r.Value))}{emptyReason} phase=Modification4");
+    }
+
+    private void GetSignMargins(LogicalEntryGroup entry, float3 center, float3 travel, float low, float high,
+        out float leftMargin, out float rightMargin)
+    {
+        leftMargin = rightMargin = .8f;
+        // Local, rebuild-only geometry check; no topology or enforcement changes.
+        if (!EntityManager.TryGetBuffer(entry.Connection, true, out DynamicBuffer<Game.Net.SubLane> lanes)) return;
+        var lateral = new float3(-travel.z, 0f, travel.x);
+        foreach (var sub in lanes)
+        {
+            var lane = sub.m_SubLane;
+            if (!EntityManager.HasComponent<Game.Net.CarLane>(lane) || EntityManager.HasComponent<Game.Net.MasterLane>(lane) ||
+                !EntityManager.TryGetComponent(lane, out Game.Net.Curve curve) ||
+                !EntityManager.TryGetComponent(lane, out PrefabRef prefab) ||
+                !EntityManager.TryGetComponent(prefab.m_Prefab, out NetLaneData data) ||
+                !math.isfinite(data.m_Width) || data.m_Width <= .1f) continue;
+            Colossal.Mathematics.MathUtils.Distance(curve.m_Bezier, center, out var t);
+            var point = Colossal.Mathematics.MathUtils.Position(curve.m_Bezier, t);
+            var direction = math.normalizesafe(Colossal.Mathematics.MathUtils.Tangent(curve.m_Bezier, t));
+            if (math.dot(direction, travel) > -.5f || math.abs(math.dot(point - center, travel)) > 2f) continue;
+            var offset = math.dot(point - center, lateral);
+            RoadSignPlacement.ConstrainToDivider(low, high, offset - data.m_Width * .5f,
+                offset + data.m_Width * .5f, ref leftMargin, ref rightMargin);
+        }
     }
 
     private string ExplainEmptyTarget(Entity target)

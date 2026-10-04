@@ -15,8 +15,8 @@ $rfDanger: #e07b73;
 .signSelector .signToggle { display: flex; align-items: center; width: 100%; height: 36rem; min-height: 36rem; max-height: 36rem; padding: 0 8rem; color: $rfText; background-color: $rfSurfaceInset; border: 1rem solid $rfBorder; border-radius: 4rem; }
 .signToggle:hover { background-color: $rfSurfaceHover; }
 .signArrow, .signArrowOpen { flex: 0 0 12rem; width: 12rem; height: 12rem; max-width: 12rem; max-height: 12rem; margin-left: 8rem; object-fit: contain; }
-.signArrow { transform: rotate(90deg); }
-.signArrowOpen { transform: rotate(-90deg); }
+.signArrow { transform: rotate(0deg); }
+.signArrowOpen { transform: rotate(180deg); }
 .signDropdownPopup { position: fixed; z-index: 1100; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; color: $rfText; font-size: 12rem; background-color: var(--panelColorNormal); border: 1rem solid $rfBorder; border-radius: 4rem; padding: 3rem; pointer-events: auto; }
 .signScroll { flex: 1 1 auto; min-height: 0; max-height: 240rem; overflow-y: auto; }
 .signItem { flex: 0 0 auto; display: flex; align-items: center; width: 100%; height: 36rem; min-height: 36rem; padding: 0 4rem; color: $rfText; border-radius: 3rem; }
