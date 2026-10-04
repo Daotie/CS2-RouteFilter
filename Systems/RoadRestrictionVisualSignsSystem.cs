@@ -44,6 +44,8 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
     private readonly Dictionary<Entity, HashSet<Entity>> m_WatchedByTarget = new();
     private readonly Dictionary<Entity, HashSet<Entity>> m_TargetsByWatch = new();
     private readonly HashSet<Entity> m_Dirty = new();
+    // Checked once on the next visual update, after native rendering has run.
+    private readonly List<Entity> m_RenderChecks = new();
     private readonly HashSet<string> m_Warnings = new();
     private EntityQuery m_PrefabQuery;
     private EntityQuery m_OwnedQuery;
@@ -103,12 +105,13 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
 
     public void ResetRuntimeState()
     {
-        ClearOwned(); m_Dirty.Clear(); m_Warnings.Clear();
+        ClearOwned(); m_Dirty.Clear(); m_Warnings.Clear(); m_RenderChecks.Clear();
     }
 
     protected override void OnUpdate()
     {
         if (GameManager.instance.gameMode != GameMode.Game) return;
+        CheckInitializedMarkers();
         var enabled = Mod.Settings.ShowRoadRestrictionSigns;
         var custom = Mod.Settings.RoadSignPrefabMode == "CUSTOM" ? Mod.Settings.CustomRoadSignPrefab ?? string.Empty : string.Empty;
         var settingChanged = enabled != m_Enabled || custom != m_Custom;
@@ -123,6 +126,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
         {
             m_LoadDirty = false;
             m_Enabled = enabled; m_Custom = custom;
+            Mod.Log.Info($"[RouteFilter.RoadSigns] visualConfig enabled={enabled} mode={(custom.Length == 0 ? "AUTO" : "CUSTOM")} custom={custom} phase=Modification4");
             m_Theme = World.GetOrCreateSystemManaged<CityConfigurationSystem>().defaultTheme;
             var automatic = ResolveAuto(m_Theme);
             ResolvedName = automatic?.Name ?? string.Empty;
@@ -196,35 +200,104 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
     {
         RemoveTarget(target);
         var entries = m_Index.GetAppliedRoadEntries(target);
-        if (entries.Count == 0) return;
+        var restricted = 0; var pairs = 0; var skipped = 0;
+        var reasons = new Dictionary<string, int>(StringComparer.Ordinal);
         var markers = new List<Entity>();
-        m_Markers[target] = markers;
-        Watch(target, target);
+        if (entries.Count > 0) { m_Markers[target] = markers; Watch(target, target); }
+        var prefab = m_Custom != null && m_Prefabs.TryGetValue(m_Custom, out var selected) ? selected : ResolveAuto(m_Theme);
+        void Skip(string reason, string detail, int markerCount = 2)
+        {
+            skipped += markerCount;
+            reasons.TryGetValue(reason, out var count); reasons[reason] = count + markerCount;
+            Mod.Log.Info($"[RouteFilter.RoadSigns] target={target} SkipReason={reason} {detail}");
+        }
         foreach (var entry in entries)
         {
             Watch(target, entry.Connection);
             foreach (var gate in entry.Gates) { Watch(target, gate.m_EntryLane); Watch(target, gate.m_NextLane); }
             if (!entry.Enabled) continue;
-            var prefab = m_Custom != null && m_Prefabs.TryGetValue(m_Custom, out var selected) ? selected : ResolveAuto(m_Theme);
-            if (prefab == null) { WarnOnce("prefab:" + m_Theme, "No compatible No Entry prefab for the actual theme; enforcement unchanged"); continue; }
+            restricted++;
+            if (prefab == null) { Skip("NO_PREFAB", $"theme={m_Theme}"); continue; }
+            if (!EntityManager.Exists(prefab.Entity) || !EntityManager.HasComponent<ObjectGeometryData>(prefab.Entity))
+            { Skip("NO_RENDER_PREFAB", $"prefab={prefab.Name}"); continue; }
             if (!m_Index.TryGetApproachFrame(entry, true, out var center, out var forward, out var low, out var high))
-            { WarnOnce("geometry:" + target, $"target={target} entering lane width/direction unavailable; visual skipped"); continue; }
+            { Skip("NO_ENTRY_GEOMETRY", DescribeGeometryFailure(entry)); continue; }
             if (!RoadSignPlacement.TryCreate(center, forward, low, high, prefab.GroundOffset, out var first, out var second, out var rotation))
-            { WarnOnce("placement:" + target, $"target={target} invalid entry frame; visual skipped"); continue; }
-            markers.Add(CreateMarker(target, prefab, first, rotation));
-            markers.Add(CreateMarker(target, prefab, second, rotation));
+            { Skip("INVALID_TRANSFORM", $"connection={entry.Connection} center={center} forward={forward} bounds={low}/{high}"); continue; }
+            pairs++;
+            // Entries come from the same derived topology as Directional Restrictions.
+            // Only visual instances are created; no native network/blocked-lane components.
+            var before = markers.Count;
+            try
+            {
+                markers.Add(CreateMarker(target, prefab, first, rotation));
+                markers.Add(CreateMarker(target, prefab, second, rotation));
+                var gate = entry.Gates[0];
+                Mod.Log.Info($"[RouteFilter.RoadSigns] target={target} connection={entry.Connection} EntryLane={gate.m_EntryLane} NextLane={gate.m_NextLane} LEFT={first} RIGHT={second} Rotation={rotation.value} Scale=1 edgeMargin=0.8 laneBounds={low}/{high} prefab={prefab.Name}");
+            }
+            catch (Exception error) { Skip("ENTITY_CREATION_FAILED", $"connection={entry.Connection} error={error}", 2 - (markers.Count - before)); }
         }
-        Mod.Log.Debug($"[RouteFilter.RoadSigns] target={target} signs={markers.Count}");
+        var emptyReason = entries.Count != 0 ? string.Empty : ExplainEmptyTarget(target);
+        Mod.Log.Info($"[RouteFilter.RoadSigns] Target={target} LogicalEntries={entries.Count} RestrictedEntries={restricted} ResolvedSignPrefab={prefab?.Name ?? "NONE"} ResolvedPrefabEntity={prefab?.Entity.ToString() ?? "NONE"} PlacementPairs={pairs} CreatedMarkers={markers.Count} SkippedMarkers={skipped} SkipReasons={string.Join(",", reasons.Select(r => r.Key + "=" + r.Value))}{emptyReason} phase=Modification4");
+    }
+
+    private string ExplainEmptyTarget(Entity target)
+    {
+        if (!EntityManager.Exists(target) || EntityManager.HasComponent<Deleted>(target)) return " EmptyReason=TARGET_MISSING_OR_DELETED";
+        if (!EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets) || assets.Length == 0) return " EmptyReason=NO_RESTRICTION";
+        foreach (var asset in assets)
+            if (EntityManager.HasComponent<CarData>(asset.m_Prefab)) return " EmptyReason=NO_DERIVED_ROAD_ENTRIES";
+        return " EmptyReason=NO_ROAD_PREFAB_RESTRICTION";
+    }
+
+    private string DescribeGeometryFailure(LogicalEntryGroup entry)
+    {
+        if (entry.Gates.Count == 0) return $"connection={entry.Connection} invariant=NO_GATES";
+        var node = entry.Gates[0].m_TargetEndpoint == RestrictionEndpoint.None;
+        foreach (var gate in entry.Gates)
+        {
+            var lane = node ? gate.m_EntryLane : gate.m_NextLane;
+            if (!EntityManager.TryGetComponent(lane, out Game.Net.Curve curve) || curve.m_Length <= .1f)
+                return $"lane={lane} invariant=MISSING_OR_DEGENERATE_CURVE";
+            if (!EntityManager.TryGetComponent(lane, out PrefabRef prefab) ||
+                !EntityManager.TryGetComponent(prefab.m_Prefab, out NetLaneData data)) return $"lane={lane} invariant=MISSING_NATIVE_LANE_WIDTH";
+            if (!math.isfinite(data.m_Width) || data.m_Width <= .1f) return $"lane={lane} invariant=INVALID_NATIVE_LANE_WIDTH width={data.m_Width}";
+        }
+        return $"connection={entry.Connection} invariant=ZERO_OR_NONFINITE_COMBINED_TANGENT";
     }
 
     private Entity CreateMarker(Entity target, SignPrefab prefab, float3 position, quaternion rotation)
     {
         var entity = EntityManager.CreateEntity(prefab.Archetype);
-        EntityManager.SetComponentData(entity, new PrefabRef(prefab.Entity));
-        EntityManager.SetComponentData(entity, new ObjectTransform(position, rotation));
-        EntityManager.SetComponentData(entity, new RoadRestrictionSignOwner { Target = target });
-        MarkerCount++;
-        return entity;
+        try
+        {
+            EntityManager.SetComponentData(entity, new PrefabRef(prefab.Entity));
+            EntityManager.SetComponentData(entity, new ObjectTransform(position, rotation));
+            EntityManager.SetComponentData(entity, new RoadRestrictionSignOwner { Target = target });
+            if (EntityManager.HasComponent<PseudoRandomSeed>(entity))
+                EntityManager.SetComponentData(entity, new PseudoRandomSeed((ushort)(1 + (uint)entity.Index % 65534)));
+            if (!EntityManager.HasComponent<Game.Objects.Object>(entity) || !EntityManager.HasComponent<Game.Objects.Static>(entity) ||
+                !EntityManager.HasComponent<CullingInfo>(entity) || !EntityManager.HasBuffer<MeshBatch>(entity))
+                throw new InvalidOperationException("Static prefab lacks native object/culling/batch instance components");
+            MarkerCount++;
+            m_RenderChecks.Add(entity);
+            return entity;
+        }
+        catch { EntityManager.DestroyEntity(entity); throw; }
+    }
+
+    private void CheckInitializedMarkers()
+    {
+        if (m_RenderChecks.Count == 0) return;
+        foreach (var entity in m_RenderChecks)
+        {
+            if (!EntityManager.Exists(entity) || EntityManager.HasComponent<Deleted>(entity)) continue;
+            var owner = EntityManager.GetComponentData<RoadRestrictionSignOwner>(entity);
+            var culling = EntityManager.GetComponentData<CullingInfo>(entity);
+            var batches = EntityManager.GetBuffer<MeshBatch>(entity, true);
+            Mod.Log.Info($"[RouteFilter.RoadSigns] renderInitialization Target={owner.Target} marker={entity} CullingRadius={culling.m_Radius} CullingBounds={culling.m_Bounds.min}/{culling.m_Bounds.max} MeshBatches={batches.Length} visibility=REQUIRES_GAME_CHECK");
+        }
+        m_RenderChecks.Clear();
     }
 
     private void RemoveTarget(Entity target)
