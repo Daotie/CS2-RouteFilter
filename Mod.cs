@@ -16,10 +16,10 @@ namespace RouteFilter;
 public sealed class Mod : IMod
 {
     public const string Id = "RouteFilter";
-    public const string Version = "2.0.0";
+    public const string Version = "2.0.1";
     // Bump this for every deployable build so the in-game panel and log identify
     // exactly which compiled payload is loaded by the active playset.
-    public const string BuildId = "RF2-20261004-ROAD-SIGNS-27";
+    public const string BuildId = "RF2-20261004-RESET-SAFE-28";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";
@@ -100,8 +100,8 @@ public sealed class Mod : IMod
         updateSystem.UpdateAt<RestrictionPersistenceSystem>(SystemUpdatePhase.Deserialize);
         updateSystem.UpdateAt<RestrictionPersistenceSystem>(SystemUpdatePhase.ModificationEnd);
         updateSystem.UpdateAt<RestrictionIndexSystem>(SystemUpdatePhase.GameSimulation);
-        // UI updates also run while paused. Reset completes candidate/safety readers first.
-        updateSystem.UpdateBefore<RouteFilterResetSystem, RouteFilterUISystem>(SystemUpdatePhase.UIUpdate);
+        // Reset mutates native state only in the modification lifecycle, also while paused.
+        updateSystem.UpdateAt<RouteFilterResetSystem>(SystemUpdatePhase.ModificationEnd);
         // Candidate collection must observe LaneObject buffers only after the vanilla
         // LaneObjectUpdater.Apply job in CarNavigationSystem.Actions.
         updateSystem.UpdateAfter<RestrictionCandidateSystem, Game.Simulation.CarNavigationSystem.Actions>(SystemUpdatePhase.GameSimulation);

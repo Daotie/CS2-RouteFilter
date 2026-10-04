@@ -55,6 +55,8 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
     private EntityQuery m_ChangedGeometryQuery;
     private PrefabSystem m_PrefabSystem;
     private RestrictionIndexSystem m_Index;
+    private readonly List<Entity> m_RetiredAnchors = new();
+    private bool m_ClearRequested;
     private bool m_CatalogDirty = true;
     private bool m_LoadDirty;
     private bool m_Enabled;
@@ -107,12 +109,15 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
 
     public void ResetRuntimeState()
     {
-        ClearOwned(); m_Dirty.Clear(); m_Warnings.Clear(); m_RenderChecks.Clear();
+        // Reset is requested from UIUpdate; native visual mutations run in Modification4.
+        m_ClearRequested = true; m_Dirty.Clear(); m_Warnings.Clear(); m_RenderChecks.Clear();
     }
 
     protected override void OnUpdate()
     {
         if (GameManager.instance.gameMode != GameMode.Game) return;
+        if (m_ClearRequested) { m_ClearRequested = false; ClearOwned(); }
+        RetireVisualAnchors();
         CheckInitializedMarkers();
         var enabled = Mod.Settings.ShowRoadRestrictionSigns;
         var custom = Mod.Settings.RoadSignPrefabMode == "CUSTOM" ? Mod.Settings.CustomRoadSignPrefab ?? string.Empty : string.Empty;
@@ -382,8 +387,26 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
         {
             foreach (var anchor in anchors)
                 if (EntityManager.Exists(anchor) && EntityManager.TryGetComponent(anchor, out RoadRestrictionSignOwner owner) && owner.Target == target)
-                    EntityManager.AddComponent<Deleted>(anchor);
+                    m_RetiredAnchors.Add(anchor);
             m_VisualAnchors.Remove(target);
+        }
+    }
+
+    private void RetireVisualAnchors()
+    {
+        // Keep each native Owner alive while Deleted child props are removed from
+        // object searches, render batches and SubObject references by vanilla.
+        for (var i = m_RetiredAnchors.Count - 1; i >= 0; i--)
+        {
+            var anchor = m_RetiredAnchors[i];
+            if (!EntityManager.Exists(anchor)) { m_RetiredAnchors.RemoveAt(i); continue; }
+            var children = EntityManager.GetBuffer<Game.Objects.SubObject>(anchor, true);
+            var alive = false;
+            foreach (var child in children) alive |= EntityManager.Exists(child.m_SubObject);
+            if (alive) continue;
+            // Non-rendered private helper has no native cleanup work of its own.
+            EntityManager.DestroyEntity(anchor);
+            m_RetiredAnchors.RemoveAt(i);
         }
     }
 
