@@ -79,6 +79,7 @@ public sealed partial class RouteFilterResetSystem : GameSystemBase
 
         World.GetOrCreateSystemManaged<RestrictionIndexSystem>().ResetRuntimeState();
         World.GetOrCreateSystemManaged<RestrictionOverlaySystem>().ResetRuntimeState();
+        World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.ResetRuntimeState();
         var ui = World.GetOrCreateSystemManaged<RouteFilterUISystem>();
         ui.ResetRuntimeState();
         ui.NotifyResetCompleted();

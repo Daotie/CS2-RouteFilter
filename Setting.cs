@@ -24,6 +24,10 @@ public sealed class Setting : ModSetting
 
     [SettingsUISection(kSection, kGeneralGroup)] public bool EnableRestrictionBadges { get; set; }
 
+    [SettingsUISection(kSection, kGeneralGroup)] public bool ShowRoadRestrictionSigns { get; set; }
+    [SettingsUIHidden] public string CustomRoadSignPrefab { get; set; }
+    [SettingsUIHidden] public string RoadSignPrefabMode { get; set; }
+
     /// <summary>Master switch for the road enforcement backend.</summary>
     [SettingsUISection(kSection, kGeneralGroup)] public bool EnableRoadEnforcement { get; set; }
 
@@ -84,6 +88,9 @@ public sealed class Setting : ModSetting
     public override void SetDefaults()
     {
         EnableRestrictionBadges = true;
+        ShowRoadRestrictionSigns = true;
+        CustomRoadSignPrefab = string.Empty;
+        RoadSignPrefabMode = "AUTO";
         EnableRoadEnforcement = true;
         EnableRailEnforcement = true;
         EmergencyProtection = true;
@@ -104,6 +111,13 @@ internal abstract class LocaleBase : IDictionarySource
         return new Dictionary<string, string>
         {
             [Setting.GetSettingsLocaleID()] = "RouteFilter",
+            [Setting.GetOptionLabelLocaleID(nameof(Setting.ShowRoadRestrictionSigns))] = Chinese ? "显示道路禁行标志" : "Show Road Restriction Signs",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.ShowRoadRestrictionSigns))] = Chinese ? "在已应用的道路禁行入口两侧显示标志牌。样式可在 RouteFilter 面板选择。" : "Shows signs beside applied restricted road entries. Choose the style in the RouteFilter panel.",
+            ["RouteFilter.UI.RoadSignStyle"] = Chinese ? "道路禁行标志样式" : "Road Restriction Sign Prefab",
+            ["RouteFilter.UI.RoadSignAuto"] = Chinese ? "自动 — 匹配道路主题" : "Auto — Match Road Theme",
+            ["RouteFilter.UI.RoadSignResolved"] = Chinese ? "自动解析" : "Auto resolved",
+            ["RouteFilter.UI.RoadSignUnavailable"] = Chinese ? "没有兼容标志牌；禁行仍然有效" : "No compatible sign; restrictions remain active",
+            ["RouteFilter.UI.RoadSignMissing"] = Chinese ? "自定义标志未加载；暂用自动样式" : "Custom sign unavailable; using Auto temporarily",
             [Setting.GetOptionTabLocaleID(Setting.kSection)] = Chinese ? "主要设置" : "General",
             [Setting.GetOptionGroupLocaleID(Setting.kGeneralGroup)] = Chinese ? "常规" : "General",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "限制标记" : "Restriction badges",

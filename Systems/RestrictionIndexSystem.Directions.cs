@@ -147,12 +147,25 @@ public sealed partial class RestrictionIndexSystem
 
     internal bool TryGetApproachGeometry(LogicalEntryGroup group, out float3 start, out float3 end)
     {
-        start = end = default;
-        var center = float3.zero; var tangent = float3.zero; var count = 0;
+        var valid = TryGetApproachFrame(group, false, out var center, out var tangent, out var low, out var high);
+        var normal = math.normalizesafe(new float3(-tangent.z, 0f, tangent.x));
+        center.y += .25f;
+        start = center + normal * low; end = center + normal * high;
+        return valid;
+    }
+
+    internal bool TryGetApproachFrame(LogicalEntryGroup group, bool actualWidths, out float3 center,
+        out float3 tangent, out float low, out float high)
+    {
+        center = tangent = float3.zero; low = high = 0f;
+        var count = 0;
+        if (group.Gates.Count == 0) return false;
+        var seen = actualWidths ? new HashSet<Entity>() : null;
         var node = group.Gates[0].m_TargetEndpoint == RestrictionEndpoint.None;
         foreach (var gate in group.Gates)
         {
             var lane = node ? gate.m_EntryLane : gate.m_NextLane;
+            if (seen != null && !seen.Add(lane)) continue;
             if (!EntityManager.TryGetComponent(lane, out Curve curve) || curve.m_Length <= .1f) return false;
             var forward = (node ? gate.m_EntryDirection : gate.m_NextDirection) == LaneTraversalDirection.Forward;
             var offset = math.min(.35f, 8f / curve.m_Length);
@@ -163,18 +176,44 @@ public sealed partial class RestrictionIndexSystem
         if (count == 0 || math.lengthsq(tangent.xz) < .01f) return false;
         center /= count;
         var normal = math.normalizesafe(new float3(-tangent.z, 0f, tangent.x));
-        var low = float.MaxValue; var high = float.MinValue;
+        low = float.MaxValue; high = float.MinValue;
+        seen?.Clear();
         foreach (var gate in group.Gates)
         {
             var lane = node ? gate.m_EntryLane : gate.m_NextLane;
+            if (seen != null && !seen.Add(lane)) continue;
             var curve = EntityManager.GetComponentData<Curve>(lane);
             var forward = (node ? gate.m_EntryDirection : gate.m_NextDirection) == LaneTraversalDirection.Forward;
             var offset = math.min(.35f, 8f / curve.m_Length);
             var t = node ? (forward ? 1f - offset : offset) : (forward ? offset : 1f - offset);
             var lateral = math.dot(MathUtils.Position(curve.m_Bezier, t) - center, normal);
-            low = math.min(low, lateral - 1.6f); high = math.max(high, lateral + 1.6f);
+            var halfWidth = 1.6f;
+            if (actualWidths)
+            {
+                if (!EntityManager.TryGetComponent(lane, out PrefabRef prefab) ||
+                    !EntityManager.TryGetComponent(prefab.m_Prefab, out NetLaneData laneData) ||
+                    !math.isfinite(laneData.m_Width) || laneData.m_Width <= .1f) return false;
+                halfWidth = laneData.m_Width * .5f;
+            }
+            low = math.min(low, lateral - halfWidth); high = math.max(high, lateral + halfWidth);
         }
-        center.y += .25f; start = center + normal * low; end = center + normal * high;
+        tangent = math.normalizesafe(new float3(tangent.x, 0f, tangent.z));
         return true;
+    }
+
+    internal IReadOnlyList<LogicalEntryGroup> GetAppliedRoadEntries(Entity target)
+    {
+        if (target == Entity.Null || !EntityManager.Exists(target) || EntityManager.HasComponent<Deleted>(target) ||
+            !EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets))
+            return System.Array.Empty<LogicalEntryGroup>();
+        var road = false;
+        foreach (var asset in assets) road |= EntityManager.HasComponent<CarData>(asset.m_Prefab);
+        if (!road) return System.Array.Empty<LogicalEntryGroup>();
+        var topology = new RestrictionTopology();
+        if (EntityManager.HasComponent<Node>(target)) BuildNodeTopology(topology, target);
+        else if (EntityManager.HasComponent<Edge>(target)) BuildSegmentTopology(topology, target);
+        else return System.Array.Empty<LogicalEntryGroup>();
+        BuildLogicalEntries(topology, target);
+        return topology.EntryGroups.TryGetValue(target, out var groups) ? groups : System.Array.Empty<LogicalEntryGroup>();
     }
 }

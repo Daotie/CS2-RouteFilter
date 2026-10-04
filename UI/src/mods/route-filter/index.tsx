@@ -83,6 +83,8 @@ export const RouteFilterShell = () => {
   useEffect(() => {
     if (active && !previousToolActive.current) {
       setPanelOpen(true);
+    } else if (!active && previousToolActive.current) {
+      setPanelOpen(false);
     }
     previousToolActive.current = active;
   }, [active]);

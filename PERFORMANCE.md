@@ -18,6 +18,30 @@ No all-city vehicle or lane query runs each simulation frame. No physical barrie
 | Logical entry derivation / 逻辑入口推导 | Existing restricted-target gate rebuild / 现有目标门重建 | Same rebuild cadence; no new resident system |
 | Selected-target direction editor / 选中目标方向编辑 | One target tag/revision check; cached bars on dirty change / 一个目标标签及修订检查，变化时缓存控制条 | Up to 64 local entries; no hover topology rebuild |
 | Direction overlay / 方向浮层 | Cached bars on selected road target / 已选道路目标的缓存控制条 | Scalar job copies; no frame allocations or native buffers |
+| Road sign visuals / 道路标志视觉 | Changed targets and their existing local entry topology / 已变更目标及其现有局部入口拓扑 | O(1) idle settings/dirty checks; no normal-frame geometry work / 空闲常数检查，不逐帧计算几何 |
+| Sign geometry notifications / 标志几何通知 | Updated/deleted entities bearing RouteFilter's visual watch tag, plus dependent targets / 带视觉监听标签的已更新或删除实体及关联目标 | Cached empty-query exit; no all-road/lane/marker scan / 查询为空立即退出，无全城扫描 |
+| Sign catalog / 标志目录 | Compatible native DoNotEnter static prefabs / 原生 DoNotEnter 静态 prefab | Load/content events only; native icon reuse / 仅加载及内容事件，复用原生图标 |
+| Sign save isolation / 标志存档隔离 | Owned visual entities / 自有视觉实体 | Save phase only; temporarily excluded with Temp / 仅保存阶段通过 Temp 临时排除 |
+
+Road signs reuse the existing Node/Segment gate builder and approach sampler. Geometry changes are
+notified through a visual-only component on affected targets, connections and lanes. The notification
+system consumes only matching Updated/Deleted entities at ModificationEnd; the UI phase drains a
+deduplicated target queue. Settings/content/load changes may refresh all owned markers. Global toggle
+or load therefore costs O(restrictions + markers), rather than O(city roads/vehicles).
+道路标志复用现有 Node/Segment 门构建与入口采样。仅在相关目标、连接与车道添加视觉监听标签；
+ModificationEnd 消费匹配的 Updated/Deleted 实体，UI 阶段处理去重的目标队列。设置、内容和加载
+变化可以刷新全部自有标志，此时成本随限制与标志数量增长，不随全城道路或车辆数量增长。
+
+Visual entities contain only the static prefab's rendering archetype, creation/update tags and
+RouteFilter ownership. They do not receive NetObject, BlockedLane, LaneObject or pathfinding state.
+They are not appended to vanilla road SubObjects. Save guards bracket SerializerSystem: add Temp to
+owned visuals before serialization, then remove it afterwards; native SerializerSystem excludes Temp.
+Rendering/culling still costs work proportional to the visible sign count. No profiler or live save/load
+verification is implied by these source-level contracts.
+视觉实体只包含静态 prefab 渲染结构、创建/更新标签与 ownership；不添加 NetObject、BlockedLane、
+LaneObject 或寻路状态，也不写入原生道路 SubObjects。保存前为自有标志添加 Temp，SerializerSystem
+完成后移除；原生序列化排除 Temp。渲染与剔除仍有随可见标志数量增长的成本；这些源码契约不代表
+已经通过 profiler 或实际保存/重载验证。
 
 Native hook cost includes a prefix on every actual native path query, even unselected owners.
 It does not enumerate vehicles. With no restrictions it exits before owner/component reads.

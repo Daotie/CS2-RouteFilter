@@ -44,12 +44,12 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         if (mouseApply != null)
         {
             m_MouseApplyDisplay = new DisplayNameOverride(Mod.Id, mouseApply, "RouteFilter.UI.Select", DisplayNameOverride.kToolTipPriority, InputManager.DeviceType.Mouse);
-            m_MouseApplyDisplay.active = true;
+            m_MouseApplyDisplay.active = false;
         }
         if (mouseCancel != null)
         {
             m_MouseCancelDisplay = new DisplayNameOverride(Mod.Id, mouseCancel, "RouteFilter.UI.Cancel", DisplayNameOverride.kToolTipPriority, InputManager.DeviceType.Mouse);
-            m_MouseCancelDisplay.active = true;
+            m_MouseCancelDisplay.active = false;
         }
         Mod.Log.Info($"[RouteFilter.Tool] native hints apply={(mouseApply != null)} cancel={(mouseCancel != null)} source={source}");
     }
@@ -93,6 +93,27 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         m_ToolSystem.activeTool = m_DefaultToolSystem;
     }
 
+    protected override void OnStopRunning()
+    {
+        if (m_MouseApplyDisplay != null) m_MouseApplyDisplay.active = false;
+        if (m_MouseCancelDisplay != null) m_MouseCancelDisplay.active = false;
+        HoveredTarget = Entity.Null;
+        HoveredTransportMode = 0;
+        PointerOverUi = false;
+        SelectedTarget = Entity.Null;
+        SelectedTransportMode = 0;
+        ClearEntryEditor();
+        World.GetExistingSystemManaged<RouteFilterUISystem>()?.NotifyPanelClose();
+        base.OnStopRunning();
+    }
+
+    protected override void OnStartRunning()
+    {
+        base.OnStartRunning();
+        if (m_MouseApplyDisplay != null) m_MouseApplyDisplay.active = true;
+        if (m_MouseCancelDisplay != null) m_MouseCancelDisplay.active = true;
+    }
+
     public override void InitializeRaycast()
     {
         base.InitializeRaycast();
@@ -113,7 +134,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
         // Handle native cancel independently of raycast/pointer state. First cancel clears
         // the selected target; another cancel with no target closes the panel.
-        if (Mod.Clear != null && Mod.Clear.WasPressedThisFrame())
+        if ((Mod.Clear != null && Mod.Clear.WasPressedThisFrame()) || cancelAction.WasPressedThisFrame())
         {
             if (SelectedTarget != Entity.Null) ClearSelection();
             else
@@ -260,6 +281,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         if (isNode) SetNodeRestriction(target, compatibleAssets);
         else SetSegmentRestriction(target, compatibleAssets);
         World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().RememberIntent(target, isNode ? (byte)0 : (byte)1, entries);
+        World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.MarkDirty(target);
 
         Mod.Log.Info($"{(isNode ? "Node" : "Segment")} {target.Index}:{target.Version} forbidden list set to {compatibleAssets.Count} compatible vehicle assets");
     }
@@ -274,6 +296,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         if (EntityManager.HasComponent<NodeAssetRestrictionV1>(target)) EntityManager.RemoveComponent<NodeAssetRestrictionV1>(target);
         if (EntityManager.HasComponent<SegmentAssetRestrictionV1>(target)) EntityManager.RemoveComponent<SegmentAssetRestrictionV1>(target);
         if (EntityManager.HasBuffer<RestrictedVehicleAssetV1>(target)) EntityManager.RemoveComponent<RestrictedVehicleAssetV1>(target);
+        World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.MarkDirty(target);
     }
 
     /// <summary>
@@ -288,6 +311,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         if (isNode) SetNodeRestriction(target, vehicleAssets);
         else SetSegmentRestriction(target, vehicleAssets);
         World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().SetDirectionIntent(target, entries);
+        World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.MarkDirty(target);
         Mod.RestrictionsDirty = true;
     }
 

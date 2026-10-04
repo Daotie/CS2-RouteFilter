@@ -9,6 +9,7 @@ import { AssetList } from "./AssetList";
 import { AssetSearch } from "./AssetSearch";
 import { PanelHeader } from "./PanelHeader";
 import { TargetSelector } from "./TargetSelector";
+import { RoadSignSelector } from "./RoadSignSelector";
 import styles from "../route-filter.module.scss";
 import { icons } from "../assets";
 
@@ -77,6 +78,7 @@ export const RouteFilterPanel = (props: Props) => {
           {tr("RouteFilter.UI.Reset", "Reset RouteFilter")}
         </Button>
       </div>
+      <RoadSignSelector />
       {props.resetCompleted > 0 && <div className={styles.resetStatus} role="status">{tr("RouteFilter.UI.ResetCompleted", "Reset completed. Unknown lane and path state was left unchanged.")}</div>}
     </Panel>
     {confirmReset && <ConfirmationDialog

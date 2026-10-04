@@ -19,7 +19,7 @@ public sealed class Mod : IMod
     public const string Version = "2.0.0";
     // Bump this for every deployable build so the in-game panel and log identify
     // exactly which compiled payload is loaded by the active playset.
-    public const string BuildId = "RF2-20261004-DIRECTIONAL-ENTRY-22";
+    public const string BuildId = "RF2-20261004-ROAD-SIGNS-23";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";
@@ -115,6 +115,10 @@ public sealed class Mod : IMod
         updateSystem.UpdateBefore<RailEnforcementBackend, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
         updateSystem.UpdateAfter<RouteFilterDiagnosticsSystem, RoadEnforcementCoordinator>(SystemUpdatePhase.GameSimulation);
         updateSystem.UpdateAt<RouteFilterUISystem>(SystemUpdatePhase.UIUpdate);
+        updateSystem.UpdateBefore<RoadRestrictionVisualSignsSystem, RouteFilterUISystem>(SystemUpdatePhase.UIUpdate);
+        updateSystem.UpdateBefore<RoadRestrictionSignSaveGuardSystem, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
+        updateSystem.UpdateAt<RoadRestrictionSignGeometryChangedSystem>(SystemUpdatePhase.ModificationEnd);
+        updateSystem.UpdateAfter<RoadRestrictionSignSaveFinishSystem, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
     }
 
     /// <summary>
@@ -170,6 +174,7 @@ public sealed class Mod : IMod
         {
             m_RuntimeWorld.GetExistingSystemManaged<RoadEnforcementCoordinator>()?.ReleaseAll();
             m_RuntimeWorld.GetExistingSystemManaged<RailEnforcementBackend>()?.ReleaseAll();
+            m_RuntimeWorld.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.ClearOwned();
         }
         Interlocked.Exchange(ref s_DiagnosticsRequested, 0);
         Interlocked.Exchange(ref s_NativeProtocolRequested, 0);

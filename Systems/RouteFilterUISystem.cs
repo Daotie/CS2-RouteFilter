@@ -41,6 +41,10 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private ValueBinding<int> m_EnabledEntryCountBinding = null!;
     private ValueBinding<bool> m_EntrySupportedBinding = null!;
     private ValueBinding<bool> m_ToolActiveBinding = null!;
+    private ValueBinding<string> m_SignCatalogBinding = null!;
+    private ValueBinding<string> m_SignSelectionBinding = null!;
+    private ValueBinding<string> m_SignResolvedBinding = null!;
+    private ValueBinding<bool> m_SignUnavailableBinding = null!;
     private ValueBinding<int> m_TargetModeBinding = null!;
     private ValueBinding<int> m_TargetTransportBinding = null!;
     private ValueBinding<int> m_SelectedTargetKindBinding = null!;
@@ -71,6 +75,18 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         m_VehiclePrefabQuery = GetEntityQuery(ComponentType.ReadOnly<VehicleData>(), ComponentType.ReadOnly<PrefabData>());
 
         m_ToolActiveBinding = CreateValue("toolActive", false);
+        m_SignCatalogBinding = CreateValue("roadSignCatalog", string.Empty);
+        m_SignSelectionBinding = CreateValue("roadSignSelection", Mod.Settings.RoadSignPrefabMode == "CUSTOM" ? Mod.Settings.CustomRoadSignPrefab ?? string.Empty : string.Empty);
+        m_SignResolvedBinding = CreateValue("roadSignResolved", string.Empty);
+        m_SignUnavailableBinding = CreateValue("roadSignUnavailable", false);
+        AddBinding(new TriggerBinding<string>(Mod.Id, "selectRoadSignPrefab", name =>
+        {
+            var signs = World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>();
+            if (name.Length > 0 && (signs == null || !signs.ContainsPrefab(name))) return;
+            Mod.Settings.RoadSignPrefabMode = name.Length == 0 ? "AUTO" : "CUSTOM";
+            if (name.Length > 0) Mod.Settings.CustomRoadSignPrefab = name;
+            Mod.Settings.ApplyAndSave();
+        }));
         m_TargetModeBinding = CreateValue("targetMode", (int)Mod.SelectedTargetMode);
         m_TargetTransportBinding = CreateValue("targetTransport", 0);
         m_SelectedTargetKindBinding = CreateValue("selectedTargetKind", 0);
@@ -160,6 +176,14 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         // System's Temp allocator fails; retry the key binding registration here on the
         // main thread once so the shortcut key still works in that scenario.
         Mod.RetryKeyBindings();
+        var signs = World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>();
+        if (signs != null)
+        {
+            m_SignCatalogBinding.Update(signs.Catalog);
+            m_SignResolvedBinding.Update(signs.ResolvedName);
+            m_SignSelectionBinding.Update(Mod.Settings.RoadSignPrefabMode == "CUSTOM" ? Mod.Settings.CustomRoadSignPrefab ?? string.Empty : string.Empty);
+            m_SignUnavailableBinding.Update(signs.CustomUnavailable);
+        }
         if (m_ToolSystem.activeTool != m_RestrictionTool && m_RestrictionTool.SelectedTarget == Entity.Null &&
             Mod.Clear != null && Mod.Clear.WasPressedThisFrame()) NotifyPanelClose();
         m_ConfigurationEditableBinding.Update(World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable);
