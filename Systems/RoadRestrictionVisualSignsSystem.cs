@@ -42,6 +42,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
 
     private readonly Dictionary<string, SignPrefab> m_Prefabs = new(StringComparer.Ordinal);
     private readonly Dictionary<Entity, List<Entity>> m_Markers = new();
+    private readonly Dictionary<Entity, List<Entity>> m_VisualAnchors = new();
     private readonly Dictionary<Entity, HashSet<Entity>> m_WatchedByTarget = new();
     private readonly Dictionary<Entity, HashSet<Entity>> m_TargetsByWatch = new();
     private readonly HashSet<Entity> m_Dirty = new();
@@ -240,8 +241,9 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
             var before = markers.Count;
             try
             {
-                markers.Add(CreateMarker(target, prefab, first, rotation));
-                markers.Add(CreateMarker(target, prefab, second, rotation));
+                var anchor = CreateVisualAnchor(target, target);
+                markers.Add(CreateMarker(target, anchor, prefab, first, rotation));
+                markers.Add(CreateMarker(target, anchor, prefab, second, rotation));
                 var gate = entry.Gates[0];
                 Mod.Log.Info($"[RouteFilter.RoadSigns] target={target} connection={entry.Connection} EntryLane={gate.m_EntryLane} NextLane={gate.m_NextLane} LEFT={first} RIGHT={second} Rotation={rotation.value} Scale=1 edgeMargin=0.8 laneBounds={low}/{high} prefab={prefab.Name}");
             }
@@ -276,7 +278,22 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
         return $"connection={entry.Connection} invariant=ZERO_OR_NONFINITE_COMBINED_TANGENT";
     }
 
-    private Entity CreateMarker(Entity target, SignPrefab prefab, float3 position, quaternion rotation)
+    private Entity CreateVisualAnchor(Entity target, Entity road)
+    {
+        // A private visual assembly root. No Object/Net entity and no road buffer writes.
+        // Native OverrideSystem follows the child Owner to Attached on its parent and
+        // exempts that road from prop collision. SubObject references stay on this root.
+        var anchor = EntityManager.CreateEntity(ComponentType.ReadWrite<Game.Objects.Attached>(),
+            ComponentType.ReadWrite<RoadRestrictionSignOwner>());
+        EntityManager.SetComponentData(anchor, new Game.Objects.Attached(road, Entity.Null, 0f));
+        EntityManager.SetComponentData(anchor, new RoadRestrictionSignOwner { Target = target });
+        EntityManager.AddBuffer<Game.Objects.SubObject>(anchor);
+        if (!m_VisualAnchors.TryGetValue(target, out var anchors)) m_VisualAnchors[target] = anchors = new();
+        anchors.Add(anchor);
+        return anchor;
+    }
+
+    private Entity CreateMarker(Entity target, Entity anchor, SignPrefab prefab, float3 position, quaternion rotation)
     {
         var entity = EntityManager.CreateEntity(prefab.Archetype);
         try
@@ -284,6 +301,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
             EntityManager.SetComponentData(entity, new PrefabRef(prefab.Entity));
             EntityManager.SetComponentData(entity, new ObjectTransform(position, rotation));
             EntityManager.SetComponentData(entity, new RoadRestrictionSignOwner { Target = target });
+            EntityManager.AddComponentData(entity, new Owner(anchor));
             if (EntityManager.HasComponent<Game.Objects.NetObject>(entity))
                 EntityManager.SetComponentData(entity, new Game.Objects.NetObject());
             if (EntityManager.HasComponent<PseudoRandomSeed>(entity))
@@ -291,6 +309,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
             if (!EntityManager.HasComponent<Game.Objects.Object>(entity) || !EntityManager.HasComponent<Game.Objects.Static>(entity) ||
                 !EntityManager.HasComponent<CullingInfo>(entity) || !EntityManager.HasBuffer<MeshBatch>(entity))
                 throw new InvalidOperationException("Static prefab lacks native object/culling/batch instance components");
+            EntityManager.GetBuffer<Game.Objects.SubObject>(anchor).Add(new Game.Objects.SubObject(entity));
             MarkerCount++;
             m_RenderChecks.Add(entity);
             return entity;
@@ -307,7 +326,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
             var owner = EntityManager.GetComponentData<RoadRestrictionSignOwner>(entity);
             var culling = EntityManager.GetComponentData<CullingInfo>(entity);
             var batches = EntityManager.GetBuffer<MeshBatch>(entity, true);
-            Mod.Log.Info($"[RouteFilter.RoadSigns] renderInitialization Target={owner.Target} marker={entity} CullingRadius={culling.m_Radius} CullingBounds={culling.m_Bounds.min}/{culling.m_Bounds.max} CullingIndex={culling.m_CullingIndex} CullingMask={culling.m_Mask} PassedCulling={culling.m_PassedCulling} MinLod={culling.m_MinLod} NetObject={EntityManager.HasComponent<Game.Objects.NetObject>(entity)} MeshBatches={batches.Length} visibility=REQUIRES_GAME_CHECK");
+            Mod.Log.Info($"[RouteFilter.RoadSigns] renderInitialization Target={owner.Target} marker={entity} CullingRadius={culling.m_Radius} CullingBounds={culling.m_Bounds.min}/{culling.m_Bounds.max} CullingIndex={culling.m_CullingIndex} CullingMask={culling.m_Mask} PassedCulling={culling.m_PassedCulling} MinLod={culling.m_MinLod} Marker={EntityManager.HasComponent<Game.Objects.Marker>(entity)} Overridden={EntityManager.HasComponent<Overridden>(entity)} Owner={EntityManager.GetComponentData<Owner>(entity).m_Owner} NetObject={EntityManager.HasComponent<Game.Objects.NetObject>(entity)} MeshBatches={batches.Length} visibility=REQUIRES_GAME_CHECK");
         }
         m_RenderChecks.Clear();
     }
@@ -333,6 +352,13 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
                 MarkerCount--;
             }
         m_Markers.Remove(target);
+        if (m_VisualAnchors.TryGetValue(target, out var anchors))
+        {
+            foreach (var anchor in anchors)
+                if (EntityManager.Exists(anchor) && EntityManager.TryGetComponent(anchor, out RoadRestrictionSignOwner owner) && owner.Target == target)
+                    EntityManager.AddComponent<Deleted>(anchor);
+            m_VisualAnchors.Remove(target);
+        }
     }
 
     private void Watch(Entity target, Entity entity)
