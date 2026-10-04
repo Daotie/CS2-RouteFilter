@@ -179,3 +179,10 @@ $rfDanger: #e07b73;
   color: rgba(223, 238, 245, .85);
   button { padding: 4rem 8rem; }
 }
+
+.libraryToolbar { display: flex; flex: 0 0 auto; padding: 0 14rem 4rem; font-size: 11rem; }
+.libraryToolbar button { padding: 3rem 6rem; color: $rfText; }
+.favoriteButton, .favoriteActive { width: 18rem; height: 24rem; padding: 2rem; flex-shrink: 0; }
+.favoriteButton { opacity: .3; }
+.favoriteActive { opacity: 1; }
+.favoriteButton img, .favoriteActive img { width: 14rem; height: 14rem; }

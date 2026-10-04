@@ -25,6 +25,8 @@ public sealed class Setting : ModSetting
     [SettingsUISection(kSection, kGeneralGroup)] public bool EnableRestrictionBadges { get; set; }
 
     [SettingsUISection(kSection, kGeneralGroup)] public bool ShowRoadRestrictionSigns { get; set; }
+    [SettingsUIHidden] public string FavoriteAssetIds { get; set; }
+    [SettingsUIHidden] public string RecentAssetIds { get; set; }
     [SettingsUIHidden] public string CustomRoadSignPrefab { get; set; }
     [SettingsUIHidden] public string RoadSignPrefabMode { get; set; }
 
@@ -113,6 +115,12 @@ internal abstract class LocaleBase : IDictionarySource
             [Setting.GetSettingsLocaleID()] = "RouteFilter",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.ShowRoadRestrictionSigns))] = Chinese ? "显示道路禁行标志" : "Show Road Restriction Signs",
             [Setting.GetOptionDescLocaleID(nameof(Setting.ShowRoadRestrictionSigns))] = Chinese ? "在已应用的道路禁行入口两侧显示标志牌。样式可在 RouteFilter 面板选择。" : "Shows signs beside applied restricted road entries. Choose the style in the RouteFilter panel.",
+            ["RouteFilter.UI.LibraryAll"] = Chinese ? "全部" : "All",
+            ["RouteFilter.UI.LibraryFavorites"] = Chinese ? "收藏" : "Favorites",
+            ["RouteFilter.UI.LibraryRecent"] = Chinese ? "最近" : "Recent",
+            ["RouteFilter.UI.LibraryCopy"] = Chinese ? "复制" : "Copy",
+            ["RouteFilter.UI.LibraryPaste"] = Chinese ? "粘贴" : "Paste",
+            ["RouteFilter.UI.LibraryFavoriteToggle"] = Chinese ? "切换收藏" : "Toggle favorite",
             ["RouteFilter.UI.RoadSignSearch"] = Chinese ? "搜索 prefab……" : "Search prefabs…",
             ["RouteFilter.UI.RoadSignStyle"] = Chinese ? "道路禁行标志样式" : "Road Restriction Sign Prefab",
             ["RouteFilter.UI.RoadSignAuto"] = Chinese ? "自动 — 匹配道路主题" : "Auto — Match Road Theme",

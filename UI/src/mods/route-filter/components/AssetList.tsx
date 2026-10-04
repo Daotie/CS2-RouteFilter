@@ -5,6 +5,9 @@ import { AssetRow } from "./AssetRow";
 import styles from "../route-filter.module.scss";
 
 type Props = {
+  favorites: Set<number>;
+  onFavorite: (id: number) => void;
+  favoriteLabel: string;
   roots: VehicleAsset[];
   childrenByParent: Map<number, VehicleAsset[]>;
   selected: Set<number>;
@@ -20,7 +23,7 @@ type Props = {
   onExpand: (id: number) => void;
 };
 
-export const AssetList = ({ roots, childrenByParent, selected, expanded, searchTerm, emptyLabel, trailerLabel, expandLabel, collapseLabel, roadGroupLabel, railGroupLabel, onToggle, onExpand }: Props) => {
+export const AssetList = ({ favorites, onFavorite, favoriteLabel, roots, childrenByParent, selected, expanded, searchTerm, emptyLabel, trailerLabel, expandLabel, collapseLabel, roadGroupLabel, railGroupLabel, onToggle, onExpand }: Props) => {
   const renderRow = (asset: VehicleAsset, child = false): React.ReactNode => {
     const children = childrenByParent.get(asset.id) ?? [];
     const visibleChildren = searchTerm
@@ -32,7 +35,7 @@ export const AssetList = ({ roots, childrenByParent, selected, expanded, searchT
     const isExpanded = expanded.has(asset.id) || searchTerm.length > 0;
 
     return <React.Fragment key={asset.id}>
-      <AssetRow asset={asset} child={child} selected={selected.has(asset.id)} partial={partial} childCount={children.length} expanded={isExpanded} trailerLabel={trailerLabel} expandLabel={expandLabel} collapseLabel={collapseLabel} onToggle={() => onToggle(asset, children.length > 0)} onExpand={() => onExpand(asset.id)} />
+      <AssetRow favorite={favorites.has(asset.id)} onFavorite={() => onFavorite(asset.id)} favoriteLabel={favoriteLabel} asset={asset} child={child} selected={selected.has(asset.id)} partial={partial} childCount={children.length} expanded={isExpanded} trailerLabel={trailerLabel} expandLabel={expandLabel} collapseLabel={collapseLabel} onToggle={() => onToggle(asset, children.length > 0)} onExpand={() => onExpand(asset.id)} />
       {isExpanded && visibleChildren.map(item => renderRow(item, true))}
     </React.Fragment>;
   };

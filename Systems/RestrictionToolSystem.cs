@@ -241,6 +241,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         }
         RefreshEntryEditor();
         SetRestriction(SelectedTarget, Mod.SelectedVehicleAssets, PendingEntries());
+        World.GetExistingSystemManaged<RouteFilterUISystem>()?.RecordRecentApply();
         Mod.Log.Info($"[RouteFilter.Tool] restriction applied target={SelectedTarget}");
     }
 

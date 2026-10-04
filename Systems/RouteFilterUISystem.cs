@@ -96,6 +96,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         AddBinding(new TriggerBinding(Mod.Id, "allEntryDirections", m_RestrictionTool.SetAllEntryDirections));
         m_AssetCatalogBinding = CreateValue("assetCatalog", string.Empty);
         m_SelectedAssetsBinding = CreateValue("selectedAssetIds", string.Empty);
+        InitializeLibrary();
         m_ResetCompletedBinding = CreateValue("resetCompleted", 0);
         m_PanelCloseBinding = CreateValue("panelClose", 0);
         m_BuildIdBinding = CreateValue("buildId", Mod.BuildId);
@@ -350,6 +351,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
         // Catalog visibility is not the saved source of truth. A dirty/partial catalog must
         // not silently turn an existing restriction into allow-all on the next Apply.
+        PublishLibrary();
         Mod.SelectedVehicleAssets.RemoveWhere(entity => !EntityManager.Exists(entity));
         m_AssetCatalogBinding.Update(string.Join("\n", lines));
         UpdateSelectedBinding();

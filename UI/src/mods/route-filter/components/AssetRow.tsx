@@ -1,4 +1,5 @@
 import React from "react";
+import favoriteIcon from "../assets/favorite.svg";
 import classNames from "classnames";
 import { Button, Tooltip } from "cs2/ui";
 import { VehicleAsset } from "../model";
@@ -6,6 +7,9 @@ import styles from "../route-filter.module.scss";
 import { icons } from "../assets";
 
 type Props = {
+  favorite: boolean;
+  onFavorite: () => void;
+  favoriteLabel: string;
   asset: VehicleAsset;
   child?: boolean;
   selected: boolean;
@@ -26,7 +30,7 @@ const AssetGlyph = ({ mode, trailer, name }: { mode: number; trailer: boolean; n
   return <img className={styles.assetGlyph} src={icons[kind as keyof typeof icons] ?? icons.car} alt="" />;
 };
 
-export const AssetRow = ({ asset, child = false, selected, partial, childCount, expanded, trailerLabel, expandLabel, collapseLabel, disabled = false, onToggle, onExpand }: Props) => (
+export const AssetRow = ({ favorite, onFavorite, favoriteLabel, asset, child = false, selected, partial, childCount, expanded, trailerLabel, expandLabel, collapseLabel, disabled = false, onToggle, onExpand }: Props) => (
   <div className={classNames(styles.assetRow, {
     [styles.assetRowChild]: child,
     [styles.assetRowSelected]: selected,
@@ -39,6 +43,7 @@ export const AssetRow = ({ asset, child = false, selected, partial, childCount, 
     <Button variant="flat" className={classNames(styles.selectionGlyph, { [styles.selectionGlyphActive]: selected, [styles.selectionGlyphPartial]: partial })} onSelect={onToggle} disabled={disabled} aria-label={asset.name} aria-pressed={partial ? "mixed" : selected}>
       {partial ? <img className={styles.selectionMark} src={icons.partialSelection} alt="" /> : selected ? <img className={styles.selectionMark} src={icons.check} alt="" /> : null}
     </Button>
+    <Button variant="flat" className={favorite ? styles.favoriteActive : styles.favoriteButton} onSelect={onFavorite} aria-label={favoriteLabel} aria-pressed={favorite}><img src={favoriteIcon} alt="" /></Button>
     <AssetGlyph mode={asset.mode} trailer={asset.trailer} name={asset.name} />
     <div className={styles.assetIdentity}>
       <Tooltip tooltip={asset.name} direction="right"><span>{asset.name}</span></Tooltip>
