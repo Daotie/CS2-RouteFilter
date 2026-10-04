@@ -24,6 +24,8 @@ jobs:
         run: dotnet run --project Tests/LeaseRules/LeaseRules.csproj -c Release
       - name: Verify save compatibility fixtures
         run: dotnet run --project Tests/SaveFormatTests/SaveFormatTests.csproj -c Release
+      - name: Verify UX preference, appearance, and brush rules
+        run: dotnet run --project Tests/UxRules/UxRules.csproj -c Release
   ui-and-metadata:
     runs-on: windows-latest
     timeout-minutes: 10
@@ -42,6 +44,11 @@ jobs:
         env:
           ROUTEFILTER_OUTPUT_DIR: ${{ github.workspace }}\UI\build
         run: npm run build
+      - name: Verify UI types and map geometry
+        working-directory: UI
+        run: |
+          npm run typecheck
+          npm test
       - name: Audit runtime dependencies
         working-directory: UI
         run: npm audit --omit=dev

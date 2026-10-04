@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect } from "react";
+import React, { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { bindValue, trigger, useValue } from "cs2/api";
 import { Button, Portal } from "cs2/ui";
 import { useLocalization } from "cs2/l10n";
@@ -11,7 +11,7 @@ const selection$ = bindValue<string>(mod.id, "roadSignSelection", "");
 const resolved$ = bindValue<string>(mod.id, "roadSignResolved", "");
 const unavailable$ = bindValue<boolean>(mod.id, "roadSignUnavailable", false);
 
-export const RoadSignSelector = () => {
+export const RoadSignSelector = ({ closeToken = 0, onPopupOpen }: {closeToken?: number; onPopupOpen?: () => void}) => {
   const catalog = useValue(catalog$);
   const selection = useValue(selection$);
   const resolved = useValue(resolved$);
@@ -31,7 +31,9 @@ export const RoadSignSelector = () => {
       return id ? [{ id, icon: icon || icons.prohibition }] : [];
     } catch { return []; }
   }), [catalog]);
-  const close = () => { setPopup(null); trigger(mod.id, "setPointerOverUi", false); };
+  const close = useCallback(() => { setPopup(null); trigger(mod.id, "setUiPointerArea", "sign", false); },[]);
+  useEffect(() => { close(); },[closeToken,close]);
+  useEffect(() => () => { trigger(mod.id,"setUiPointerArea","sign",false); },[]);
   useEffect(() => {
     if (!popup) return;
     const outside = (event: MouseEvent) => {
@@ -42,7 +44,7 @@ export const RoadSignSelector = () => {
     document.addEventListener("keydown", escape, true);
     window.addEventListener("resize", close);
     return () => { document.removeEventListener("mousedown", outside); document.removeEventListener("keydown", escape, true); window.removeEventListener("resize", close); };
-  }, [popup]);
+  }, [popup,close]);
   const toggle = () => {
     if (popup) { close(); return; }
     const rect = anchor.current?.getBoundingClientRect();
@@ -55,6 +57,7 @@ export const RoadSignSelector = () => {
     const left = Math.max(12, Math.min(rect.right + 8, window.innerWidth - width - 12));
     const top = bottom - maxHeight;
     setSearch(""); setScrollTop(0);
+    onPopupOpen?.();
     setPopup({ left, top, width, maxHeight, rowHeight });
   };
   const select = (value: string) => { trigger(mod.id, "selectRoadSignPrefab", value); close(); };
@@ -80,7 +83,7 @@ export const RoadSignSelector = () => {
       </Button>
     </div>
     {popup && <Portal><div ref={menu} className={styles.signDropdownPopup} style={{ left: popup.left, top: popup.top, width: popup.width, height: popup.maxHeight, maxHeight: popup.maxHeight }} role="listbox"
-      onMouseEnter={() => trigger(mod.id, "setPointerOverUi", true)} onMouseLeave={() => trigger(mod.id, "setPointerOverUi", false)}>
+      onMouseEnter={() => trigger(mod.id, "setUiPointerArea", "sign", true)} onMouseLeave={() => trigger(mod.id, "setUiPointerArea", "sign", false)}>
       {options.length > 12 && <input className={styles.signSearch} value={search} onChange={event => changeSearch(event.target.value)} placeholder={tr("RouteFilter.UI.RoadSignSearch", "Search prefabs…")} />}
       <Button variant="flat" className={`${styles.signItem} ${!selection ? styles.signItemSelected : ""}`} onSelect={() => select("")}>{row(icons.prohibition, auto)}</Button>
       <div ref={scroller} className={styles.signScroll} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}>

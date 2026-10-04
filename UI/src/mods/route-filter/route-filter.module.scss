@@ -26,6 +26,17 @@ $rfDanger: #e07b73;
 .signOption img { width: 28rem; height: 28rem; max-width: 28rem; max-height: 28rem; object-fit: contain; margin-right: 8rem; flex-shrink: 0; }
 .signOption span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .signSearch { flex: 0 0 auto; width: 100%; height: 30rem; margin-bottom: 3rem; padding: 0 8rem; color: $rfText; background-color: $rfSurfaceInset; border: 1rem solid $rfBorder; border-radius: 3rem; font-size: 12rem; }
+.auxPanel { position: fixed; top: 90rem; left: 440rem; width: 440rem; max-width: 46vw; max-height: 75vh; z-index: 1050; color: $rfText; background-color: var(--panelColorNormal); }
+.auxContent { display: flex; flex-direction: column; padding: 12rem; font-size: 12rem; overflow-y: auto; }
+.auxHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10rem; }
+.auxContent label { display: flex; flex-wrap: wrap; justify-content: space-between; margin: 6rem 0; }
+.auxContent input, .auxContent select { width: 100%; min-height: 28rem; color: $rfText; background-color: $rfSurfaceInset; border: 1rem solid $rfBorder; padding: 4rem; }
+.auxContent input[type="range"] { padding: 0; }
+.auxContent small { margin-top: 8rem; color: $rfMuted; line-height: 1.4; }
+.presetList { max-height: 35vh; overflow-y: auto; margin: 8rem 0; }
+.presetList > div { display: flex; justify-content: space-between; }
+.restrictionMap { width: 100%; height: 300rem; background: #17212a; margin-bottom: 8rem; cursor: grab; }
+.restrictionMap g { cursor: pointer; }
 .signResolved { color: $rfMuted; margin-top: 3rem; font-size: 10rem; }
 
 .panel {

@@ -183,8 +183,8 @@ export const RouteFilterShell = () => {
       onApply={() => { if (selectedTargetKind !== 0) trigger(mod.id, "applySelection"); }}
       onClear={() => { if (selectedTargetKind !== 0) trigger(mod.id, "clearSelectedRestriction"); }}
       onRefresh={() => { trigger(mod.id, "refreshAssets"); }}
-      onPointerEnter={() => trigger(mod.id, "setPointerOverUi", true)}
-      onPointerLeave={() => trigger(mod.id, "setPointerOverUi", false)}
+      onPointerEnter={() => trigger(mod.id, "setUiPointerArea", "panel", true)}
+      onPointerLeave={() => trigger(mod.id, "setUiPointerArea", "panel", false)}
     />}
   </>;
 };

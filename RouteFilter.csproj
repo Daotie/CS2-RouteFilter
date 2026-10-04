@@ -48,9 +48,13 @@
     <Reference Include="Unity.Mathematics"><HintPath>$(ManagedPath)\Unity.Mathematics.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Unity.InputSystem"><HintPath>$(ManagedPath)\Unity.InputSystem.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(ManagedPath)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(ManagedPath)\UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="System.Drawing" />
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Resources\RF-Plate.mesh" LogicalName="RouteFilter.RF-Plate.mesh" />
+    <EmbeddedResource Include="RF-Plate_BaseColor.png;RF-Plate_MaskMap.png;RF-Plate_ControlMask.png" LogicalName="RouteFilter.%(Filename)%(Extension)" />
     <Compile Include="Mod.cs;Setting.cs;Components\**\*.cs;Systems\**\*.cs" />
     <Compile Remove="tools\**\*.cs" />
     <Compile Remove="tmp\**\*.cs;RouteFilterCleanup\**\*.cs" />

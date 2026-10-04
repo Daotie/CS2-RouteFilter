@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-2.0.0-2d8b70" alt="版本">
+  <img src="https://img.shields.io/badge/版本-2.1.0--dev-2d8b70" alt="版本 2.1.0-dev">
   <img src="https://img.shields.io/badge/状态-正式版-1976d2" alt="状态">
   <img src="https://img.shields.io/badge/许可证-GPL--3.0--only-blue" alt="许可证">
 </p>

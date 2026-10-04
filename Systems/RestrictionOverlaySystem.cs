@@ -14,10 +14,6 @@ namespace RouteFilter.Systems;
 
 public sealed partial class RestrictionOverlaySystem : GameSystemBase
 {
-    private const float kBadgeHeight = 2.8f;
-    private const float kBadgeDiameter = 12f;
-    private const float kBadgeDiameterProminent = 13f;
-
     private struct DrawTargetJob : IJob
     {
         public OverlayRenderSystem.Buffer Buffer;
@@ -43,82 +39,26 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
         }
     }
 
-    private struct DrawBadgesJob : IJob
-    {
-        public OverlayRenderSystem.Buffer Buffer;
-        [ReadOnly] public NativeArray<float3> Positions;
-        [ReadOnly] public NativeArray<bool> Prominent;
-
-        public void Execute()
-        {
-            for (int index = 0; index < Positions.Length; index++)
-            {
-                var isProminent = Prominent[index];
-                var alpha = isProminent ? 1f : 0.62f;
-                var outline = new Color(0.92f, 0.16f, 0.10f, alpha);
-                var fill = new Color(0.92f, 0.16f, 0.10f, alpha * (isProminent ? 0.82f : 0.32f));
-                var bar = new Color(1f, 1f, 1f, alpha);
-                var diameter = isProminent ? kBadgeDiameterProminent : kBadgeDiameter;
-
-                // Flat tag: a horizontal prohibition disc floating above the target, sized
-                // close to the selection highlight. It does not rotate with the camera.
-                Buffer.DrawCircle(outline, fill, isProminent ? 0.9f : 0.8f, 0,
-                    new float2(0f, 1f), Positions[index], diameter);
-
-                var half = diameter * 0.32f;
-                var barWidth = isProminent ? 1.7f : 1.4f;
-                var line = new Colossal.Mathematics.Line3.Segment(
-                    Positions[index] + new float3(-half, 0f, half),
-                    Positions[index] + new float3(half, 0f, -half));
-                Buffer.DrawLine(bar, line, barWidth, false);
-            }
-        }
-    }
-
     private ToolSystem m_ToolSystem = null!;
     private RestrictionToolSystem m_Tool = null!;
     private OverlayRenderSystem m_Overlay = null!;
-    private EntityQuery m_RestrictedNodes;
-    private EntityQuery m_RestrictedSegments;
-    // Persistent scratch arrays for the batched badge job; reused every frame so the job
-    // pipeline stays allocation free and the previous job is completed before refilling.
-    private NativeList<float3> m_BadgePositions;
-    private NativeList<bool> m_BadgeProminent;
-    private JobHandle m_BadgeJobHandle;
-
     protected override void OnCreate()
     {
         base.OnCreate();
         m_ToolSystem = World.GetOrCreateSystemManaged<ToolSystem>();
         m_Tool = World.GetOrCreateSystemManaged<RestrictionToolSystem>();
         m_Overlay = World.GetOrCreateSystemManaged<OverlayRenderSystem>();
-        m_RestrictedNodes = GetEntityQuery(
-            ComponentType.ReadOnly<NodeAssetRestrictionV1>(),
-            ComponentType.ReadOnly<RestrictedVehicleAssetV1>());
-        m_RestrictedSegments = GetEntityQuery(
-            ComponentType.ReadOnly<Game.Net.Edge>(),
-            ComponentType.ReadOnly<SegmentAssetRestrictionV1>(),
-            ComponentType.ReadOnly<RestrictedVehicleAssetV1>());
-        m_BadgePositions = new NativeList<float3>(64, Allocator.Persistent);
-        m_BadgeProminent = new NativeList<bool>(64, Allocator.Persistent);
         InitializeRoutePreview();
     }
 
     protected override void OnDestroy()
     {
-        m_BadgeJobHandle.Complete();
         DisposeRoutePreview();
-        m_BadgePositions.Dispose();
-        m_BadgeProminent.Dispose();
         base.OnDestroy();
     }
 
     public void ResetRuntimeState()
     {
-        m_BadgeJobHandle.Complete();
-        m_BadgeJobHandle = default;
-        m_BadgePositions.Clear();
-        m_BadgeProminent.Clear();
         ClearRoutePreview();
     }
 
@@ -126,12 +66,6 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
     {
         if (m_ToolSystem.activeTool != m_Tool) return;
         if (!P0Diagnostics.Highlight && !P0Diagnostics.Overlay) return;
-        if (!m_BadgeJobHandle.IsCompleted) return;
-
-        // The badge job from the previous frame reads the scratch arrays; finish it before
-        // refilling them so they are never overwritten while a worker still uses them.
-        m_BadgeJobHandle.Complete();
-
         if (P0Diagnostics.Highlight)
         {
         if (m_Tool.SelectedTarget == m_Tool.HoveredTarget)
@@ -143,73 +77,11 @@ public sealed partial class RestrictionOverlaySystem : GameSystemBase
         }
 
         }
+#if DEBUG
         if (P0Diagnostics.Overlay) DrawRoutePreview();
+#endif
         if (P0Diagnostics.Highlight) DrawEntryDirections();
 
-        // Gate restriction badges behind EnableRestrictionBadges
-        if (P0Diagnostics.Highlight && Mod.Settings.EnableRestrictionBadges)
-        {
-            DrawRestrictionBadges();
-        }
-    }
-
-    private void DrawRestrictionBadges()
-    {
-        m_BadgePositions.Clear();
-        m_BadgeProminent.Clear();
-
-        using var nodes = m_RestrictedNodes.ToEntityArray(Allocator.Temp);
-        foreach (var node in nodes) AddBadge(node);
-
-        using var segments = m_RestrictedSegments.ToEntityArray(Allocator.Temp);
-        foreach (var segment in segments) AddBadge(segment);
-
-        if (m_BadgePositions.Length == 0) return;
-
-        var buffer = m_Overlay.GetBuffer(out var dependencies);
-        var job = new DrawBadgesJob
-        {
-            Buffer = buffer,
-            Positions = m_BadgePositions.AsArray(),
-            Prominent = m_BadgeProminent.AsArray()
-        };
-        m_BadgeJobHandle = job.Schedule(JobHandle.CombineDependencies(Dependency, dependencies));
-        Dependency = m_BadgeJobHandle;
-        m_Overlay.AddBufferWriter(m_BadgeJobHandle);
-    }
-
-    private void AddBadge(Unity.Entities.Entity target)
-    {
-        if (target == Unity.Entities.Entity.Null || !HasActiveRestriction(target)) return;
-        if (!TryGetBadgePosition(target, out var position)) return;
-
-        m_BadgePositions.Add(position + new float3(0f, kBadgeHeight, 0f));
-        m_BadgeProminent.Add(target == m_Tool.HoveredTarget || target == m_Tool.SelectedTarget);
-    }
-
-    private bool HasActiveRestriction(Unity.Entities.Entity target)
-    {
-        if (!EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets)) return false;
-        return assets.Length > 0;
-    }
-
-    private bool TryGetBadgePosition(Unity.Entities.Entity target, out float3 position)
-    {
-        if (EntityManager.TryGetComponent(target, out Node node))
-        {
-            position = node.m_Position;
-            return true;
-        }
-
-        if (EntityManager.TryGetComponent(target, out Curve curve))
-        {
-            var bezier = curve.m_Bezier;
-            position = (bezier.a + bezier.b * 3f + bezier.c * 3f + bezier.d) / 8f;
-            return true;
-        }
-
-        position = default;
-        return false;
     }
 
     private void Draw(Unity.Entities.Entity target, bool selected)

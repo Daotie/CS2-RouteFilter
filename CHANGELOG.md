@@ -2,6 +2,16 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Semantic Versioning prerelease conventions.
 
+## 2.1.0-dev — 2026-10-04 — Unified test build
+
+- Road signs: AUTO/CUSTOM prefab dropdown, native thumbnails and names, directional entry placement, hover/click editing, independent main-sign scaling.
+- RF-Plate: authored FBX geometry/UVs embedded with textures, fixed dimensions, localized category labels, shared resource cache, downward stacking with ground clearance.
+- Asset library: favorites, recent assets, asset-only copy/paste and named user presets; unsupported assets are reported separately from missing assets.
+- Restriction Map: change-driven snapshots, combined road background, selection, pan/zoom; no road traversal while closed.
+- Segment Brush: LMB apply/RMB clear, frozen input, deduplicated pending targets, temporary preview, batch commit on release and cancellation on Escape/disable/switch/reset.
+- Persistent ground restriction lines replace the per-frame city-wide badge scan. UX state and owned visuals are cleared on reset/unload/dispose. Development route overlays and trace entry points are disabled in Release.
+- C# Debug/Release, UI build and offline rules are verified. Rendering, live input, performance and save/load remain NOT TESTED in-game for this build. The 2.0 enforcement policy and save schema are preserved.
+
 ## 2.0.0 — 2026-10-03
 
 ### English

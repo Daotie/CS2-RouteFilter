@@ -27,6 +27,11 @@ public sealed class Setting : ModSetting
     [SettingsUISection(kSection, kGeneralGroup)] public bool ShowRoadRestrictionSigns { get; set; }
     [SettingsUIHidden] public string FavoriteAssetIds { get; set; }
     [SettingsUIHidden] public string RecentAssetIds { get; set; }
+    [SettingsUIHidden] public string UserPresets { get; set; }
+    [SettingsUIHidden] public float RoadSignScale { get; set; }
+    [SettingsUIHidden] public float RoadSignHeight { get; set; }
+    [SettingsUIHidden] public float RoadSignLateralOffset { get; set; }
+    [SettingsUIHidden] public float RoadPlateSpacing { get; set; }
     [SettingsUIHidden] public string CustomRoadSignPrefab { get; set; }
     [SettingsUIHidden] public string RoadSignPrefabMode { get; set; }
 
@@ -93,6 +98,10 @@ public sealed class Setting : ModSetting
         ShowRoadRestrictionSigns = true;
         CustomRoadSignPrefab = string.Empty;
         RoadSignPrefabMode = "AUTO";
+        RoadSignScale = 1f;
+        RoadSignHeight = 0f;
+        RoadSignLateralOffset = 0f;
+        RoadPlateSpacing = .04f;
         EnableRoadEnforcement = true;
         EnableRailEnforcement = true;
         EmergencyProtection = true;
@@ -113,6 +122,38 @@ internal abstract class LocaleBase : IDictionarySource
         return new Dictionary<string, string>
         {
             [Setting.GetSettingsLocaleID()] = "RouteFilter",
+            ["RouteFilter.UI.Presets"] = Chinese ? "用户预设" : "Presets",
+            ["RouteFilter.UI.Map"] = Chinese ? "限制地图" : "Restriction Map",
+            ["RouteFilter.UI.Appearance"] = Chinese ? "标志外观" : "Sign appearance",
+            ["RouteFilter.UI.Brush"] = Chinese ? "路段涂刷" : "Segment brush",
+            ["RouteFilter.UI.BrushApply"] = Chinese ? "拖动应用限制" : "Drag to apply restrictions",
+            ["RouteFilter.UI.BrushClear"] = Chinese ? "拖动清除限制" : "Drag to clear restrictions",
+            ["RouteFilter.UI.BrushHint"] = Chinese ? "左键拖动应用／右键拖动清除；松开后提交。限制全部入口。" : "Drag LMB to apply / RMB to clear; release to commit. All entries.",
+            ["RouteFilter.UI.PresetName"] = Chinese ? "预设名称" : "Preset name",
+            ["RouteFilter.UI.PresetSave"] = Chinese ? "保存选中资产" : "Save selected assets",
+            ["RouteFilter.UI.PresetOverwrite"] = Chinese ? "用当前选中资产替换" : "Replace with selected assets",
+            ["RouteFilter.UI.PresetDelete"] = Chinese ? "删除" : "Delete",
+            ["RouteFilter.UI.PresetMissing"] = Chinese ? "缺失资产" : "Missing assets",
+            ["RouteFilter.UI.PresetUnsupported"] = Chinese ? "当前目标不支持" : "Unsupported on this target",
+            ["RouteFilter.UI.PresetHint"] = Chinese ? "仅载入待应用资产，不改变目标或入口方向。准备就绪后点击应用。" : "Loads assets into the pending selection; target and entry directions stay unchanged. Press Apply when ready.",
+            ["RouteFilter.UI.MapFit"] = Chinese ? "适配城市" : "Fit city",
+            ["RouteFilter.UI.MapTargets"] = Chinese ? "个目标" : "targets",
+            ["RouteFilter.UI.MapAssets"] = Chinese ? "个资产" : "assets",
+            ["RouteFilter.UI.MapSelect"] = Chinese ? "选择受限目标" : "Select restricted target",
+            ["RouteFilter.UI.MapHint"] = Chinese ? "红色目标设有限制。点击编辑，拖动背景平移地图。" : "Red targets have restrictions. Click to edit; drag the background to pan.",
+            ["RouteFilter.UI.Appearancescale"] = Chinese ? "主标志缩放" : "Main sign scale",
+            ["RouteFilter.UI.Appearanceheight"] = Chinese ? "高度（米）" : "Height (m)",
+            ["RouteFilter.UI.Appearanceoffset"] = Chinese ? "横向偏移（米）" : "Lateral offset (m)",
+            ["RouteFilter.UI.Appearancespacing"] = Chinese ? "附牌间距（米）" : "Plate gap (m)",
+            ["RouteFilter.UI.AppearanceHint"] = Chinese ? "RF-Plate 固定为 0.800 × 0.250 × 0.020 米。多类别堆叠会提升整组标志，保留离地净空。" : "RF-Plate stays 0.800 × 0.250 × 0.020 m. Tall stacks lift the assembly to retain ground clearance.",
+            ["RouteFilter.Plate.Cars"] = Chinese ? "汽车" : "Cars",
+            ["RouteFilter.Plate.Buses"] = Chinese ? "公交车" : "Buses",
+            ["RouteFilter.Plate.Garbage"] = Chinese ? "垃圾车" : "Garbage trucks",
+            ["RouteFilter.Plate.Fire"] = Chinese ? "消防车" : "Fire engines",
+            ["RouteFilter.Plate.Ambulance"] = Chinese ? "救护车" : "Ambulances",
+            ["RouteFilter.Plate.Police"] = Chinese ? "警车" : "Police cars",
+            ["RouteFilter.Plate.Taxi"] = Chinese ? "出租车" : "Taxis",
+            ["RouteFilter.Plate.Trucks"] = Chinese ? "货车" : "Trucks",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.ShowRoadRestrictionSigns))] = Chinese ? "显示道路禁行标志" : "Show Road Restriction Signs",
             [Setting.GetOptionDescLocaleID(nameof(Setting.ShowRoadRestrictionSigns))] = Chinese ? "在已应用的道路禁行入口两侧显示标志牌。样式可在 RouteFilter 面板选择。" : "Shows signs beside applied restricted road entries. Choose the style in the RouteFilter panel.",
             ["RouteFilter.UI.LibraryAll"] = Chinese ? "全部" : "All",
@@ -130,7 +171,7 @@ internal abstract class LocaleBase : IDictionarySource
             [Setting.GetOptionTabLocaleID(Setting.kSection)] = Chinese ? "主要设置" : "General",
             [Setting.GetOptionGroupLocaleID(Setting.kGeneralGroup)] = Chinese ? "常规" : "General",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "限制标记" : "Restriction badges",
-            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "在受限目标上方显示视觉标记。" : "Shows visual badges above restricted targets.",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "在已应用限制的道路入口显示地面限制线。" : "Shows ground restriction lines at applied road entries.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "道路禁行（测试版）" : "Road enforcement (test build)",
             [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "为距离足够且导航明确的指定车辆请求一次原生绕行，仅在该请求中排除受限目标；无替代路线时放行。实际游戏行为仍待验证。" : "Requests one native reroute for a sufficiently distant, unambiguous restricted vehicle. Excludes the target only for that request; falls back when no alternative exists. Gameplay verification pending.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRailEnforcement))] = Chinese ? "轨道禁行（测试版）" : "Rail enforcement (test build)",

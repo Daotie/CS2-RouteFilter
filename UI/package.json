@@ -3,7 +3,9 @@
   "private": true,
   "version": "2.1.0-dev",
   "scripts": {
-    "build": "webpack"
+    "build": "webpack",
+    "typecheck": "tsc --noEmit",
+    "test": "node tests/filtered-bulk.test.cjs && node tests/map-geometry.test.cjs"
   },
   "dependencies": {
     "classnames": "2.3.2",

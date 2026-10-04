@@ -27,7 +27,7 @@ internal struct RoadRestrictionSignOwner : IComponentData
 
 internal struct RoadRestrictionSignGeometryWatch : IComponentData { }
 
-public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
+public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
 {
     internal sealed class SignPrefab
     {
@@ -45,6 +45,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
     private readonly Dictionary<Entity, List<Entity>> m_VisualAnchors = new();
     private readonly Dictionary<Entity, HashSet<Entity>> m_WatchedByTarget = new();
     private readonly Dictionary<Entity, HashSet<Entity>> m_TargetsByWatch = new();
+    private readonly Dictionary<Entity, uint> m_GeometryStamps = new();
     private readonly HashSet<Entity> m_Dirty = new();
     // Checked once on the next visual update, after native rendering has run.
     private readonly List<Entity> m_RenderChecks = new();
@@ -84,13 +85,16 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
         });
         m_PrefabSystem.onContentAvailabilityChanged += ContentChanged;
         GameManager.instance.onGameLoadingComplete += Loaded;
+        GameManager.instance.localizationManager.onActiveDictionaryChanged += LocaleChanged;
     }
 
     protected override void OnDestroy()
     {
         m_PrefabSystem.onContentAvailabilityChanged -= ContentChanged;
         if (GameManager.instance != null) GameManager.instance.onGameLoadingComplete -= Loaded;
+        if (GameManager.instance != null) GameManager.instance.localizationManager.onActiveDictionaryChanged -= LocaleChanged;
         ClearOwned();
+        m_Resources.Dispose();
         base.OnDestroy();
     }
 
@@ -103,8 +107,17 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
         if (m_ChangedGeometryQuery.IsEmptyIgnoreFilter) return;
         using var changed = m_ChangedGeometryQuery.ToEntityArray(Allocator.Temp);
         foreach (var entity in changed)
+        {
+            var stamp = VisualGeometryStamp.Read(EntityManager,entity);
+            if (m_GeometryStamps.TryGetValue(entity,out var previous) && stamp == previous) continue;
+            m_GeometryStamps[entity] = stamp;
             if (m_TargetsByWatch.TryGetValue(entity, out var targets))
-                foreach (var target in targets) MarkDirty(target);
+                foreach (var target in targets)
+                {
+                    MarkDirty(target);
+                    World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.MarkDirty(target);
+                }
+        }
     }
 
     public void ResetRuntimeState()
@@ -121,7 +134,15 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
         CheckInitializedMarkers();
         var enabled = Mod.Settings.ShowRoadRestrictionSigns;
         var custom = Mod.Settings.RoadSignPrefabMode == "CUSTOM" ? Mod.Settings.CustomRoadSignPrefab ?? string.Empty : string.Empty;
-        var settingChanged = enabled != m_Enabled || custom != m_Custom;
+        var appearanceChanged = RefreshAppearance();
+        var settingChanged = enabled != m_Enabled || custom != m_Custom || appearanceChanged;
+        if (m_TopologyRevision != m_Index.Revision)
+        {
+            m_TopologyRevision = m_Index.Revision;
+            foreach (var target in m_Markers.Keys) MarkDirty(target);
+            using var targets = m_RestrictionQuery.ToEntityArray(Allocator.Temp);
+            foreach (var target in targets) MarkDirty(target);
+        }
         if (m_CatalogDirty)
         {
             if (m_PrefabQuery.IsEmptyIgnoreFilter) return;
@@ -146,7 +167,6 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
             }
         }
         if (!enabled) { m_Dirty.Clear(); return; }
-        if (m_Dirty.Count == 0) return;
         var theme = World.GetOrCreateSystemManaged<CityConfigurationSystem>().defaultTheme;
         if (theme != m_Theme)
         {
@@ -154,6 +174,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
             ResolvedName = ResolveAuto(theme)?.Name ?? string.Empty;
             foreach (var target in m_Markers.Keys) MarkDirty(target);
         }
+        if (m_Dirty.Count == 0) return;
         var dirty = m_Dirty.ToArray(); m_Dirty.Clear();
         foreach (var target in dirty)
         {
@@ -164,6 +185,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
 
     private void BuildCatalog()
     {
+        ClearOwned(); m_Resources.Dispose(); m_Resources = new();
         m_Prefabs.Clear();
         using var entities = m_PrefabQuery.ToEntityArray(Allocator.Temp);
         var mask = TrafficSignData.GetTypeMask(TrafficSignType.DoNotEnter);
@@ -210,11 +232,25 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
 
     private SignPrefab ResolveAuto(Entity theme) => m_Prefabs.Values.Where(p => p.IsNoEntry && p.Theme == theme && theme != Entity.Null)
         .OrderBy(p => p.Name, StringComparer.Ordinal).FirstOrDefault()
-        ?? m_Prefabs.Values.Where(p => p.IsNoEntry && p.Theme == Entity.Null).OrderBy(p => p.Name, StringComparer.Ordinal).FirstOrDefault();
+        ?? m_Prefabs.Values.Where(p => p.IsNoEntry && p.Theme == Entity.Null).OrderBy(p => p.Name, StringComparer.Ordinal).FirstOrDefault()
+        ?? m_Prefabs.Values.Where(p => p.IsNoEntry).OrderBy(p => p.Name,StringComparer.Ordinal).FirstOrDefault();
+
+    private SignPrefab ResolveEntryPrefab(LogicalEntryGroup entry)
+    {
+        if (m_Custom != null && m_Prefabs.TryGetValue(m_Custom,out var custom)) return custom;
+        var theme = m_Theme;
+        if (EntityManager.TryGetComponent(entry.Connection,out PrefabRef reference) &&
+            m_PrefabSystem.TryGetPrefab<PrefabBase>(reference.m_Prefab,out var road) &&
+            road.TryGet<ThemeObject>(out var themed) && themed.m_Theme != null)
+            m_PrefabSystem.TryGetEntity(themed.m_Theme,out theme);
+        return ResolveAuto(theme);
+    }
 
     private void Rebuild(Entity target)
     {
         RemoveTarget(target);
+        if (!EntityManager.Exists(target) || EntityManager.HasComponent<Deleted>(target)) return;
+        var labels = Labels(target);
         var entries = m_Index.GetAppliedRoadEntries(target);
         var restricted = 0; var pairs = 0; var skipped = 0;
         var reasons = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -232,6 +268,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
             Watch(target, entry.Connection);
             foreach (var gate in entry.Gates) { Watch(target, gate.m_EntryLane); Watch(target, gate.m_NextLane); }
             if (!entry.Enabled) continue;
+            prefab = ResolveEntryPrefab(entry);
             restricted++;
             if (prefab == null) { Skip("NO_PREFAB", $"theme={m_Theme}"); continue; }
             if (!EntityManager.Exists(prefab.Entity) || !EntityManager.HasComponent<ObjectGeometryData>(prefab.Entity))
@@ -239,17 +276,27 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
             if (!m_Index.TryGetApproachFrame(entry, true, out var center, out var forward, out var low, out var high))
             { Skip("NO_ENTRY_GEOMETRY", DescribeGeometryFailure(entry)); continue; }
             GetSignMargins(entry, center, forward, low, high, out var leftMargin, out var rightMargin);
+            leftMargin = math.max(0,leftMargin + m_Lateral); rightMargin = math.max(0,rightMargin + m_Lateral);
             if (!RoadSignPlacement.TryCreate(center, forward, low, high, prefab.GroundOffset, out var first, out var second, out var rotation, leftMargin, rightMargin))
             { Skip("INVALID_TRANSFORM", $"connection={entry.Connection} center={center} forward={forward} bounds={low}/{high}"); continue; }
             pairs++;
+            var geometry = EntityManager.GetComponentData<ObjectGeometryData>(prefab.Entity);
+            // A prohibition face is approximately as tall as it is wide; exclude its pole.
+            var faceWidth = math.max(geometry.m_Bounds.max.x-geometry.m_Bounds.min.x,geometry.m_Bounds.max.z-geometry.m_Bounds.min.z);
+            var mainBottom = math.max(.4f,(geometry.m_Bounds.max.y-faceWidth)*m_Scale);
+            var firstPlate = SignAppearance.FirstPlateHeight(mainBottom, labels.Length, m_PlateSpacing);
+            var lift = math.max(0,firstPlate + .125f + .18f - mainBottom) + m_Height;
+            first.y += lift; second.y += lift;
             // Entries come from the same derived topology as Directional Restrictions.
             // Only visual instances are created; no native network/blocked-lane components.
             var before = markers.Count;
             try
             {
                 var anchor = CreateVisualAnchor(target, target);
-                markers.Add(CreateMarker(target, anchor, prefab, first, rotation));
-                markers.Add(CreateMarker(target, anchor, prefab, second, rotation));
+                var left = CreateMarker(target, anchor, prefab, first, rotation); markers.Add(left);
+                CreateAssembly(target,left,prefab,first,rotation,labels,firstPlate-lift+m_Height);
+                var right = CreateMarker(target, anchor, prefab, second, rotation); markers.Add(right);
+                CreateAssembly(target,right,prefab,second,rotation,labels,firstPlate-lift+m_Height);
                 var gate = entry.Gates[0];
                 Mod.Log.Info($"[RouteFilter.RoadSigns] target={target} connection={entry.Connection} EntryLane={gate.m_EntryLane} NextLane={gate.m_NextLane} LEFT={first} RIGHT={second} Rotation={rotation.value} Scale=1 edgeMargins={leftMargin}/{rightMargin} laneBounds={low}/{high} prefab={prefab.Name}");
             }
@@ -364,12 +411,14 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
 
     private void RemoveTarget(Entity target)
     {
+        RemoveAssembly(target);
         if (m_WatchedByTarget.TryGetValue(target, out var watched))
         {
             foreach (var entity in watched)
                 if (m_TargetsByWatch.TryGetValue(entity, out var targets) && targets.Remove(target) && targets.Count == 0)
                 {
                     m_TargetsByWatch.Remove(entity);
+                    m_GeometryStamps.Remove(entity);
                     if (EntityManager.Exists(entity)) EntityManager.RemoveComponent<RoadRestrictionSignGeometryWatch>(entity);
                 }
             m_WatchedByTarget.Remove(target);
@@ -400,6 +449,8 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
         {
             var anchor = m_RetiredAnchors[i];
             if (!EntityManager.Exists(anchor)) { m_RetiredAnchors.RemoveAt(i); continue; }
+            if (!EntityManager.HasComponent<RoadRestrictionSignOwner>(anchor) || !EntityManager.HasBuffer<Game.Objects.SubObject>(anchor))
+            { m_RetiredAnchors.RemoveAt(i); continue; }
             var children = EntityManager.GetBuffer<Game.Objects.SubObject>(anchor, true);
             var alive = false;
             foreach (var child in children) alive |= EntityManager.Exists(child.m_SubObject);
@@ -419,6 +470,7 @@ public sealed class RoadRestrictionVisualSignsSystem : GameSystemBase
         {
             m_TargetsByWatch[entity] = targets = new();
             EntityManager.AddComponent<RoadRestrictionSignGeometryWatch>(entity);
+            m_GeometryStamps[entity] = VisualGeometryStamp.Read(EntityManager,entity);
         }
         targets.Add(target);
     }

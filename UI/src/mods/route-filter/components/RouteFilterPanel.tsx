@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { Button, ConfirmationDialog, Panel, Portal, Tooltip } from "cs2/ui";
 import { bindValue, trigger, useValue } from "cs2/api";
 import { useLocalization } from "cs2/l10n";
@@ -10,6 +10,7 @@ import { AssetSearch } from "./AssetSearch";
 import { PanelHeader } from "./PanelHeader";
 import { TargetSelector } from "./TargetSelector";
 import { RoadSignSelector } from "./RoadSignSelector";
+import { Enhancements } from "./Enhancements";
 import styles from "../route-filter.module.scss";
 import { icons } from "../assets";
 
@@ -56,6 +57,10 @@ export const RouteFilterPanel = (props: Props) => {
   const recent = useMemo(() => recentRaw.split(",").filter(Boolean).map(Number), [recentRaw]);
   const [view, setView] = useState("all");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [utilityPopup,setUtilityPopup] = useState("");
+  const [signCloseToken,setSignCloseToken] = useState(0);
+  const openUtility = useCallback((value: string) => { setUtilityPopup(value); if (value) setSignCloseToken(token => token+1); },[]);
+  useEffect(() => { trigger(mod.id,"setUiPointerArea","dialog",confirmReset); return () => trigger(mod.id,"setUiPointerArea","dialog",false); },[confirmReset]);
   const { translate } = useLocalization();
   const tr = (key: string, fallback: string) => String(translate(key) ?? fallback);
   const targetReady = props.selectedTargetKind !== 0;
@@ -103,7 +108,8 @@ export const RouteFilterPanel = (props: Props) => {
           {tr("RouteFilter.UI.Reset", "Reset RouteFilter")}
         </Button>
       </div>
-      <RoadSignSelector />
+      <Enhancements targetMode={props.targetMode} editable={props.configurationEditable} popup={utilityPopup} onPopup={openUtility} reset={props.resetCompleted} />
+      <RoadSignSelector closeToken={signCloseToken} onPopupOpen={() => setUtilityPopup("")} />
       {props.resetCompleted > 0 && <div className={styles.resetStatus} role="status">{tr("RouteFilter.UI.ResetCompleted", "Reset completed. Unknown lane and path state was left unchanged.")}</div>}
     </Panel>
     {confirmReset && <ConfirmationDialog

@@ -17,7 +17,7 @@ namespace RouteFilter.Systems;
 // No queries over city vehicles. Config/statistics sampling is at most once per real second.
 internal static class P0Diagnostics
 {
-    internal static bool Tool = true, Highlight = true, Catalog = true, Restriction = true, Overlay = true;
+    internal static bool Tool = true, Highlight = true, Catalog = true, Restriction = true, Overlay = false;
     internal static Entity Vehicle, Target;
     internal static bool HasOwnedRequest => s_Milestones.Contains("RerouteRequested");
     private static Entity s_PhysicalVehicle;
@@ -64,6 +64,7 @@ internal static class P0Diagnostics
         if (!s_Milestones.Contains(stage)) s_Pending[stage] = value;
     }
 
+    [System.Diagnostics.Conditional("DEBUG")]
     internal static void Arm(World world, Entity selected)
     {
         var manager = world.EntityManager;
@@ -84,6 +85,7 @@ internal static class P0Diagnostics
         Mod.Log.Info($"[RouteFilter.P0.Trace] ARMED canonicalVehicle={Vehicle} build={Mod.BuildId}");
     }
 
+    [System.Diagnostics.Conditional("DEBUG")]
     internal static void Poll(World world)
     {
         var now = Time.realtimeSinceStartup;

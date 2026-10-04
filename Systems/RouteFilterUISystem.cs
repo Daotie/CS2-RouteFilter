@@ -97,6 +97,8 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         m_AssetCatalogBinding = CreateValue("assetCatalog", string.Empty);
         m_SelectedAssetsBinding = CreateValue("selectedAssetIds", string.Empty);
         InitializeLibrary();
+        InitializePresets();
+        InitializeMapAndBrush();
         m_ResetCompletedBinding = CreateValue("resetCompleted", 0);
         m_PanelCloseBinding = CreateValue("panelClose", 0);
         m_BuildIdBinding = CreateValue("buildId", Mod.BuildId);
@@ -118,6 +120,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         AddBinding(new TriggerBinding(Mod.Id, "clearSelectedRestriction", () => { Mod.Log.Info("[RouteFilter.Binding] clearSelectedRestriction received"); m_RestrictionTool.ClearSelectedRestriction(); LoadSelectedTargetAssets(m_RestrictionTool.SelectedTarget); PublishRestriction(); }));
         AddBinding(new TriggerBinding(Mod.Id, "cancelSelection", m_RestrictionTool.ClearSelection));
         AddBinding(new TriggerBinding<bool>(Mod.Id, "setPointerOverUi", m_RestrictionTool.SetPointerOverUi));
+        AddBinding(new TriggerBinding<string,bool>(Mod.Id,"setUiPointerArea",m_RestrictionTool.SetUiPointerArea));
 
         // Rebuild the catalog whenever the game announces that content (asset packs, mods) became available or was removed,
         // and once after each save finishes loading, so late-loading modded assets (for example CR400AF trains) are not missed.
@@ -135,7 +138,13 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     private void OnContentAvailabilityChanged() => m_ContentAvailabilityDirty = true;
 
-    private void HandleGameLoadingComplete(Purpose purpose, GameMode mode) => m_PendingLoadRefresh = true;
+    private void HandleGameLoadingComplete(Purpose purpose, GameMode mode) { m_PendingLoadRefresh = true; m_MapDirty = true; }
+
+    protected override void OnGamePreload(Purpose purpose, GameMode mode)
+    {
+        ResetRuntimeState(); m_MapVisualRevision = -1; m_MapIndexRevision = -1;
+        base.OnGamePreload(purpose,mode);
+    }
 
     /// <summary>
     /// Rebuilds the catalog once after a save finishes loading, and additionally whenever vehicle
@@ -173,6 +182,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     protected override void OnUpdate()
     {
+        UpdateMapAndBrush();
         // Game 1.6.0f1 can run mod OnLoad on a thread-pool continuation where the Input
         // System's Temp allocator fails; retry the key binding registration here on the
         // main thread once so the shortcut key still works in that scenario.
@@ -232,6 +242,10 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     public void ResetRuntimeState()
     {
+        m_MapOpen = false; ClearMap(); m_MapDirty = true;
+        m_Clipboard = Array.Empty<string>(); m_ClipboardReady = false; m_HasClipboard.Update(false);
+        m_PresetMissing.Update(0); m_PresetUnsupported.Update(0);
+        m_RestrictionTool.SetBrushEnabled(false);
         m_RestrictionTool.Deactivate();
         m_RestrictionTool.ClearSelection();
         Mod.SelectedVehicleAssets.Clear();
@@ -248,10 +262,11 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     }
 
     public void NotifyResetCompleted() => m_ResetCompletedBinding.Update(++m_ResetCompleted);
-    public void NotifyPanelClose() => m_PanelCloseBinding.Update(++m_PanelClose);
+    public void NotifyPanelClose() { m_MapOpen = false; ClearMap(); m_RestrictionTool.CancelBrush(); m_PanelCloseBinding.Update(++m_PanelClose); }
 
     private void SetTargetMode(int value)
     {
+        m_RestrictionTool.SetBrushEnabled(false);
         Mod.SelectedTargetMode = value == 1 ? Components.RestrictionTargetMode.Segment : Components.RestrictionTargetMode.Node;
         Mod.Log.Info($"[RouteFilter.Binding] TargetMode={Mod.SelectedTargetMode}");
         m_RestrictionTool.ClearSelection();

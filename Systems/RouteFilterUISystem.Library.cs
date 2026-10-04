@@ -61,7 +61,7 @@ public sealed partial class RouteFilterUISystem
             foreach (var asset in m_AssetsById.Values)
                 if (m_ModeByAsset.TryGetValue(asset, out var mode) && (mode & m_RestrictionTool.SelectedTransportMode) != 0 &&
                     names.Contains(m_PrefabSystem.GetPrefabName(asset))) Mod.SelectedVehicleAssets.Add(asset);
-            PublishRestriction();
+            UpdateSelectedBinding(); PublishRestriction();
         }));
     }
     internal void RecordRecentApply()
@@ -69,7 +69,11 @@ public sealed partial class RouteFilterUISystem
         var target = m_RestrictionTool.SelectedTarget;
         if (target == Entity.Null || !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable ||
             !EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets)) return;
-        var used = assets.Where(asset => m_IdsByAsset.ContainsKey(asset.m_Prefab)).Select(asset => m_PrefabSystem.GetPrefabName(asset.m_Prefab)).Distinct(StringComparer.Ordinal).OrderBy(value => value, StringComparer.Ordinal).ToArray();
+        RecordRecentAssets(assets.Select(asset => asset.m_Prefab));
+    }
+    internal void RecordRecentAssets(IEnumerable<Entity> assets)
+    {
+        var used = assets.Where(m_IdsByAsset.ContainsKey).Select(m_PrefabSystem.GetPrefabName).Distinct(StringComparer.Ordinal).OrderBy(value => value, StringComparer.Ordinal).ToArray();
         var ids = new HashSet<string>(used, StringComparer.Ordinal);
         m_Recent.RemoveAll(ids.Contains); m_Recent.InsertRange(0, used);
         if (m_Recent.Count > 64) m_Recent.RemoveRange(64, m_Recent.Count - 64);
