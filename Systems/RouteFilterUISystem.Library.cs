@@ -13,6 +13,7 @@ public sealed partial class RouteFilterUISystem
     private readonly HashSet<string> m_Favorites = new(StringComparer.Ordinal);
     private readonly List<string> m_Recent = new();
     private string[] m_Clipboard = Array.Empty<string>();
+    private bool m_ClipboardReady;
     private ValueBinding<string> m_FavoriteIds, m_RecentIds;
     private ValueBinding<bool> m_HasClipboard;
 
@@ -48,13 +49,13 @@ public sealed partial class RouteFilterUISystem
             var target = m_RestrictionTool.SelectedTarget;
             if (target == Entity.Null || !EntityManager.Exists(target)) return;
             m_Clipboard = EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets)
-                ? assets.Select(asset => m_PrefabSystem.GetPrefabName(asset.m_Prefab)).Distinct(StringComparer.Ordinal).ToArray() : Array.Empty<string>();
-            m_HasClipboard.Update(true);
+                ? assets.Where(asset => m_IdsByAsset.ContainsKey(asset.m_Prefab)).Select(asset => m_PrefabSystem.GetPrefabName(asset.m_Prefab)).Distinct(StringComparer.Ordinal).ToArray() : Array.Empty<string>();
+            m_ClipboardReady = true; m_HasClipboard.Update(true);
         }));
         AddBinding(new TriggerBinding(Mod.Id, "pasteAssetRestriction", () =>
         {
             // Only the pending forbidden set changes. Directions, target and visuals stay intact.
-            if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable || m_RestrictionTool.SelectedTarget == Entity.Null) return;
+            if (!m_ClipboardReady || !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable || m_RestrictionTool.SelectedTarget == Entity.Null) return;
             var names = new HashSet<string>(m_Clipboard, StringComparer.Ordinal);
             Mod.SelectedVehicleAssets.Clear();
             foreach (var asset in m_AssetsById.Values)
@@ -68,7 +69,7 @@ public sealed partial class RouteFilterUISystem
         var target = m_RestrictionTool.SelectedTarget;
         if (target == Entity.Null || !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable ||
             !EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets)) return;
-        var used = assets.Select(asset => m_PrefabSystem.GetPrefabName(asset.m_Prefab)).Distinct(StringComparer.Ordinal).OrderBy(value => value, StringComparer.Ordinal).ToArray();
+        var used = assets.Where(asset => m_IdsByAsset.ContainsKey(asset.m_Prefab)).Select(asset => m_PrefabSystem.GetPrefabName(asset.m_Prefab)).Distinct(StringComparer.Ordinal).OrderBy(value => value, StringComparer.Ordinal).ToArray();
         var ids = new HashSet<string>(used, StringComparer.Ordinal);
         m_Recent.RemoveAll(ids.Contains); m_Recent.InsertRange(0, used);
         if (m_Recent.Count > 64) m_Recent.RemoveRange(64, m_Recent.Count - 64);
