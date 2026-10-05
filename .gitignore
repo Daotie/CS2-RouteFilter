@@ -19,3 +19,15 @@ deployment-backups/
 PHASE1D_GAME_TEST.md
 NATIVE_UI_ROUTES_TEST.md
 NATIVE_PANEL_TEST.md
+
+# Internal reports and session evidence must remain local.
+*_AUDIT.md
+*ACCEPTANCE_CHECKLIST.md
+*ACCEPTANCE_MATRIX.md
+*_TEST_REPORT.md
+UX*_CORRECTION_REPORT.md
+UI_REFERENCE_NOTES.md
+docs/*-browser-evidence/
+PLAYSET_CODE_MODS_*.md
+tmp/
+release-artifacts/

@@ -26,36 +26,6 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - 修正辅助牌材质与本地化文字，比较禁止对象和除外对象，合并为一块辅助牌、最多两行；整类其它车辆允许时正确显示“其它车辆除外”。
 - 沿用既有城市存档禁行数据，正式版不引入新的存档格式或迁移。
 
-## 2.1.0-dev — 2026-10-05 — localized traffic-sign semantics
-
-- Replaced category-to-plate enumeration with visual-only stable semantic IDs and coverage-aware consolidation; unknown/missing assets use a safe selected-vehicle description.
-- Complete goods/large-goods/maintenance semantics, selected-subset qualifiers, at most two text-only legends, and no redundant plate when the verified primary fully expresses the scope.
-- Added independent AUTO / Generic Europe / CN / UK / US preferences, per-entry theme + locale heuristic, explicit CN/UK primary fallback and hidden HK/JP profiles. Custom stable asset selection remains separate.
-- Added dedicated semantic locale keys, formal Simplified Chinese, independent British/American terms, installed regional font candidates and measured layout tiers/margins. No fonts or standard graphics bundled.
-- Ordinary traffic-hand roadside placement; wide-approach repetition is a gameplay visibility adjustment. Stable enforcement and city-save schema unchanged.
-- Build `RF21-20261005-SIGN-32`; automated build/rules/raster checks verified, game/performance/save-load/migration acceptance NOT TESTED.
-
-## 2.1.0-dev — 2026-10-05 — UX conformance build
-
-- Restored compact primary editing, search-first library tabs, independent star favorites and a header Tools menu.
-- Corrected front-facing RF-Plate text geometry and adaptive installed-font glyph fitting; full road-vehicle prohibition omits auxiliary plates; tractor/trailer categories deduplicate.
-- Removed persistent red ground stripes. Integrated the native selected-info section registry and sign ownership / road / entry metadata.
-- Added built-in Trucks / Cargo Trucks and preset rename. Sign style retains its cached thumbnail dropdown.
-- Added persistent upper-left wheel adjustment for scale, lateral / longitudinal offset, height and rotation, fine/coarse modifiers, native camera zoom barrier and debounced settings saves. Focused wheel previews rebuild the selected target; other signs refresh once after adjustment settles. Label/category results are cached independently of transforms.
-- Replaced drag brush with deterministic start/end connected-road range, explicit confirmation, topology revalidation and chunked temporary previews.
-- Split map road geometry from restriction overlays; added dedicated window, layers, entry arrows and pan/zoom. Closed map performs no network queries.
-- Build `RF21-20261005-UX-31`; game acceptance remains pending. Stable enforcement and save schema unchanged.
-
-## 2.1.0-dev — 2026-10-04 — Unified test build
-
-- Road signs: AUTO/CUSTOM prefab dropdown, native thumbnails and names, directional entry placement, hover/click editing, independent main-sign scaling.
-- RF-Plate: authored FBX geometry/UVs embedded with textures, fixed dimensions, localized category labels, shared resource cache, downward stacking with ground clearance.
-- Asset library: favorites, recent assets, asset-only copy/paste and named user presets; unsupported assets are reported separately from missing assets.
-- Restriction Map: change-driven snapshots, combined road background, selection, pan/zoom; no road traversal while closed.
-- Segment Brush: LMB apply/RMB clear, frozen input, deduplicated pending targets, temporary preview, batch commit on release and cancellation on Escape/disable/switch/reset.
-- Persistent ground restriction lines replace the per-frame city-wide badge scan. UX state and owned visuals are cleared on reset/unload/dispose. Development route overlays and trace entry points are disabled in Release.
-- C# Debug/Release, UI build and offline rules are verified. Rendering, live input, performance and save/load remain NOT TESTED in-game for this build. The 2.0 enforcement policy and save schema are preserved.
-
 ## 2.0.0 — 2026-10-03
 
 ### English

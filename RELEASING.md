@@ -23,3 +23,9 @@ Use one new prerelease version for each externally tested correction. Do not rep
 ## 中文要求
 
 正式版与维护版必须统一版本号、双语公开说明、存档兼容策略、C#/UI/依赖检查、游戏内道路与轨道验证、发行包哈希、签名提交和标签。Paradox Mods 首次提交前必须准备最终缩略图与游戏内截图；首次提交取得 `ModId` 后，将其写回发布配置。对外测试修复应一次使用一个新的预发行版本号，不覆盖已经发布的同版本压缩包。
+
+## Public distribution contents / 对外发布内容
+
+Publish code, required resources/build configuration, maintained user documentation and developer reference documentation only. Keep internal test reports, acceptance matrices, audit/session notes and browser mock evidence in ignored local storage. Distribution archives contain the compiled mod, release notes, license and build/checksum metadata; never add internal reports to them.
+
+仅发布源码、必要资源和构建配置、正式用户说明及二次开发文档。内部测试报告、验收表、审计与会话笔记、浏览器模拟验证素材均保留在忽略的本地目录。发行包包含编译后的模组、正式更新说明、许可证及构建／校验元数据，不附带内部报告。

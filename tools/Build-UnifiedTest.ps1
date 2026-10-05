@@ -38,7 +38,7 @@ try {
         Copy-Item -Destination $payload
     Copy-Item -LiteralPath 'UI/build/RouteFilter.mjs','UI/build/RouteFilter.css','UI/mod.json' -Destination $payload
     Copy-Item -LiteralPath 'UI/build/images' -Destination $payload -Recurse
-    Copy-Item -LiteralPath 'UNIFIED_TEST_REPORT.md','RELEASE_NOTES.md' -Destination $destination
+    Copy-Item -LiteralPath 'RELEASE_NOTES.md','LICENSE' -Destination $destination
     $sourceHead = (git rev-parse HEAD).Trim()
     @("version=$version", "build=$build", "sourceHead=$sourceHead", "branch=$((git branch --show-current).Trim())") | Set-Content -LiteralPath (Join-Path $destination 'BUILD.txt') -Encoding utf8
     Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object {
