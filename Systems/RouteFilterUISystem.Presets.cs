@@ -29,11 +29,12 @@ public sealed partial class RouteFilterUISystem
         {
             if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable || (name != "Trucks" && name != "CargoTrucks")) return;
             Mod.SelectedVehicleAssets.Clear();
-            foreach (var asset in RoadVehicleAssets)
+            foreach (var asset in m_AssetsById.Values)
             {
-                var cargo = EntityManager.HasComponent<Game.Prefabs.DeliveryTruckData>(asset) || EntityManager.HasComponent<Game.Prefabs.CargoTransportVehicleData>(asset);
-                var truck = cargo || EntityManager.HasComponent<Game.Prefabs.GarbageTruckData>(asset) || EntityManager.HasComponent<Game.Prefabs.FireEngineData>(asset);
-                if (name == "CargoTrucks" ? cargo : truck) Mod.SelectedVehicleAssets.Add(asset);
+                var semantic=VehicleSemanticClassifier.Classify(EntityManager,asset);
+                var roadCargo = semantic==TrafficVehicleSemantic.GoodsVehicle || semantic==TrafficVehicleSemantic.HeavyGoodsVehicle;
+                var railCargo = EntityManager.HasComponent<Game.Prefabs.TrainData>(asset) && EntityManager.HasComponent<Game.Prefabs.CargoTransportVehicleData>(asset);
+                if (name == "CargoTrucks" ? roadCargo || railCargo : roadCargo) Mod.SelectedVehicleAssets.Add(asset);
             }
             m_PresetMissing.Update(0); m_PresetUnsupported.Update(0); UpdateSelectedBinding(); PublishRestriction(); LibraryFeedback("Preset",Mod.SelectedVehicleAssets.Count);
         }));

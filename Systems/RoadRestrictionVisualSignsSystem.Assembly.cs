@@ -21,8 +21,9 @@ public sealed partial class RoadRestrictionVisualSignsSystem
     private int m_VehicleCatalogRevision;
     private readonly Dictionary<Entity,RouteFilter.Persistence.TrafficVehicleSemantic> m_VehicleSemantics = new();
     private int m_TopologyRevision = -1;
+    private bool m_ForcePlate;
     private float m_Scale = 1, m_Height, m_Lateral, m_Longitudinal, m_Rotation, m_PlateSpacing = .04f;
-    private void LocaleChanged() { m_LoadDirty = true; }
+    private void LocaleChanged() { m_LabelCache.Clear(); m_LoadDirty = true; }
     public void DisposeRuntimeVisuals() { ClearOwned(); m_Resources.Dispose(); Enabled = false; }
     protected override void OnGamePreload(Colossal.Serialization.Entities.Purpose purpose, Game.GameMode mode)
     {
@@ -33,14 +34,14 @@ public sealed partial class RoadRestrictionVisualSignsSystem
     private bool RefreshAppearance()
     {
         var settings = Mod.Settings;
-        var scale = SignAppearance.Clamp(settings.RoadSignScale,.5f,2f,1f);
+        var scale = 1f;
         var height = SignAppearance.Clamp(settings.RoadSignHeight,0f,5f,0f);
         var lateral = SignAppearance.Clamp(settings.RoadSignLateralOffset,-.5f,3f,0f);
         var spacing = SignAppearance.Clamp(settings.RoadPlateSpacing,.02f,.2f,.04f);
         var longitudinal = SignAppearance.Clamp(settings.RoadSignLongitudinalOffset,-10f,10f,0);
         var rotation = SignAppearance.Clamp(settings.RoadSignRotation,-180f,180f,0);
-        var changed = scale != m_Scale || height != m_Height || lateral != m_Lateral || spacing != m_PlateSpacing || longitudinal != m_Longitudinal || rotation != m_Rotation;
-        m_Scale = scale; m_Height = height; m_Lateral = lateral; m_PlateSpacing = spacing;
+        var changed = m_ForcePlate != settings.ForceSupplementaryPlate || scale != m_Scale || height != m_Height || lateral != m_Lateral || spacing != m_PlateSpacing || longitudinal != m_Longitudinal || rotation != m_Rotation;
+        m_ForcePlate=settings.ForceSupplementaryPlate; m_Scale = scale; m_Height = height; m_Lateral = lateral; m_PlateSpacing = spacing;
         m_Longitudinal = longitudinal; m_Rotation = rotation;
         return changed;
     }
@@ -55,7 +56,8 @@ public sealed partial class RoadRestrictionVisualSignsSystem
         }
         var selected=new List<Entity>(); foreach(var asset in assets) selected.Add(asset.m_Prefab);
         var applicable=World.GetExistingSystemManaged<RouteFilterUISystem>()?.RoadVehicleAssets ?? Enumerable.Empty<Entity>();
-        var meanings=RouteFilter.Persistence.TrafficSignSemantics.Resolve(selected,applicable,VehicleCategory);
+        var dictionary=GameManager.instance.localizationManager.activeDictionary;
+        var meanings=RouteFilter.Persistence.TrafficSignSemantics.Resolve(selected,applicable,VehicleCategory,asset=>{if(!EntityManager.Exists(asset))return "UNAVAILABLE VEHICLE ASSET";var name=m_PrefabSystem.GetPrefabName(asset);return dictionary.TryGetValue("Assets.NAME["+name+"]",out var display)?display:name;});
         m_LabelCache[target]=new LabelCache {Assets=selected.ToArray(),Catalog=m_VehicleCatalogRevision,Meanings=meanings};
         return meanings;
     }

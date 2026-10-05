@@ -1,7 +1,7 @@
-# RouteFilter 2.1.0-dev — UX-36
+# RouteFilter 2.1.0-dev — UX-37
 
-Category headers reuse asset-row checkboxes and the original PNG category icons; expansion arrows are white SVG. Main and secondary windows share the established gradient and interaction transitions. Menus open to the main panel's right and retain position during submenu navigation. Wheel step is editable; numeric/preset fields are vertically centered.
+Wheel adjusts only the hovered input and synchronizes three-decimal values. Scale/Finish removed. EU/US profiles only; custom supplementary plate requires a force checkbox. Full-category exceptions use Except wording; detailed asset labels replace generic mixed labels. US plaque placement reserves clearance for Wrong Way panel.
 
-Supplementary text is baked into the original plate texture. The separate text overlay that kept rendering black is removed; frame, rear and edge pixels remain unchanged in the production compositor test. The original mask is converted for HDRP at runtime: ambient occlusion is unblocked while metallic/detail/smoothness data are preserved.
+Batch apply/clear merged: left applies, right clears; rail/TrainData path admission repaired. Goods-only presets exclude service/emergency vehicles and support cargo trains. Main panel does not scroll; list shrinks, footer stays visible. Clipboard/Clear spacing added, resolved name single-line, map entry arrow has navigation notch.
 
-Native UX-36 acceptance remains pending. No playset changes.
+Build/tests and mock browser checks pass. Native US overlap and rail batch acceptance remain pending.

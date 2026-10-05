@@ -8,18 +8,28 @@ internal readonly struct TrafficLegend
 {
     internal readonly TrafficVehicleSemantic Semantic;
     internal readonly bool Partial;
-    internal TrafficLegend(TrafficVehicleSemantic semantic,bool partial=false) { Semantic=semantic; Partial=partial; }
-    internal string Key => "TrafficSign.VehicleCategory."+Semantic+(Partial ? ".Selected" : "");
+    internal readonly bool Except;
+    internal readonly string Detail;
+    internal TrafficLegend(TrafficVehicleSemantic semantic,bool partial=false,bool except=false,string detail=null) { Semantic=semantic; Partial=partial; Except=except; Detail=detail; }
+    internal string Key => "TrafficSign.VehicleCategory."+Semantic+(Except?".Except":Partial ? ".Selected" : "")+(Detail??"");
 }
 internal static class TrafficSignSemantics
 {
-    internal static TrafficLegend[] Resolve<T>(IEnumerable<T> selected,IEnumerable<T> applicable,Func<T,TrafficVehicleSemantic> classify)
+    internal static TrafficLegend[] Resolve<T>(IEnumerable<T> selected,IEnumerable<T> applicable,Func<T,TrafficVehicleSemantic> classify,Func<T,string> describe=null)
     {
         var chosen=new HashSet<T>(selected); var available=new HashSet<T>(applicable);
         if (chosen.Count==0) return Array.Empty<TrafficLegend>();
+        var exempt=available.Where(id=>!chosen.Contains(id)).ToArray();
+        if(chosen.IsSubsetOf(available) && exempt.Length>0)
+        {
+            var classes=exempt.Select(classify).Distinct().ToArray();
+            var exemptClass=classes.Length==1?classes[0]:classes.All(IsGoods)?TrafficVehicleSemantic.GoodsVehicle:classes.All(IsEmergency)?TrafficVehicleSemantic.EmergencyVehicle:TrafficVehicleSemantic.SpecifiedVehicles;
+            if(exemptClass!=TrafficVehicleSemantic.SpecifiedVehicles && available.Where(id=>Belongs(classify(id),exemptClass)).All(id=>!chosen.Contains(id)))
+                return new[]{new TrafficLegend(exemptClass,except:true)};
+        }
         // A missing/unclassified selected asset must not disappear or imply broader coverage.
         if (available.Count>0 && chosen.SetEquals(available)) return new[] {new TrafficLegend(TrafficVehicleSemantic.AllRoadMotorVehicles)};
-        if (chosen.Any(id=>!available.Contains(id) || classify(id)==TrafficVehicleSemantic.SpecifiedVehicles)) return Generic();
+        if (chosen.Any(id=>!available.Contains(id) || classify(id)==TrafficVehicleSemantic.SpecifiedVehicles)) return Generic(chosen,id=>available.Contains(id)?classify(id):TrafficVehicleSemantic.SpecifiedVehicles,describe);
         var groups=chosen.GroupBy(classify).ToDictionary(g=>g.Key,g=>new HashSet<T>(g));
         // All goods subclasses collapse only when the entire goods family is selected.
         var goods=available.Where(id=>IsGoods(classify(id))).ToArray();
@@ -29,28 +39,35 @@ internal static class TrafficSignSemantics
         if (emergency.Length>0 && emergency.All(chosen.Contains) && groups.Keys.Any(IsEmergency))
         { foreach (var key in groups.Keys.Where(IsEmergency).ToArray()) groups.Remove(key); groups[TrafficVehicleSemantic.EmergencyVehicle]=new HashSet<T>(emergency); }
         // Consolidate BEFORE rendering, rather than clipping a category tower.
-        if (groups.Count>2) return Generic();
+        if (groups.Count>2) return Generic(chosen,id=>available.Contains(id)?classify(id):TrafficVehicleSemantic.SpecifiedVehicles,describe);
         return groups.OrderBy(g=>g.Key).Select(g=>new TrafficLegend(g.Key,
             available.Any(id=>Belongs(classify(id),g.Key) && !chosen.Contains(id)))).ToArray();
     }
-    private static TrafficLegend[] Generic()=>new[] {new TrafficLegend(TrafficVehicleSemantic.SpecifiedVehicles)};
+    private static TrafficLegend[] Generic<T>(IEnumerable<T> chosen,Func<T,TrafficVehicleSemantic> classify,Func<T,string> describe)
+    {
+        var names=chosen.Select(id=>describe?.Invoke(id)??TrafficSignLocalization.Text(new TrafficLegend(classify(id)),"en-GB")).Where(text=>!string.IsNullOrWhiteSpace(text)).Distinct().ToArray();
+        var text=string.Join(" / ",names.Take(2));
+        if(names.Length>2)text+=" / …";
+        return new[]{new TrafficLegend(TrafficVehicleSemantic.SpecifiedVehicles,detail:text)};
+    }
     private static bool IsGoods(TrafficVehicleSemantic value)=>value==TrafficVehicleSemantic.GoodsVehicle || value==TrafficVehicleSemantic.HeavyGoodsVehicle;
     private static bool IsEmergency(TrafficVehicleSemantic value)=>value==TrafficVehicleSemantic.EmergencyVehicle || value==TrafficVehicleSemantic.FireEngine || value==TrafficVehicleSemantic.Ambulance || value==TrafficVehicleSemantic.PoliceVehicle;
     private static bool Belongs(TrafficVehicleSemantic value,TrafficVehicleSemantic group)=>value==group || group==TrafficVehicleSemantic.GoodsVehicle && IsGoods(value) || group==TrafficVehicleSemantic.EmergencyVehicle && IsEmergency(value);
     // NoEntry can express the complete set; category-specific primary capabilities are optional.
     internal static bool PrimaryFullyExpresses(TrafficLegend[] meanings,TrafficVehicleSemantic? primary,bool custom=false)=>
-        !custom && meanings.Length==1 && !meanings[0].Partial && primary==meanings[0].Semantic;
+        !custom && meanings.Length==1 && !meanings[0].Partial && !meanings[0].Except && primary==meanings[0].Semantic;
 }
 internal static class SignageProfiles
 {
-    internal static readonly string[] Exposed={"AUTO","GENERIC_EUROPE","CN","UK","US"};
+    internal static readonly string[] Exposed={"AUTO","GENERIC_EUROPE","US"};
+    internal static bool SupplementaryAllowed(string profile,bool custom,bool force)=>(profile=="US" || profile=="GENERIC_EUROPE") && (!custom || force);
     internal static bool IsExposed(string value)=>Exposed.Contains(value,StringComparer.Ordinal);
     internal static string Resolve(string choice,string themePrefix,string locale)
     {
         if (IsExposed(choice) && choice!="AUTO") return choice;
         if (themePrefix=="NA") return "US"; // ThemePrefab.assetPrefix metadata, never name substrings.
         // Physical primary follows the road theme. Supplementary text resolves
-        // independently from the active locale; CN/UK remain explicit choices.
+        // independently from the active locale; only EU/US profiles are currently exposed.
         return "GENERIC_EUROPE";
     }
 }
@@ -70,6 +87,7 @@ internal static class TrafficSignLocalization
     }
     internal static string ResolveText(TrafficLegend legend,string locale,Func<string,string> translated)
     {
+        if(legend.Except || legend.Detail!=null)return Text(legend,locale);
         var language=Language(locale);
         var normalized=(locale??"").Replace('_','-');
         if(string.Equals(language,normalized,StringComparison.OrdinalIgnoreCase) || language=="zh-CN" && normalized.StartsWith("zh-HANS",StringComparison.OrdinalIgnoreCase))
@@ -81,9 +99,11 @@ internal static class TrafficSignLocalization
     }
     internal static string Text(TrafficLegend legend,string locale)
     {
+        if(legend.Detail!=null)return legend.Detail;
         var language=Language(locale); var i=(int)legend.Semantic;
         var dictionary=language=="zh-CN"?ChineseCN:language=="en-GB"?EnglishGB:EnglishUS;
         var text=i>=0 && i<dictionary.Length?dictionary[i]:dictionary[0];
+        if(legend.Except)return language=="zh-CN"?"除"+text+"外":"EXCEPT "+EnglishGB[i];
         return legend.Partial?(language=="zh-CN"?"指定"+text:"SELECTED "+text):text;
     }
 }

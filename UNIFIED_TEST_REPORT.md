@@ -1,7 +1,5 @@
-# UX-36 unified verification
+Verification: unified Debug/Release, 16 coverage checks, 65,536 lease cases, 23 safety checks, 261 save checks, 93 road sign geometry checks, 2,107 UX semantic/profile checks, sign raster/opaque atlas/mask tests, UI typecheck/tests/build, authored mesh UV and whitespace passed. Final Release rebuild after text/locale-cache cleanup: zero warnings/errors.
 
-Build RF21-20261005-UX-36.
+Browser MOCK production-bundle checks: step .025 + height wheel displays .025; world wheel makes no appearance mutation; five inputs (four positions/rotation + step), no scale/Finish; category/force checkbox interaction; one Batch action; identical existing surfaces; no browser errors. At 1280x720 panel clientHeight=scrollHeight=562, asset list shrinks to 60px and footer stays inside panel. Screenshot/data use synthetic bindings, not native acceptance.
 
-Production atlas test: opaque pixels, visible glyph ink and light face, unchanged border/back/edge. Readable export verifies the authored +Z UV mapping. Release/typecheck/UI tests passed during implementation. Browser checks confirm identical window gradients, stable rightward menu anchoring and custom .025 wheel-step dispatch; these use synthetic bindings.
-
-Final unified run passed: Debug/Release zero warnings/errors, RoadCoverage 16, LeaseRules 65,536, SafetyRules 23, SaveFormat 261, RoadSigns 93, UxRules 2,099; typography/opaque atlas/HDRP mask preservation; UI typecheck/tests/build; authored front UV/mesh and whitespace checks. Category full/clear checkbox dispatch, preset save/back and zero browser errors verified with mock bindings. Native UX-36 material, animation and interaction acceptance are pending; UX-35 black auxiliary face remains the last native failure evidence.
+Native UX-36 OnLoad was present in latest game log before this work. UX-37 has not yet received game acceptance. Full playset preserved during local deployment.

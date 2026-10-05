@@ -28,6 +28,7 @@ public sealed class Setting : ModSetting
     [SettingsUIHidden] public string FavoriteAssetIds { get; set; }
     [SettingsUIHidden] public string RecentAssetIds { get; set; }
     [SettingsUIHidden] public string UserPresets { get; set; }
+    [SettingsUIHidden] public bool ForceSupplementaryPlate { get; set; }
     [SettingsUIHidden] public float RoadSignScale { get; set; }
     [SettingsUIHidden] public float RoadSignHeight { get; set; }
     [SettingsUIHidden] public float RoadSignLateralOffset { get; set; }
@@ -166,10 +167,10 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.AppearanceReset"] = Chinese ? "重置位置" : "Reset position",
             ["RouteFilter.UI.Finish"] = Chinese ? "完成调整" : "Finish",
             ["RouteFilter.UI.WheelStep"] = Chinese ? "步长" : "Step",
-            ["RouteFilter.UI.WheelHint"] = Chinese ? "在游戏画面滚动鼠标滚轮调整；Shift 精调，Ctrl 粗调。" : "Scroll over the world to adjust. Shift: fine · Ctrl: coarse.",
+            ["RouteFilter.UI.WheelHint"] = Chinese ? "悬浮输入框时滚轮调整。" : "Scroll over an input to adjust.",
             ["RouteFilter.UI.PresetRename"] = Chinese ? "重命名" : "Rename",
             ["RouteFilter.UI.PresetTrucks"] = Chinese ? "货车" : "Trucks",
-            ["RouteFilter.UI.PresetCargoTrucks"] = Chinese ? "货运卡车" : "Cargo trucks",
+            ["RouteFilter.UI.PresetCargoTrucks"] = Chinese ? "货运货车" : "Cargo trucks",
             ["RouteFilter.UI.RangeSegments"] = Chinese ? "个路段" : "segments in preview",
             ["RouteFilter.UI.RangeApply"] = Chinese ? "应用到所选范围" : "Apply to range",
             ["RouteFilter.UI.RangeClear"] = Chinese ? "清除范围内的限制" : "Clear range restrictions",
@@ -184,9 +185,11 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.Presets"] = Chinese ? "限制预设" : "Presets",
             ["RouteFilter.UI.Map"] = Chinese ? "限行地图" : "Restriction Map",
             ["RouteFilter.UI.Appearance"] = Chinese ? "标志位置调整" : "Sign appearance",
+            ["RouteFilter.UI.Batch"] = Chinese ? "批量" : "Batch",
+            ["RouteFilter.UI.ForcePlate"] = Chinese ? "强制显示辅助牌" : "Force supplementary plate",
             ["RouteFilter.UI.BatchApply"] = Chinese ? "批量应用" : "Batch apply",
             ["RouteFilter.UI.BatchClear"] = Chinese ? "批量清除" : "Batch clear",
-            ["RouteFilter.UI.BatchDrag"] = Chinese ? "按住拖选路段" : "Drag road segments",
+            ["RouteFilter.UI.BatchDrag"] = Chinese ? "左键应用 · 右键清除" : "Left: apply · Right: clear",
             ["RouteFilter.UI.Brush"] = Chinese ? "批量路段限制" : "Batch segment restrictions",
             ["RouteFilter.UI.BrushApply"] = Chinese ? "按住拖选，松开应用" : "Hold to select; release to apply",
             ["RouteFilter.UI.BrushClear"] = Chinese ? "取消范围选择" : "Cancel range selection",

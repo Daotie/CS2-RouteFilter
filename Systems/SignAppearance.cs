@@ -6,6 +6,7 @@ internal static class SignAppearance
 {
     internal static float Clamp(float value, float min, float max, float fallback) =>
         float.IsNaN(value) || float.IsInfinity(value) ? fallback : Math.Max(min, Math.Min(max, value));
+    internal static float FaceBottom(float top,float width,string profile)=>top-width-(profile=="US"?.5f:0f);
     internal static float FirstPlateHeight(float mainBottom, int count, float spacing)
     {
         // Plate height stays fixed; lift the entire assembly when needed for a tall stack.

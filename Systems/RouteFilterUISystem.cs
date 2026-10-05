@@ -33,6 +33,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private RestrictionToolSystem m_RestrictionTool = null!;
     private PrefabSystem m_PrefabSystem = null!;
     private EntityQuery m_VehiclePrefabQuery;
+    private ValueBinding<bool> m_ForcePlateBinding;
     private Entity[] m_RoadVehicleAssets = Array.Empty<Entity>();
     internal IEnumerable<Entity> RoadVehicleAssets => m_RoadVehicleAssets;
     private readonly Dictionary<int, Entity> m_AssetsById = new();
@@ -79,6 +80,9 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         m_VehiclePrefabQuery = GetEntityQuery(ComponentType.ReadOnly<VehicleData>(), ComponentType.ReadOnly<PrefabData>());
 
         m_ToolActiveBinding = CreateValue("toolActive", false);
+        if(!RouteFilter.Persistence.SignageProfiles.IsExposed(Mod.Settings.SignageProfile)) Mod.Settings.SignageProfile="AUTO";
+        m_ForcePlateBinding=CreateValue("forceSupplementaryPlate",Mod.Settings.ForceSupplementaryPlate);
+        AddBinding(new TriggerBinding<bool>(Mod.Id,"setForceSupplementaryPlate",force=>{Mod.Settings.ForceSupplementaryPlate=force;Mod.Settings.ApplyAndSave();m_ForcePlateBinding.Update(force);World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.InvalidateAppearance();}));
         m_SignProfileBinding=CreateValue("signageProfile",Mod.Settings.SignageProfile ?? "AUTO");
         m_SignProfileResolvedBinding=CreateValue("signageProfileResolved","GENERIC_EUROPE");
         m_SignProfileFallbackBinding=CreateValue("signageProfileFallback",false);

@@ -42,7 +42,7 @@ assert.match(renderToStaticMarkup(children.at(-1)),/selectionGlyph/);assert.matc
 children.at(-1).props.onSelect();assert.equal(toggled,1);
 const {Enhancements}=load(path.join(base,'components/Enhancements.tsx'));
 const props={targetMode:1,editable:true,popup:'',onPopup:()=>{},reset:0,targetReady:true,hasClipboard:false,onReset:()=>{},onAppearance:()=>{}};
-const persistent=renderToStaticMarkup(React.createElement(Enhancements,props));assert.match(persistent,/Traffic sign/);assert.match(persistent,/Signage profile/);assert.equal((persistent.match(/inputMode="decimal"/g)||[]).length,6);assert.doesNotMatch(persistent,/type="range"/);
+const persistent=renderToStaticMarkup(React.createElement(Enhancements,props));assert.match(persistent,/Traffic sign/);assert.match(persistent,/Signage profile/);assert.equal((persistent.match(/inputMode="decimal"/g)||[]).length,5);assert.doesNotMatch(persistent,/type="range"|Main sign scale|>Finish</);
 const tools=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Tools'}));
 assert.doesNotMatch(tools,/Copy vehicle restrictions|Paste vehicle restrictions|Sign position adjustment/);
 assert.doesNotMatch(tools,/Batch segment restrictions/);
@@ -59,7 +59,7 @@ console.log('PASS: independent favorite, right checkbox, compact utility menu, p
 const {RoadSignSelector}=load(path.join(base,'components/RoadSignSelector.tsx'));
 bindings.set('signageProfile','AUTO');bindings.set('signageProfileResolved','US');bindings.set('signageProfileFallback',true);
 const signStyle=renderToStaticMarkup(React.createElement(RoadSignSelector,{}));
-assert.match(signStyle,/Signage profile/);assert.match(signStyle,/Mainland China/);assert.match(signStyle,/United Kingdom/);assert.match(signStyle,/United States/);assert.doesNotMatch(signStyle,/<select|<option/);
+assert.match(signStyle,/Signage profile/);assert.doesNotMatch(signStyle,/Mainland China|United Kingdom/);assert.match(signStyle,/United States/);assert.doesNotMatch(signStyle,/<select|<option/);
 assert.doesNotMatch(signStyle,/value="HK"|value="JP"/);
 assert.match(signStyle,/Auto resolved/);assert.match(signStyle,/Using compatible sign/);assert.doesNotMatch(signStyle,/unsupported languages fall back to English/);
 const emptyInfo=renderToStaticMarkup(React.createElement(SignInfoSection,{targetKind:'Segment',categories:'',assets:1,entries:1,entryOrdinal:1}));
@@ -85,7 +85,7 @@ console.log('PASS: persistent merged sign tool, five numeric fields, no sliders,
 
 const segmentFooter=renderToStaticMarkup(React.createElement(ActionBar,{targetMode:1,editable:true}));
 const nodeFooter=renderToStaticMarkup(React.createElement(ActionBar,{targetMode:0,editable:true}));
-assert.match(segmentFooter,/Batch apply/);assert.match(segmentFooter,/Batch clear/);assert.doesNotMatch(nodeFooter,/Batch apply|Batch clear/);
+assert.match(segmentFooter,/>Batch</);assert.doesNotMatch(segmentFooter,/Batch apply|Batch clear/);assert.doesNotMatch(nodeFooter,/>Batch</);
 console.log('PASS: segment-only batch controls in lower functional row, absent from tools menu and Node mode.');
 
 const {AssetList}=load(path.join(base,'components/AssetList.tsx'));

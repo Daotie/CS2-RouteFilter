@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using Colossal.Entities;
 using Colossal.UI.Binding;
@@ -65,14 +66,13 @@ public sealed partial class RouteFilterUISystem
         AddBinding(new TriggerBinding(Mod.Id,"cancelSegmentRange",m_RestrictionTool.CancelBrush));
         AddBinding(new TriggerBinding<string,float>(Mod.Id,"setSignAdjustment",(parameter,step) =>
         {
-            m_AppearanceParameter = parameter == "scale" || parameter == "height" || parameter == "offset" || parameter == "longitudinal" || parameter == "rotation" ? parameter : "";
+            m_AppearanceParameter = parameter == "wheelStep" || parameter == "height" || parameter == "offset" || parameter == "longitudinal" || parameter == "rotation" ? parameter : "";
             m_AppearanceStep = SignAppearance.Clamp(step,.001f,1f,.05f);
         }));
         AddBinding(new TriggerBinding<string, float>(Mod.Id,"setSignAppearance", (key,value) =>
         {
             switch (key)
             {
-                case "scale": Mod.Settings.RoadSignScale = SignAppearance.Clamp(value,.5f,2f,1); break;
                 case "height": Mod.Settings.RoadSignHeight = SignAppearance.Clamp(value,0,5,0); break;
                 case "offset": Mod.Settings.RoadSignLateralOffset = SignAppearance.Clamp(value,-.5f,3,0); break;
                 case "longitudinal": Mod.Settings.RoadSignLongitudinalOffset = SignAppearance.Clamp(value,-10,10,0); break;
@@ -80,7 +80,7 @@ public sealed partial class RouteFilterUISystem
                 case "spacing": Mod.Settings.RoadPlateSpacing = SignAppearance.Clamp(value,.02f,.2f,.04f); break;
                 default: return;
             }
-            Mod.Settings.ApplyAndSave(); PublishAppearance();
+            PublishAppearance(); m_AppearanceSavePending=true; m_AppearanceSaveAt=UnityEngine.Time.realtimeSinceStartup+.4f;
         }));
         AddBinding(new TriggerBinding(Mod.Id,"resetSignAppearance",()=>
         {
@@ -91,7 +91,7 @@ public sealed partial class RouteFilterUISystem
         m_Appearance = CreateValue("signAppearance",string.Empty); PublishAppearance();
     }
     private ValueBinding<string> m_Appearance;
-    private void PublishAppearance() => m_Appearance.Update(string.Join("|",Format(Mod.Settings.RoadSignScale),Format(Mod.Settings.RoadSignHeight),Format(Mod.Settings.RoadSignLateralOffset),Format(Mod.Settings.RoadSignLongitudinalOffset),Format(Mod.Settings.RoadSignRotation)));
+    private void PublishAppearance() => m_Appearance.Update(string.Join("|",new[]{1f,Mod.Settings.RoadSignHeight,Mod.Settings.RoadSignLateralOffset,Mod.Settings.RoadSignLongitudinalOffset,Mod.Settings.RoadSignRotation}.Select(value=>value.ToString("0.###",CultureInfo.InvariantCulture))));
     private void ClearMap() { m_MapSelection.Clear(); m_MapRoadStamps.Clear(); m_MapSnapshot.Update(string.Empty); m_MapGeometry.Update(string.Empty); }
     private void UpdateMapAndBrush()
     {
@@ -178,23 +178,6 @@ public sealed partial class RouteFilterUISystem
         if (m_ZoomBarrier != null) m_ZoomBarrier.blocked = manipulating;
         if (m_AppearanceSavePending && UnityEngine.Time.realtimeSinceStartup >= m_AppearanceSaveAt)
         { m_AppearanceSavePending = false; Mod.Settings.ApplyAndSave(); World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.InvalidateAppearance(); }
-        if (m_AppearanceParameter.Length == 0 || m_ToolSystem.activeTool != m_RestrictionTool || m_RestrictionTool.PointerOverUi) return;
-        var delta = UnityEngine.InputSystem.Mouse.current?.scroll.ReadValue().y ?? 0;
-        if (delta == 0) return;
-        var keyboard = UnityEngine.InputSystem.Keyboard.current;
-        var fine = keyboard?.leftShiftKey.isPressed == true || keyboard?.rightShiftKey.isPressed == true;
-        var coarse = keyboard?.leftCtrlKey.isPressed == true || keyboard?.rightCtrlKey.isPressed == true;
-        var step = m_AppearanceParameter == "rotation" ? m_AppearanceStep * 20f : m_AppearanceStep;
-        step *= (delta > 0 ? 1 : -1) * (fine ? .2f : coarse ? 5f : 1f);
-        switch (m_AppearanceParameter)
-        {
-            case "scale": Mod.Settings.RoadSignScale = SignAppearance.Clamp(Mod.Settings.RoadSignScale+step,.5f,2f,1); break;
-            case "height": Mod.Settings.RoadSignHeight = SignAppearance.Clamp(Mod.Settings.RoadSignHeight+step,0,5,0); break;
-            case "offset": Mod.Settings.RoadSignLateralOffset = SignAppearance.Clamp(Mod.Settings.RoadSignLateralOffset+step,-.5f,3,0); break;
-            case "longitudinal": Mod.Settings.RoadSignLongitudinalOffset = SignAppearance.Clamp(Mod.Settings.RoadSignLongitudinalOffset+step,-10,10,0); break;
-            case "rotation": Mod.Settings.RoadSignRotation = SignAppearance.Clamp(Mod.Settings.RoadSignRotation+step,-180,180,0); break;
-        }
-        PublishAppearance(); m_AppearanceSavePending = true; m_AppearanceSaveAt = UnityEngine.Time.realtimeSinceStartup+.4f;
     }
     internal bool TryCancelAdvancedInteraction()
     {

@@ -4,20 +4,23 @@ import { Button, Portal } from "cs2/ui";
 import { useLocalization } from "cs2/l10n";
 import mod from "mod.json";
 import { icons } from "../assets";
+import { SelectionCheckbox } from "./SelectionCheckbox";
 import { ChevronIcon } from "./ChevronIcon";
 import styles from "../route-filter.module.scss";
 
 const profile$ = bindValue<string>(mod.id,"signageProfile","AUTO");
 const profileResolved$ = bindValue<string>(mod.id,"signageProfileResolved","GENERIC_EUROPE");
 const profileFallback$ = bindValue<boolean>(mod.id,"signageProfileFallback",false);
-const profiles = ["AUTO","GENERIC_EUROPE","CN","UK","US"] as const;
+const profiles = ["AUTO","GENERIC_EUROPE","US"] as const;
 const profileNames: Record<string,string> = {AUTO:"Auto",GENERIC_EUROPE:"Generic Europe",CN:"Mainland China",UK:"United Kingdom",US:"United States",MIXED:"Resolved per entry road theme"};
+const forcePlate$=bindValue<boolean>(mod.id,"forceSupplementaryPlate",false);
 const catalog$ = bindValue<string>(mod.id, "roadSignCatalog", "");
 const selection$ = bindValue<string>(mod.id, "roadSignSelection", "");
 const resolved$ = bindValue<string>(mod.id, "roadSignResolved", "");
 const unavailable$ = bindValue<boolean>(mod.id, "roadSignUnavailable", false);
 
 export const RoadSignSelector = ({ closeToken = 0, onPopupOpen, onOpenChange }: {closeToken?: number; onPopupOpen?: () => void; onOpenChange?: (open:boolean)=>void}) => {
+  const forcePlate = useValue(forcePlate$);
   const catalog = useValue(catalog$);
   const profile = useValue(profile$);
   const profileResolved = useValue(profileResolved$);
@@ -97,6 +100,7 @@ export const RoadSignSelector = ({ closeToken = 0, onPopupOpen, onOpenChange }: 
         <ChevronIcon open={!!popup}/>
       </Button>
     </div>
+    {selection && <div className={styles.forcePlate}><SelectionCheckbox selected={forcePlate} label={tr("RouteFilter.UI.ForcePlate","Force supplementary plate")} onSelect={()=>trigger(mod.id,"setForceSupplementaryPlate",!forcePlate)}/><span>{tr("RouteFilter.UI.ForcePlate","Force supplementary plate")}</span></div>}
     {popup && <Portal><div ref={menu} className={styles.signDropdownPopup} style={{ left: popup.left, top: popup.top, width: popup.width, height: popup.maxHeight, maxHeight: popup.maxHeight }} role="listbox"
       onMouseEnter={() => trigger(mod.id, "setUiPointerArea", "sign", true)} onMouseLeave={() => trigger(mod.id, "setUiPointerArea", "sign", false)}>
       {options.length > 12 && <input className={styles.signSearch} value={search} onChange={event => changeSearch(event.target.value)} placeholder={tr("RouteFilter.UI.RoadSignSearch", "Search sign assets…")} />}

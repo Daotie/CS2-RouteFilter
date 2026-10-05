@@ -66,7 +66,7 @@ for(int mask=1;mask<(1<<fleet.Count);mask++)
     foreach(var legend in legends)
     {
         Check(!TrafficSignLocalization.Text(legend,"zh-CN").Contains("TrafficSign."),"no localization keys on physical plate");
-        if(!legend.Partial && legend.Semantic!=TrafficVehicleSemantic.SpecifiedVehicles && legend.Semantic!=TrafficVehicleSemantic.GoodsVehicle && legend.Semantic!=TrafficVehicleSemantic.EmergencyVehicle && legend.Semantic!=TrafficVehicleSemantic.AllRoadMotorVehicles)
+        if(!legend.Partial && !legend.Except && legend.Semantic!=TrafficVehicleSemantic.SpecifiedVehicles && legend.Semantic!=TrafficVehicleSemantic.GoodsVehicle && legend.Semantic!=TrafficVehicleSemantic.EmergencyVehicle && legend.Semantic!=TrafficVehicleSemantic.AllRoadMotorVehicles)
             Check(fleet.Where(pair=>pair.Value==legend.Semantic).All(pair=>selected.Contains(pair.Key)),"unqualified category never broadens partial selection");
     }
 }
@@ -83,6 +83,25 @@ Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.Road
 Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.GoodsVehicle),"en-GB")=="GOODS VEHICLES","independent British terminology");
 Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.GoodsVehicle),"en-US")=="TRUCKS","independent American terminology");
 Check(TrafficSignLocalization.Language("zh-HK")=="en-US" && TrafficSignLocalization.Language("ja-JP")=="en-US","unreviewed locales use explicit English fallback");
+var exceptGoods=Mean(4,5,6,7,8,9).Single();
+Check(exceptGoods.Except && exceptGoods.Semantic==TrafficVehicleSemantic.GoodsVehicle,"whole light/heavy goods family exemption");
+var exceptBus=Mean(fleet.Keys.Where(id=>id!=4).ToArray()).Single();
+Check(exceptBus.Except && exceptBus.Semantic==TrafficVehicleSemantic.Bus,"complete bus exemption");
+Check(TrafficSignLocalization.Text(exceptBus,"en-US")=="EXCEPT BUSES","GB exception syntax even on US signs");
+Check(TrafficSignLocalization.Text(exceptBus,"zh-CN")=="除公共汽车外","localized exception meaning");
+Check(!Mean(fleet.Keys.Where(id=>id!=2).ToArray()).Any(l=>l.Except),"partial category exemption must not imply whole family");
+Check(!TrafficSignSemantics.PrimaryFullyExpresses(new[]{exceptBus},TrafficVehicleSemantic.Bus),"exception plate cannot disappear beneath prohibition");
+foreach(var profile in new[]{"GENERIC_EUROPE","US"})
+{
+ Check(SignageProfiles.SupplementaryAllowed(profile,false,false),"reviewed supplementary profile enabled");
+ Check(!SignageProfiles.SupplementaryAllowed(profile,true,false),"custom requires explicit force checkbox");
+ Check(SignageProfiles.SupplementaryAllowed(profile,true,true),"force custom supplementary enabled");
+ var bottom=SignAppearance.FaceBottom(2.5f,.8f,profile);var first=SignAppearance.FirstPlateHeight(bottom,2,.04f);var lift=Math.Max(0,first+.125f+.18f-bottom);
+ Check(first-lift+.125f<=bottom-.18f+.0001f,"supplementary face below lowest sign face including US Wrong Way reserve");
+}
+Check(!SignageProfiles.IsExposed("CN")&&!SignageProfiles.IsExposed("UK"),"unfinished profiles removed");
+var named=TrafficSignSemantics.Resolve(new[]{10},new[]{10,11},id=>TrafficVehicleSemantic.SpecifiedVehicles,id=>"City bicycle").Single();
+Check(TrafficSignLocalization.Text(named,"en-GB")=="City bicycle","unclassified selection identifies actual asset instead of bare selected vehicles");
 var goodsLegend=new TrafficLegend(TrafficVehicleSemantic.GoodsVehicle);
 Check(TrafficSignLocalization.ResolveText(goodsLegend,"en-GB",key=>"GOODS VEHICLES")=="GOODS VEHICLES","exact reviewed dictionary overrides semantic text");
 Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-HANS",key=>"载货汽车")=="载货汽车","supported base language dictionary");

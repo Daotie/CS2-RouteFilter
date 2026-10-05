@@ -296,8 +296,8 @@ $rfDanger: #e07b73;
 .profileChoiceActive { color:#fff; background:rgba(50,180,220,.25); border-color:#32b4dc; }
 .appearancePalette { display:flex; flex-direction:column; padding-bottom:10rem; font-size:12rem; }
 .listHeading small { flex:0 0 auto; white-space:nowrap; }
-.panelContent { overflow-y:auto; max-height:calc(100vh - 150rem); }
-.assetList { flex:0 0 auto; height:32vh; min-height:120rem; overflow-y:auto; }
+.panelContent { overflow:hidden; max-height:calc(100vh - 150rem); flex:1 1 auto; }
+.assetList { flex:1 1 auto; height:32vh; min-height:0; overflow-y:auto; }
 
 // Every window uses the established main panel surface and legacy theme switch.
 @mixin sharedWindowSurface {
@@ -340,3 +340,8 @@ $rfDanger: #e07b73;
 .presetEditorActions .secondaryAction { color:$rfText; }
 .presetEditorActions .secondaryAction:last-child { background-color:$rfAccentSoft; border-color:$rfAccent; }
 .appearancePalette input:focus, .presetEditor input:focus, .signSearch:focus { border-color:$rfText; outline:0; }
+
+.commitActions .clearAction { margin-left:10rem; }
+.signResolved { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.forcePlate { display:flex; align-items:center; gap:8rem; padding-top:8rem; }
+.panel { height:78vh; }

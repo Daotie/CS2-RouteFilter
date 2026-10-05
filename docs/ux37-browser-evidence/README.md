@@ -1,0 +1,1 @@
+Production UI bundle with synthetic CS2 bindings/example data, browser checkmark stand-in and placeholder HUD. These are MOCK previews, not game screenshots. 1280x720 image demonstrates fixed footer and list-only scrolling. Custom image demonstrates supplementary force checkbox. No native lighting/rail execution acceptance implied.

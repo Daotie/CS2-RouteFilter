@@ -44,12 +44,11 @@ public sealed partial class RestrictionToolSystem
     }
     private void UpdateBrushInput()
     {
-        if (UnityEngine.InputSystem.Keyboard.current?.escapeKey.wasPressedThisFrame == true ||
-            (!PointerOverUi && Mod.Clear?.WasPressedThisFrame() == true)) CancelBrush();
+        if (UnityEngine.InputSystem.Keyboard.current?.escapeKey.wasPressedThisFrame == true) CancelBrush();
         if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) CancelBrush();
     }
     private bool ValidRangeEdge(Entity target) => target != Entity.Null && EntityManager.Exists(target) &&
-        EntityManager.HasComponent<Edge>(target) && EntityManager.HasComponent<Road>(target) &&
+        EntityManager.HasComponent<Edge>(target) && GetTransportMode(target) != 0 &&
         !EntityManager.HasComponent<Deleted>(target) && !EntityManager.HasComponent<Game.Tools.Temp>(target);
     private ControlPoint RangePoint(Entity target, float3 hit)
     {
@@ -98,13 +97,14 @@ public sealed partial class RestrictionToolSystem
     private void CollectBrushTarget(Entity target, float3 hit)
     {
         if(PointerOverUi || UnityEngine.Time.frameCount<=m_ActivationFrame)return;
-        bool pressed=Mod.Apply?.WasPressedThisFrame()==true;
-        bool released=Mod.Apply?.WasReleasedThisFrame()==true;
+        bool rightPressed=cancelAction.WasPressedThisFrame();
+        bool pressed=Mod.Apply?.WasPressedThisFrame()==true || rightPressed;
+        bool released=m_RangeClear?cancelAction.WasReleasedThisFrame():Mod.Apply?.WasReleasedThisFrame()==true;
         if(pressed)
         {
             CancelBrush();
             if(!ValidRangeEdge(target))return;
-            m_RangeDragging=true;m_RangeStart=target;m_RangeAssets=Mod.SelectedVehicleAssets.ToArray();
+            m_RangeClear=rightPressed;m_RangeDragging=true;m_RangeStart=target;m_RangeAssets=Mod.SelectedVehicleAssets.ToArray();
             m_RangeStartPoint=RangePoint(target,hit);
         }
         if(!m_RangeDragging)return;
@@ -123,9 +123,9 @@ public sealed partial class RestrictionToolSystem
         if (!BrushEnabled || m_RangeEnd == Entity.Null || m_Range.Count == 0 ||
             !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) { CancelBrush(); return; }
         var current = NativeRange(m_RangeStartPoint,m_RangeEndPoint);
-        if (!current.SequenceEqual(m_Range) || m_Range.Any(edge => !ValidRangeEdge(edge) || (GetTransportMode(edge) & 1) == 0)) { CancelBrush(); return; }
+        if (!current.SequenceEqual(m_Range) || m_Range.Any(edge => !ValidRangeEdge(edge) || GetTransportMode(edge) == 0)) { CancelBrush(); return; }
         var assets = m_RangeAssets;
-        if(!clear && assets.Any(asset=>!EntityManager.Exists(asset)||!EntityManager.HasComponent<CarData>(asset))){CancelBrush();return;}
+        if(!clear && assets.Any(asset=>!EntityManager.Exists(asset)||(!EntityManager.HasComponent<CarData>(asset)&&!EntityManager.HasComponent<TrainData>(asset)))){CancelBrush();return;}
         var persistence=World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>();
         var directions=m_Range.ToDictionary(target=>target,target=>persistence.GetDirectionIntent(target));
         var previous = new Dictionary<Entity, Entity[]>();

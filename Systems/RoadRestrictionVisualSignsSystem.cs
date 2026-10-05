@@ -324,7 +324,8 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
             // The native no-entry capability is verified. No inferred category pictograms.
             var primary= prefab!=null && prefab.IsNoEntry ? TrafficVehicleSemantic.AllRoadMotorVehicles : (TrafficVehicleSemantic?)null;
             var customActive=m_Custom!=null && m_Prefabs.ContainsKey(m_Custom);
-            var legends=TrafficSignSemantics.PrimaryFullyExpresses(meanings,primary,customActive && !prefab.IsNoEntry)?Array.Empty<TrafficLegend>():meanings;
+            var supplementaryAllowed=SignageProfiles.SupplementaryAllowed(profile,customActive,Mod.Settings.ForceSupplementaryPlate);
+            var legends=!supplementaryAllowed || TrafficSignSemantics.PrimaryFullyExpresses(meanings,primary,customActive)?Array.Empty<TrafficLegend>():meanings;
             restricted++;
             if (prefab == null) { Skip("NO_PREFAB", $"theme={m_Theme}"); continue; }
             if (!EntityManager.Exists(prefab.Entity) || !EntityManager.HasComponent<ObjectGeometryData>(prefab.Entity))
@@ -342,7 +343,7 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
             var geometry = EntityManager.GetComponentData<ObjectGeometryData>(prefab.Entity);
             // A prohibition face is approximately as tall as it is wide; exclude its pole.
             var faceWidth = math.max(geometry.m_Bounds.max.x-geometry.m_Bounds.min.x,geometry.m_Bounds.max.z-geometry.m_Bounds.min.z);
-            var mainBottom = math.max(.4f,(geometry.m_Bounds.max.y-faceWidth)*m_Scale);
+            var mainBottom = SignAppearance.FaceBottom(geometry.m_Bounds.max.y,faceWidth,profile);
             var firstPlate = SignAppearance.FirstPlateHeight(mainBottom, legends.Length, m_PlateSpacing);
             var lift = math.max(0,firstPlate + .125f + .18f - mainBottom) + m_Height;
             first.y += lift; second.y += lift;

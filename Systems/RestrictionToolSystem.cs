@@ -137,7 +137,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         if (m_ToolSystem.activeTool != this) return inputDeps;
         HoveredSignTarget = Entity.Null;
         if (!P0Diagnostics.Tool) { m_ToolSystem.selected = Entity.Null; return inputDeps; }
-        if (cancelAction.WasPressedThisFrame() && World.GetExistingSystemManaged<RouteFilterUISystem>()?.TryCancelAdvancedInteraction()==true) return inputDeps;
+        if (!BrushEnabled && cancelAction.WasPressedThisFrame() && World.GetExistingSystemManaged<RouteFilterUISystem>()?.TryCancelAdvancedInteraction()==true) return inputDeps;
         if (BrushEnabled) UpdateBrushInput();
 
         // Handle native cancel independently of raycast/pointer state. First cancel clears
@@ -167,7 +167,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
         if (!GetRaycastResult(out Entity entity, out RaycastHit hit))
         {
-            if (BrushEnabled) { m_Range.Clear(); World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.ClearBrushPreview(); if(Mod.Apply?.WasReleasedThisFrame()==true) CancelBrush(); }
+            if (BrushEnabled) { m_Range.Clear(); World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.ClearBrushPreview(); if(Mod.Apply?.WasReleasedThisFrame()==true || cancelAction.WasReleasedThisFrame()) CancelBrush(); }
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
             m_ToolSystem.selected = P0Diagnostics.Highlight ? SelectedTarget : Entity.Null;
