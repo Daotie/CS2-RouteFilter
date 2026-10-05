@@ -378,7 +378,9 @@ public sealed partial class RouteFilterUISystem : UISystemBase
             lines.Add(string.Join("|",
                 m_IdsByAsset[info.Entity], Uri.EscapeDataString(info.Name), info.Mode,
                 Format(info.MaxSpeed), Format(info.Acceleration), Format(info.Braking),
-                parentId, info.IsTrailer ? 1 : 0));
+                parentId, info.IsTrailer ? 1 : 0,
+                VehicleSemanticClassifier.Category(EntityManager, info.Entity, info.Mode),
+                Uri.EscapeDataString(ImageSystem.GetIcon(m_PrefabSystem.GetPrefab<VehiclePrefab>(info.Entity)) ?? string.Empty)));
         }
 
         // Catalog visibility is not the saved source of truth. A dirty/partial catalog must

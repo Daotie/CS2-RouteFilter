@@ -8,11 +8,13 @@ export type VehicleAsset = {
   braking: number;
   parentId: number;
   trailer: boolean;
+  category?: string;
+  icon?: string;
 };
 
 export const parseCatalog = (raw: string): VehicleAsset[] => raw.split("\n").reduce<VehicleAsset[]>((result, line) => {
   const part = line.split("|");
-  if (part.length !== 8) return result;
+  if (part.length !== 8 && part.length !== 10) return result;
 
   const id = Number(part[0]);
   if (!Number.isInteger(id)) return result;
@@ -30,6 +32,8 @@ export const parseCatalog = (raw: string): VehicleAsset[] => raw.split("\n").red
     braking: Number(part[5]),
     parentId: Number(part[6]),
     trailer: part[7] === "1",
+    category: part[8] || (Number(part[2]) === 2 ? "Rail" : "Other"),
+    icon: decodeIcon(part[9]),
   });
   return result;
 }, []);
@@ -47,3 +51,17 @@ export const filteredAssetIds = (roots: VehicleAsset[], childrenByParent: Map<nu
   roots.forEach(visit);
   return [...ids];
 };
+
+function decodeIcon(value?: string): string {
+  try { return value ? decodeURIComponent(value) : ""; } catch { return ""; }
+}
+export function categoryGroups(roots: VehicleAsset[]): {id:string;assets:VehicleAsset[]}[] {
+  const groups = new Map<string,VehicleAsset[]>();
+  for (const asset of roots) {
+    const id = asset.category || (asset.mode === 2 ? "Rail" : "Other");
+    if (!groups.has(id)) groups.set(id,[]);
+    groups.get(id)!.push(asset);
+  }
+  // First appearance retains Recent ordering; categories never alter asset scope.
+  return Array.from(groups, ([id,assets])=>({id,assets}));
+}

@@ -72,21 +72,9 @@ public sealed partial class RoadRestrictionVisualSignsSystem
     }
     private RouteFilter.Persistence.TrafficVehicleSemantic ReadVehicleCategory(Entity asset)
     {
-        // Conservative native components only; no vehicle-name heuristics.
-        if (!EntityManager.Exists(asset) || !EntityManager.HasComponent<CarData>(asset)) return RouteFilter.Persistence.TrafficVehicleSemantic.SpecifiedVehicles;
-        if (EntityManager.TryGetComponent(asset,out CarTrailerData trailer) && trailer.m_FixedTractor!=Entity.Null && EntityManager.Exists(trailer.m_FixedTractor)) asset=trailer.m_FixedTractor;
-        if (EntityManager.TryGetComponent(asset,out MaintenanceVehicleData maintenance) && (maintenance.m_MaintenanceType & (Game.Simulation.MaintenanceType.Road | Game.Simulation.MaintenanceType.Snow))!=0) return RouteFilter.Persistence.TrafficVehicleSemantic.RoadMaintenance;
-        if (EntityManager.HasComponent<PublicTransportVehicleData>(asset)) return RouteFilter.Persistence.TrafficVehicleSemantic.Bus;
-        if (EntityManager.HasComponent<GarbageTruckData>(asset)) return RouteFilter.Persistence.TrafficVehicleSemantic.RefuseVehicle;
-        if (EntityManager.HasComponent<FireEngineData>(asset)) return RouteFilter.Persistence.TrafficVehicleSemantic.FireEngine;
-        if (EntityManager.HasComponent<AmbulanceData>(asset)) return RouteFilter.Persistence.TrafficVehicleSemantic.Ambulance;
-        if (EntityManager.HasComponent<PoliceCarData>(asset)) return RouteFilter.Persistence.TrafficVehicleSemantic.PoliceVehicle;
-        if (EntityManager.HasComponent<TaxiData>(asset)) return RouteFilter.Persistence.TrafficVehicleSemantic.Taxi;
-        if (EntityManager.HasComponent<DeliveryTruckData>(asset) || EntityManager.HasComponent<CargoTransportVehicleData>(asset))
-            return EntityManager.GetComponentData<CarData>(asset).m_SizeClass==Game.Vehicles.SizeClass.Large ? RouteFilter.Persistence.TrafficVehicleSemantic.HeavyGoodsVehicle : RouteFilter.Persistence.TrafficVehicleSemantic.GoodsVehicle;
-        // Native CarData cannot reliably distinguish motorcycle / passenger car / work vehicle.
-        return RouteFilter.Persistence.TrafficVehicleSemantic.SpecifiedVehicles;
+        return VehicleSemanticClassifier.Classify(EntityManager, asset);
     }
+
     private void CreateAssembly(Entity target, Entity marker, SignPrefab prefab, float3 position, quaternion rotation, RouteFilter.Persistence.TrafficLegend[] legends, string profile, float firstPlate)
     {
         var root = new GameObject("RouteFilter.Assembly:" + target) { hideFlags = HideFlags.DontSave };

@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
+import { useLocalization } from "cs2/l10n";
+import { CategoryGlyph } from "./CategoryGlyph";
 import { Scrollable } from "cs2/ui";
-import { VehicleAsset } from "../model";
+import { VehicleAsset, categoryGroups } from "../model";
 import { AssetRow } from "./AssetRow";
 import styles from "../route-filter.module.scss";
 
@@ -40,15 +42,18 @@ export const AssetList = ({ favorites, onFavorite, favoriteLabel, roots, childre
     </React.Fragment>;
   };
 
-  const roadRoots = roots.filter(asset => asset.mode === 1);
-  const railRoots = roots.filter(asset => asset.mode === 2);
-  const showGroups = roadRoots.length > 0 && railRoots.length > 0;
-
+  const [collapsed,setCollapsed]=useState<Set<string>>(()=>new Set());
+  const groups=useMemo(()=>categoryGroups(roots),[roots]);
+  const {translate}=useLocalization();
+  const names:Record<string,string>={Bus:"Buses",Taxi:"Taxis",Goods:"Goods vehicles",Emergency:"Emergency vehicles",Service:"Service vehicles",Rail:railGroupLabel,Other:"Other road vehicles"};
+  const categoryIds=(assets:VehicleAsset[])=>{const ids=new Set<number>();const visit=(asset:VehicleAsset)=>{if(ids.has(asset.id))return;ids.add(asset.id);for(const child of childrenByParent.get(asset.id)??[])visit(child);};assets.forEach(visit);return [...ids];};
   return <Scrollable vertical trackVisibility="scrollable" className={styles.assetList}>
-    {showGroups && <div className={styles.assetGroupHeader}>{roadGroupLabel}<span>{roadRoots.length}</span></div>}
-    {roadRoots.map(asset => renderRow(asset))}
-    {showGroups && <div className={styles.assetGroupHeader}>{railGroupLabel}<span>{railRoots.length}</span></div>}
-    {railRoots.map(asset => renderRow(asset))}
+    {groups.map(group=>{
+      const ids=categoryIds(group.assets),count=ids.filter(id=>selected.has(id)).length;
+      const open=Boolean(searchTerm)||!collapsed.has(group.id);
+      const label=String(translate(`RouteFilter.UI.Category.${group.id}`,names[group.id]??names.Other)??names.Other);
+      return <React.Fragment key={group.id}><button type="button" className={styles.categoryHeader} aria-expanded={open} aria-label={`${label}: ${count} / ${ids.length}`} onClick={()=>setCollapsed(previous=>{const next=new Set(previous);if(next.has(group.id))next.delete(group.id);else next.add(group.id);return next;})}><span className={styles.categoryChevron}>{open?"⌄":"›"}</span><CategoryGlyph category={group.id}/><strong>{label}</strong><span>{count} / {ids.length}</span></button>{open&&group.assets.map(asset=>renderRow(asset))}</React.Fragment>;
+    })}
     {roots.length === 0 && <div className={styles.emptyState}>{emptyLabel}</div>}
   </Scrollable>;
 };

@@ -19,3 +19,11 @@ assert.deepEqual(filteredAssetIds([], children, 'missing'), [], 'no results must
 assert.deepEqual(filteredAssetIds([asset(4, '货车')], new Map(), '货车'), [4], 'localized names remain supported');
 assert.deepEqual(filteredAssetIds([truck, truck], new Map([[1, [truck]]]), ''), [1], 'duplicates/cycles cannot inflate bulk scope');
 console.log('PASS: filtered bulk scope, hidden children, contextual parent, collapsed groups, empty results, localized names, deduplication.');
+
+const {parseCatalog,categoryGroups}=moduleResult.exports;
+const nativeCatalog=parseCatalog('1|LooksLikeTruck|1|80|1|1|0|0|Bus|coui%3A%2F%2Fasset%2Fbus.svg\n2|BusName|1|80|1|1|0|0|Goods|\n3|Train|2|120|1|1|0|0');
+assert.equal(nativeCatalog[0].category,'Bus');assert.equal(nativeCatalog[0].icon,'coui://asset/bus.svg');
+assert.equal(nativeCatalog[1].category,'Goods');assert.equal(nativeCatalog[2].category,'Rail');
+assert.deepEqual(categoryGroups([nativeCatalog[1],nativeCatalog[0],{...nativeCatalog[0],id:4}]).map(group=>[group.id,group.assets.length]),[['Goods',1],['Bus',2]]);
+assert.deepEqual(filteredAssetIds(nativeCatalog,new Map(),''),[1,2,3]);
+console.log('PASS: metadata categories override misleading names, native icon URI, legacy catalog compatibility and Recent group order.');

@@ -3,6 +3,7 @@ import classNames from "classnames";
 import { Button, Tooltip } from "cs2/ui";
 import { VehicleAsset } from "../model";
 import styles from "../route-filter.module.scss";
+import { CategoryGlyph } from "./CategoryGlyph";
 import { FavoriteIcon } from "./FavoriteIcon";
 import { icons } from "../assets";
 
@@ -24,10 +25,10 @@ type Props = {
   onExpand: () => void;
 };
 
-const AssetGlyph = ({ mode, trailer, name }: { mode: number; trailer: boolean; name: string }) => {
-  const lower = name.toLocaleLowerCase();
-  const kind = mode === 2 ? "train" : lower.includes("bicycle") || lower.includes("bike") ? "bike" : lower.includes("bus") ? "bus" : lower.includes("tram") ? "tram" : lower.includes("subway") || lower.includes("metro") ? "subway" : lower.includes("truck") ? "truck" : lower.includes("van") ? "van" : lower.includes("pickup") ? "pickup" : lower.includes("suv") ? "suv" : "car";
-  return <img className={styles.assetGlyph} src={icons[kind as keyof typeof icons] ?? icons.car} alt="" />;
+const AssetGlyph = ({asset}: {asset:VehicleAsset}) => {
+  const [failed,setFailed]=React.useState(false);
+  React.useEffect(()=>setFailed(false),[asset.icon]);
+  return asset.icon && !failed ? <img className={styles.assetGlyph} src={asset.icon} alt="" onError={()=>setFailed(true)}/> : <span className={styles.assetGlyph}><CategoryGlyph category={asset.category || (asset.mode===2 ? "Rail" : "Other")}/></span>;
 };
 
 export const AssetRow = ({ favorite, onFavorite, favoriteLabel, asset, child = false, selected, partial, childCount, expanded, trailerLabel, expandLabel, collapseLabel, disabled = false, onToggle, onExpand }: Props) => (
@@ -41,7 +42,7 @@ export const AssetRow = ({ favorite, onFavorite, favoriteLabel, asset, child = f
     {childCount > 0
       ? <Button variant="flat" className={styles.expandButton} onSelect={onExpand} aria-label={expanded ? collapseLabel : expandLabel}><img className={classNames(styles.chevron, { [styles.chevronExpanded]: expanded })} src={icons.chevron} alt="" /></Button>
       : <span className={styles.expandSpacer} />}
-    <AssetGlyph mode={asset.mode} trailer={asset.trailer} name={asset.prefabName ?? asset.name} />
+    <AssetGlyph asset={asset} />
     <div className={styles.assetIdentity}>
       <Tooltip tooltip={asset.name} direction="right"><span>{asset.name}</span></Tooltip>
       {asset.trailer && <small>{trailerLabel}</small>}

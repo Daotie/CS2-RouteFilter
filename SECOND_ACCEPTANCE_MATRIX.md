@@ -13,10 +13,10 @@ Authority: latest direct message and second attached directive override conflict
 | Clipboard feedback / missing IDs | BUG FIX | Copy callback aborts | Counted non-modal availability feedback | Session / UI | IMPLEMENTED / native retest pending | BUILD VERIFIED; prior game failure not yet retested |
 | Recent | BUG FIX / DATA/STATE CORRECTION | Native buffer LINQ aborts successful Apply receipt | Committed IDs -> stable history -> binding -> rendered matches | Session / UI | IMPLEMENTED / native retest pending | BUILD VERIFIED; prior game failure not yet retested |
 | Favorite SVG | BUG FIX | Font glyph mojibake | Outline/filled owned SVG with independent hit area | UI assets | IMPLEMENTED / native retest pending | BUILD VERIFIED; prior game failure not yet retested |
-| Category classification | NEW FEATURE | Flat list / name-heuristic glyphs | Shared native evidence semantic classification | Catalog / signs | PENDING | FAILED / NOT TESTED |
-| Category expand / aggregate | NEW FEATURE | Missing | Expandable category, restrained aggregate state | UI | PENDING | FAILED / NOT TESTED |
-| Category search / favorites / recent | NEW FEATURE | Flat filters | Matched children with preserved category grouping/order | UI model | PENDING | FAILED / NOT TESTED |
-| Prefab thumbnails | NEW FEATURE | Generic glyph reused | Cached native icon; fallback only missing | Catalog / UI | PENDING | FAILED / NOT TESTED |
+| Category classification | NEW FEATURE | Flat list / name-heuristic glyphs | Shared native evidence semantic classification | Catalog / signs | IMPLEMENTED | BUILD VERIFIED; game retest pending |
+| Category expand / aggregate | NEW FEATURE | Missing | Expandable category, restrained aggregate state | UI | IMPLEMENTED | BUILD VERIFIED; game retest pending |
+| Category search / favorites / recent | NEW FEATURE | Flat filters | Matched children with preserved category grouping/order | UI model | IMPLEMENTED | BUILD VERIFIED; game retest pending |
+| Prefab thumbnails | NEW FEATURE | Generic glyph reused | Cached native icon; fallback only missing | Catalog / UI | IMPLEMENTED | BUILD VERIFIED; game retest pending |
 | Persistent merged Sign Tool | INTERACTION REPLACEMENT | Separate menu actions | Upper-right while RF road context active, collapse optional | UI / bindings | IMPLEMENTED / native retest pending | BUILD VERIFIED; prior game failure not yet retested |
 | Numeric + wheel only | INTERACTION REPLACEMENT | Value buttons | Direct input, selected wheel parameter, no sliders | UI / settings | IMPLEMENTED / native retest pending | BUILD VERIFIED; prior game failure not yet retested |
 | Wheel step / input ownership | EXISTING FEATURE MODIFICATION | Partial | Effective step, fine/coarse, release camera input on exit | Input | IMPLEMENTED / native retest pending | BUILD VERIFIED; prior game failure not yet retested |
