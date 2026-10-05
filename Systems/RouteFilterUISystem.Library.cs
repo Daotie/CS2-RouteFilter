@@ -16,6 +16,10 @@ public sealed partial class RouteFilterUISystem
     private bool m_ClipboardReady;
     private ValueBinding<string> m_FavoriteIds, m_RecentIds;
     private ValueBinding<bool> m_HasClipboard;
+    private ValueBinding<string> m_LibraryFeedback;
+    private ValueBinding<int> m_RecentRevisionBinding;
+    private int m_LibraryFeedbackRevision,m_RecentRevision;
+    private string m_RecentPublished="";
 
     private static IEnumerable<string> ReadLibraryIds(string data)
     {
@@ -36,6 +40,8 @@ public sealed partial class RouteFilterUISystem
         m_FavoriteIds = CreateValue("favoriteAssetIds", string.Empty);
         m_RecentIds = CreateValue("recentAssetIds", string.Empty);
         m_HasClipboard = CreateValue("hasAssetClipboard", false);
+        m_LibraryFeedback=CreateValue("libraryFeedback","");
+        m_RecentRevisionBinding=CreateValue("recentRevision",0);
         AddBinding(new TriggerBinding<int>(Mod.Id, "toggleFavoriteAsset", id =>
         {
             if (!m_AssetsById.TryGetValue(id, out var entity)) return;
@@ -50,41 +56,46 @@ public sealed partial class RouteFilterUISystem
             if (target == Entity.Null || !EntityManager.Exists(target)) return;
             m_Clipboard = EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets)
                 ? assets.Where(asset => m_IdsByAsset.ContainsKey(asset.m_Prefab)).Select(asset => m_PrefabSystem.GetPrefabName(asset.m_Prefab)).Distinct(StringComparer.Ordinal).ToArray() : Array.Empty<string>();
-            m_ClipboardReady = true; m_HasClipboard.Update(true);
+            m_ClipboardReady = m_Clipboard.Length>0; m_HasClipboard.Update(m_ClipboardReady); LibraryFeedback("Copied",m_Clipboard.Length);
         }));
         AddBinding(new TriggerBinding(Mod.Id, "pasteAssetRestriction", () =>
         {
             // Only the pending forbidden set changes. Directions, target and visuals stay intact.
             if (!m_ClipboardReady || !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable || m_RestrictionTool.SelectedTarget == Entity.Null) return;
             var names = new HashSet<string>(m_Clipboard, StringComparer.Ordinal);
+            var compatible=m_AssetsById.Values.Where(asset=>m_ModeByAsset.TryGetValue(asset,out var mode) && (mode & m_RestrictionTool.SelectedTransportMode)!=0 && names.Contains(m_PrefabSystem.GetPrefabName(asset))).ToArray();
+            if(compatible.Length==0) { LibraryFeedback("Incompatible",0); return; }
             Mod.SelectedVehicleAssets.Clear();
-            foreach (var asset in m_AssetsById.Values)
-                if (m_ModeByAsset.TryGetValue(asset, out var mode) && (mode & m_RestrictionTool.SelectedTransportMode) != 0 &&
-                    names.Contains(m_PrefabSystem.GetPrefabName(asset))) Mod.SelectedVehicleAssets.Add(asset);
-            UpdateSelectedBinding(); PublishRestriction();
+            foreach(var asset in compatible) Mod.SelectedVehicleAssets.Add(asset);
+            UpdateSelectedBinding(); PublishRestriction(); LibraryFeedback("Pasted",compatible.Length);
+            Mod.Log.Info($"[RouteFilter.Clipboard] pasted pending={compatible.Length} saved={m_Clipboard.Length}; directions unchanged; Apply required");
         }));
     }
     internal void RecordRecentApply()
     {
         var target = m_RestrictionTool.SelectedTarget;
-        if (target == Entity.Null || !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable ||
+        if (target == Entity.Null || !EntityManager.Exists(target) || EntityManager.HasComponent<Game.Common.Deleted>(target) || !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable ||
             !EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets)) return;
         RecordRecentAssets(assets.Select(asset => asset.m_Prefab));
     }
     internal void RecordRecentAssets(IEnumerable<Entity> assets)
     {
         var used = assets.Where(m_IdsByAsset.ContainsKey).Select(m_PrefabSystem.GetPrefabName).Distinct(StringComparer.Ordinal).OrderBy(value => value, StringComparer.Ordinal).ToArray();
-        var ids = new HashSet<string>(used, StringComparer.Ordinal);
-        m_Recent.RemoveAll(ids.Contains); m_Recent.InsertRange(0, used);
-        if (m_Recent.Count > 64) m_Recent.RemoveRange(64, m_Recent.Count - 64);
+        var updated=RouteFilter.Persistence.RecentAssetHistory.AfterSuccessfulApply(m_Recent,used);
+        m_Recent.Clear(); m_Recent.AddRange(updated);
         Mod.Settings.RecentAssetIds = WriteLibraryIds(m_Recent);
         Mod.Settings.ApplyAndSave(); PublishLibrary();
+        m_RecentRevisionBinding.Update(++m_RecentRevision);
+        LibraryFeedback("Applied",used.Length);
+        Mod.Log.Info($"[RouteFilter.Recent] successfulApply assets={used.Length} stored={m_Recent.Count} revision={m_RecentRevision} binding={m_RecentPublished}");
     }
+    private void LibraryFeedback(string kind,int count) => m_LibraryFeedback.Update(kind+"|"+count+"|"+(++m_LibraryFeedbackRevision));
     private void PublishLibrary()
     {
         var byName = m_AssetsById.GroupBy(pair => m_PrefabSystem.GetPrefabName(pair.Value), StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First().Key, StringComparer.Ordinal);
         m_FavoriteIds.Update(string.Join(",", m_Favorites.Where(byName.ContainsKey).Select(id => byName[id])));
-        m_RecentIds.Update(string.Join(",", m_Recent.Where(byName.ContainsKey).Select(id => byName[id])));
+        m_RecentPublished=string.Join(",", m_Recent.Where(byName.ContainsKey).Select(id => byName[id]));
+        m_RecentIds.Update(m_RecentPublished);
     }
 }

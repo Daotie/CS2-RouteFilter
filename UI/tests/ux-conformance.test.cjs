@@ -43,13 +43,13 @@ const {Enhancements}=load(path.join(base,'components/Enhancements.tsx'));
 const props={targetMode:1,editable:true,popup:'',onPopup:()=>{},reset:0,targetReady:true,hasClipboard:false,onReset:()=>{},onAppearance:()=>{}};
 assert.equal(renderToStaticMarkup(React.createElement(Enhancements,props)),'');
 const tools=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Tools'}));
-assert.match(tools,/Copy vehicle restrictions/);assert.match(tools,/disabled=""[^>]*>Paste vehicle restrictions/);
+assert.match(tools,/Copy vehicle restrictions/);assert.match(tools,/disabled=""[^>]*><span>Paste vehicle restrictions/);
 assert.match(tools,/Batch segment restrictions/);
 const presets=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Presets'}));
-assert.match(presets,/Cargo trucks/);assert.match(presets,/Save current selection/);
+assert.match(presets,/Cargo trucks/);assert.match(presets,/Save current selection/);assert.doesNotMatch(presets,/<input/);assert.match(presets,/Built-in presets/);assert.match(presets,/My presets/);
 bindings.set('rangeStatus','End');bindings.set('segmentBrush',true);bindings.set('brushPending',1);
 const range=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Range'}));
-assert.match(range,/disabled=""[^>]*>Apply to range/);
+assert.match(range,/disabled=""[^>]*><span>Apply to range/);
 const {SignInfoSection}=load(path.join(base,'components/SignInfoSection.tsx'));
 const info=renderToStaticMarkup(React.createElement(SignInfoSection,{targetKind:'Segment',targetName:'Oak Street',categories:'Trucks',assets:2,entries:1,entryOrdinal:1}));
 assert.match(info,/Oak Street/);assert.match(info,/Vehicle categories/);assert.match(info,/Edit in RouteFilter/);
@@ -64,3 +64,9 @@ assert.match(signStyle,/Auto resolved/);assert.match(signStyle,/no-entry fallbac
 const emptyInfo=renderToStaticMarkup(React.createElement(SignInfoSection,{targetKind:'Segment',categories:'',assets:1,entries:1,entryOrdinal:1}));
 assert.match(emptyInfo,/Selected vehicles/);assert.doesNotMatch(emptyInfo,/All road vehicles/);
 console.log('PASS: regional profile choices, hidden unfinished profiles, visible fallback, locale policy and conservative native info.');
+
+const {SegmentedSelector}=load(path.join(base,'components/SegmentedSelector.tsx'));
+const segments=renderToStaticMarkup(React.createElement(SegmentedSelector,{value:'favorites',label:'Library',options:[{id:'all',label:'All'},{id:'favorites',label:'★ Favorites'},{id:'recent',label:'Recent'}],onChange:()=>{}}));
+assert.equal((segments.match(/aria-selected="true"/g)||[]).length,1);assert.match(segments,/segmentButtonActive/);assert.match(segments,/role="tablist"/);
+assert.doesNotMatch(tools,/Reset RouteFilter/);assert.match(tools,/role="menuitem"/);
+console.log('PASS: shared single-active segmented selector; real menu rows; progressive preset editor; Reset excluded from secondary menu.');

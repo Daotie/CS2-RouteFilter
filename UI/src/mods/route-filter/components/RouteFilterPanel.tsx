@@ -47,11 +47,14 @@ type Props = {
   onPointerLeave: () => void;
 };
 
+const feedback$ = bindValue<string>(mod.id,"libraryFeedback","");
+const recentRevision$ = bindValue<number>(mod.id,"recentRevision",0);
 const favorites$ = bindValue<string>(mod.id, "favoriteAssetIds", "");
 const recent$ = bindValue<string>(mod.id, "recentAssetIds", "");
 const clipboard$ = bindValue<boolean>(mod.id, "hasAssetClipboard", false);
 
 export const RouteFilterPanel = (props: Props) => {
+  const feedback=useValue(feedback$),recentRevision=useValue(recentRevision$);
   const favoritesRaw = useValue(favorites$), recentRaw = useValue(recent$), hasClipboard = useValue(clipboard$);
   const favorites = useMemo(() => new Set(favoritesRaw.split(",").filter(Boolean).map(Number)), [favoritesRaw]);
   const recent = useMemo(() => recentRaw.split(",").filter(Boolean).map(Number), [recentRaw]);
@@ -59,6 +62,7 @@ export const RouteFilterPanel = (props: Props) => {
   const [confirmReset, setConfirmReset] = useState(false);
   const [utilityPopup,setUtilityPopup] = useState("");
   const [appearanceActive,setAppearanceActive] = useState(false);
+  useEffect(()=>{ console.info(`[RouteFilter.Recent.UI] revision=${recentRevision} ids=${recentRaw}`); },[recentRevision,recentRaw]);
   const openUtility = useCallback((value: string) => { setUtilityPopup(value); },[]);
   useEffect(() => { trigger(mod.id,"setUiPointerArea","dialog",confirmReset); return () => trigger(mod.id,"setUiPointerArea","dialog",false); },[confirmReset]);
   const { translate } = useLocalization();
@@ -70,7 +74,11 @@ export const RouteFilterPanel = (props: Props) => {
     const children = new Map<number, VehicleAsset[]>();
     for (const [id, items] of props.childrenByParent) children.set(id, items.filter(item => matches(item.id)));
     const roots = props.roots.filter(item => matches(item.id) || (children.get(item.id)?.length ?? 0) > 0);
-    if (view === "recent") roots.sort((a, b) => recent.indexOf(a.id) - recent.indexOf(b.id));
+    if (view === "recent") {
+      const rank=(item: VehicleAsset)=>Math.min(...[item.id,...(children.get(item.id)??[]).map(child=>child.id)].map(id=>{ const index=recent.indexOf(id); return index<0?Infinity:index; }));
+      roots.sort((a,b)=>rank(a)-rank(b));
+      for(const items of children.values()) items.sort((a,b)=>recent.indexOf(a.id)-recent.indexOf(b.id));
+    }
     return { roots, children, matches };
   }, [props.roots, props.childrenByParent, view, favorites, recent]);
   const bulk = (forbidden: boolean) => {
@@ -90,6 +98,7 @@ export const RouteFilterPanel = (props: Props) => {
           </Button>
         </div>
       </Tooltip>}
+      {feedback && <div className={styles.workflowStatus} role="status">{tr(`RouteFilter.UI.Feedback.${feedback.split("|")[0]}`,feedback.split("|")[0]).replace("{count}",feedback.split("|")[1]??"0")}</div>}
       <div className={styles.listHeading}>
         <div><strong>{props.labels.assetTitle}</strong><span>{props.labels.assetSubtitle}</span></div>
         <small>{props.selectedCount} / {props.assetCount}</small>

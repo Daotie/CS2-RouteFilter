@@ -22,7 +22,7 @@ export const PanelHeader = ({ title, version, buildId, closeLabel, onClose, onTo
       <span>{version}</span>
       <span className={styles.buildMarker} title={`RouteFilter build ${buildId}`} aria-hidden="true" />
     </div>
-    <Button variant="flat" className={styles.closeButton} onSelect={onTools} aria-label={toolsLabel}>⋯</Button>
+    <Button variant="flat" className={styles.closeButton} id="routefilter-tools" onSelect={onTools} aria-label={toolsLabel}>⋯</Button>
     <Tooltip tooltip={closeLabel} direction="down" alignment="end">
       <Button variant="flat" className={styles.closeButton} onSelect={onClose} aria-label={closeLabel}>
         <img className={styles.closeGlyph} src={icons.close} alt="" />

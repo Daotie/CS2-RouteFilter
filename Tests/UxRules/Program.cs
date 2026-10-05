@@ -89,4 +89,9 @@ Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-HANS",key=>"载货汽�
 Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-HK",key=>"载货汽车")=="TRUCKS","unreviewed locale never inherits mainland terminology");
 Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-CN",key=>key)=="载货汽车","missing key never rendered");
 Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-CN",key=>new string('x',65))=="载货汽车","invalid overlong legend uses equivalent semantic fallback");
+var history=new[]{"Old truck","Missing mod prefab","Bus"};
+Check(RecentAssetHistory.AfterSuccessfulApply(history,new[]{"Bus","Truck","Bus"}).SequenceEqual(new[]{"Bus","Truck","Old truck","Missing mod prefab"}),"Recent successful batch first, stable ties and deduplication");
+Check(RecentAssetHistory.AfterSuccessfulApply(history,Array.Empty<string>()).SequenceEqual(history),"allow-all Apply does not invent Recent assets");
+Check(RecentAssetHistory.AfterSuccessfulApply(Enumerable.Range(0,70).Select(i=>"Asset"+i),new[]{"New"}).Length==64,"Recent history bounded");
+Check(RecentAssetHistory.AfterSuccessfulApply(history,new[]{"中文|Stable%Id"})[0]=="中文|Stable%Id","Recent stores stable identities, independent of catalog numbers and locale");
 Console.WriteLine($"UX / traffic semantics / profiles: {checks} checks passed.");

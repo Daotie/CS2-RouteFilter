@@ -251,7 +251,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
     public void ApplySelection()
     {
         if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
-        if (SelectedTarget == Entity.Null)
+        if (SelectedTarget == Entity.Null || !EntityManager.Exists(SelectedTarget) || EntityManager.HasComponent<Game.Common.Deleted>(SelectedTarget))
         {
             Mod.Log.Warn("Apply ignored: no node or segment selected");
             return;
