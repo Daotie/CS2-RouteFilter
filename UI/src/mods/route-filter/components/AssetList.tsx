@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useLocalization } from "cs2/l10n";
-import { CategoryGlyph } from "./CategoryGlyph";
+import { icons } from "../assets";
+import { SelectionCheckbox } from "./SelectionCheckbox";
 import { Scrollable } from "cs2/ui";
 import { VehicleAsset, categoryGroups, filteredAssetIds } from "../model";
 import { AssetRow } from "./AssetRow";
@@ -51,6 +52,7 @@ export const AssetList = ({ favorites, onFavorite, favoriteLabel, roots, childre
   const groups=useMemo(()=>categoryGroups(roots),[roots]);
   const {translate}=useLocalization();
   const names:Record<string,string>={Bus:"Buses",Taxi:"Taxis",Goods:"Goods vehicles",Emergency:"Emergency vehicles",Service:"Service vehicles",Rail:railGroupLabel,Other:"Other road vehicles"};
+  const categoryIcons:Record<string,string>={Bus:icons.bus,Taxi:icons.car,Goods:icons.truck,Emergency:icons.suv,Service:icons.van,Rail:icons.train,Other:icons.car};
   const categoryIds=(assets:VehicleAsset[])=>{const ids=new Set<number>();const visit=(asset:VehicleAsset)=>{if(ids.has(asset.id))return;ids.add(asset.id);for(const child of childrenByParent.get(asset.id)??[])visit(child);};assets.forEach(visit);return [...ids];};
   return <Scrollable vertical trackVisibility="scrollable" className={styles.assetList}>
     {groups.map(group=>{
@@ -60,9 +62,8 @@ export const AssetList = ({ favorites, onFavorite, favoriteLabel, roots, childre
       const visibleIds=filteredAssetIds(group.assets,childrenByParent,searchTerm).filter(selectionScope);
       const selection=visibleIds.join(",");
       return <React.Fragment key={group.id}><div className={`${styles.categoryHeader} ${count?styles.categorySelected:""}`} data-selection={count===0?"none":count===ids.length?"all":"partial"}>
-        <button type="button" className={styles.categoryExpand} aria-expanded={open} aria-label={`${label}: ${count} / ${ids.length}`} onClick={()=>setCollapsed(previous=>{const next=new Set(previous);if(next.has(group.id))next.delete(group.id);else next.add(group.id);return next;})}><ChevronIcon open={open}/><CategoryGlyph category={group.id}/><strong>{label}</strong><span>{count} / {ids.length}</span></button>
-        <button type="button" className={styles.categoryAction} disabled={!editable||!visibleIds.length} onClick={()=>trigger(mod.id,"setFilteredAssetSelection",selection,true)}>{String(translate("RouteFilter.UI.CategoryEnable","Enable")??"Enable")}</button>
-        <button type="button" className={styles.categoryAction} disabled={!editable||!visibleIds.length} onClick={()=>trigger(mod.id,"setFilteredAssetSelection",selection,false)}>{String(translate("RouteFilter.UI.CategoryDisable","Disable")??"Disable")}</button>
+        <button type="button" className={styles.categoryExpand} aria-expanded={open} aria-label={`${label}: ${count} / ${ids.length}`} onClick={()=>setCollapsed(previous=>{const next=new Set(previous);if(next.has(group.id))next.delete(group.id);else next.add(group.id);return next;})}><ChevronIcon open={open}/><img className={styles.categoryIcon} src={categoryIcons[group.id]??icons.car} alt=""/><strong>{label}</strong><span>{count} / {ids.length}</span></button>
+        <SelectionCheckbox selected={visibleIds.length>0&&visibleIds.every(id=>selected.has(id))} partial={visibleIds.some(id=>selected.has(id))&&!visibleIds.every(id=>selected.has(id))} disabled={!editable||!visibleIds.length} label={label} onSelect={()=>trigger(mod.id,"setFilteredAssetSelection",selection,!visibleIds.every(id=>selected.has(id)))}/>
       </div>{open&&group.assets.map(asset=>renderRow(asset))}</React.Fragment>;
     })}
     {roots.length === 0 && <div className={styles.emptyState}>{emptyLabel}</div>}

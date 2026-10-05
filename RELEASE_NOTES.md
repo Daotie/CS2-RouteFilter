@@ -1,7 +1,7 @@
-# RouteFilter 2.1.0-dev — UX-35
+# RouteFilter 2.1.0-dev — UX-36
 
-Adds category restriction Enable/Disable and SVG expand arrows. Restores the utility menu and persistent sign tool by replacing unsupported HTML select controls. Simplifies Loaded/Applied status text.
+Category headers reuse asset-row checkboxes and the original PNG category icons; expansion arrows are white SVG. Main and secondary windows share the established gradient and interaction transitions. Menus open to the main panel's right and retain position during submenu navigation. Wheel step is editable; numeric/preset fields are vertically centered.
 
-Sign rendering uses alpha-cutout glyphs to preserve plate face/border, independent owners for each physical marker, and scoped hover visibility handling. Unseparated roads place signs on the traffic-side outer verge only; median repetition requires actual opposing-lane clearance.
+Supplementary text is baked into the original plate texture. The separate text overlay that kept rendering black is removed; frame, rear and edge pixels remain unchanged in the production compositor test. The original mask is converted for HDRP at runtime: ambient occlusion is unblocked while metallic/detail/smoothness data are preserved.
 
-Native acceptance is pending until UX-35 is loaded and checked in game. No full-playset changes.
+Native UX-36 acceptance remains pending. No playset changes.

@@ -12,7 +12,7 @@ namespace RouteFilter.Systems;
 // Runtime-only rendering resources, shared across targets and destroyed with their world.
 internal sealed class RuntimeSignResources : IDisposable
 {
-    private Mesh m_Plate, m_TextQuad;
+    private Mesh m_Plate;
     private Material m_PlateMaterial;
     private readonly Dictionary<string, Material> m_Text = new(StringComparer.Ordinal);
     private readonly List<Texture2D> m_Textures = new();
@@ -23,9 +23,16 @@ internal sealed class RuntimeSignResources : IDisposable
         ?? throw new FileNotFoundException("Missing embedded sign resource: " + name);
     private static Shader SignShader() => Shader.Find("HDRP/Lit") ?? Shader.Find("Standard")
         ?? throw new InvalidOperationException("No supported sign shader");
-    private Texture2D Texture(string name, bool linear = false)
+    private Texture2D Texture(string name, bool linear = false, bool hdrpMask = false)
     {
-        using var input = Resource(name); using var bytes = new MemoryStream(); input.CopyTo(bytes);
+        using var input = Resource(name); using var bytes = new MemoryStream();
+        if(hdrpMask)
+        {
+            using var mask=new System.Drawing.Bitmap(input);
+            PlateLegendAtlas.PrepareHdrpMask(mask);
+            mask.Save(bytes,ImageFormat.Png);
+        }
+        else input.CopyTo(bytes);
         var texture = new Texture2D(2, 2, TextureFormat.RGBA32, true, linear) { name = "RF:" + name, wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear, anisoLevel = 4 };
         m_Textures.Add(texture);
         if (!ImageConversion.LoadImage(texture, bytes.ToArray())) throw new InvalidDataException(name);
@@ -54,17 +61,12 @@ internal sealed class RuntimeSignResources : IDisposable
         m_Plate.RecalculateNormals(); m_Plate.RecalculateBounds();
         m_PlateMaterial = new Material(SignShader()) { name = "RF-Plate.Shared" };
         SetTexture(m_PlateMaterial, Texture("RF-Plate_BaseColor.png"));
-        var mask = Texture("RF-Plate_MaskMap.png", true);
+        var mask = Texture("RF-Plate_MaskMap.png", true, true);
         var control = Texture("RF-Plate_ControlMask.png", true);
         if (m_PlateMaterial.HasProperty("_MaskMap")) { m_PlateMaterial.SetTexture("_MaskMap", mask); m_PlateMaterial.EnableKeyword("_MASKMAP"); }
         if (m_PlateMaterial.HasProperty("_MetallicGlossMap")) { m_PlateMaterial.SetTexture("_MetallicGlossMap", mask); m_PlateMaterial.EnableKeyword("_METALLICGLOSSMAP"); }
-        Mod.Log.Info($"[RouteFilter.RoadSigns] plate shader={m_PlateMaterial.shader.name} lit=true authoredUV=true front=light rear=aluminum mask={m_PlateMaterial.HasProperty("_MaskMap")} text=transparent-front-only");
+        Mod.Log.Info($"[RouteFilter.RoadSigns] plate shader={m_PlateMaterial.shader.name} lit=true authoredUV=true front=light rear=aluminum mask={m_PlateMaterial.HasProperty("_MaskMap")} text=baked-front-atlas");
         if (m_PlateMaterial.HasProperty("_ControlMask")) m_PlateMaterial.SetTexture("_ControlMask", control);
-        // Main signs face local +Z (LookRotation(-travel)). The plate text uses
-        // that same front, clockwise-from-front winding and upright UVs.
-        m_TextQuad = new Mesh { name = "RF.TextQuad", vertices = new[] { new Vector3(.375f,-.102f,.012f), new Vector3(-.375f,-.102f,.012f), new Vector3(-.375f,.102f,.012f), new Vector3(.375f,.102f,.012f) },
-            uv = new[] { new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1) }, triangles = new[] { 0,2,1,0,3,2 } };
-        m_TextQuad.RecalculateNormals(); m_TextQuad.RecalculateBounds();
     }
     private Material TextMaterial(RouteFilter.Persistence.TrafficLegend legend,string locale,string profile)
     {
@@ -75,34 +77,16 @@ internal sealed class RuntimeSignResources : IDisposable
         if (m_Text.TryGetValue(key, out var cached)) return cached;
         using var bitmap = new System.Drawing.Bitmap(SignTextLayout.Width,SignTextLayout.Height);
         using (var graphics = System.Drawing.Graphics.FromImage(bitmap)) SignTextLayout.Draw(graphics,text,language,true);
-        using var output = new MemoryStream(); bitmap.Save(output, ImageFormat.Png);
-        var texture = new Texture2D(2,2,TextureFormat.RGBA32,false) { name = "RF.Label:" + text };
-        m_Textures.Add(texture); ImageConversion.LoadImage(texture, output.ToArray());
-        var material = new Material(SignShader()) { name = "RF.Label:" + text };
-        SetTexture(material, texture);
-        if (material.HasProperty("_CullMode")) material.SetFloat("_CullMode",2);
-        if (material.HasProperty("_CullModeForward")) material.SetFloat("_CullModeForward",2);
-        // Transparent glyphs leave the authored face, black border and lighting
-        // visible; the former opaque text rectangle covered the border UV band.
-        if (material.HasProperty("_SurfaceType")) material.SetFloat("_SurfaceType",0);
-        if (material.HasProperty("_Mode")) material.SetFloat("_Mode",1);
-        if (material.HasProperty("_BlendMode")) material.SetFloat("_BlendMode",0);
-        if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend",1);
-        if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend",0);
-        if (material.HasProperty("_AlphaSrcBlend")) material.SetFloat("_AlphaSrcBlend",1);
-        if (material.HasProperty("_AlphaDstBlend")) material.SetFloat("_AlphaDstBlend",10);
-        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite",1);
-        if (material.HasProperty("_AlphaCutoffEnable")) material.SetFloat("_AlphaCutoffEnable",1);
-        if (material.HasProperty("_AlphaClip")) material.SetFloat("_AlphaClip",1);
-        if (material.HasProperty("_AlphaCutoff")) material.SetFloat("_AlphaCutoff",.1f);
-        if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff",.1f);
-        material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        material.DisableKeyword("_ALPHABLEND_ON");
-        material.EnableKeyword("_ALPHATEST_ON");
-        material.SetOverrideTag("RenderType","TransparentCutout");
-        material.renderQueue=2450;
-        material.SetShaderPassEnabled("TransparentDepthPrepass",false);
-        material.SetShaderPassEnabled("TransparentDepthPostpass",false);
+        using var baseImage=Resource("RF-Plate_BaseColor.png");
+        using var atlas=new System.Drawing.Bitmap(baseImage);
+        PlateLegendAtlas.Composite(atlas,bitmap);
+        using var output = new MemoryStream(); atlas.Save(output, ImageFormat.Png);
+        var texture = new Texture2D(2,2,TextureFormat.RGBA32,true) { name = "RF.LabelAtlas:" + text,wrapMode=TextureWrapMode.Clamp,filterMode=FilterMode.Trilinear,anisoLevel=4 };
+        m_Textures.Add(texture);
+        if(!ImageConversion.LoadImage(texture,output.ToArray()))throw new InvalidDataException("Legend atlas: "+text);
+        var material = new Material(m_PlateMaterial) { name = "RF.PlateLegend:" + text };
+        SetTexture(material,texture);
+        Mod.Log.Info($"[RouteFilter.RoadSigns] plate legend atlas={text} shader={material.shader.name} separateTextSurface=false");
         m_Text[key] = material; return material;
     }
     internal static GameObject MeshObject(string name, Mesh mesh, Material[] materials, Transform parent)
@@ -116,10 +100,9 @@ internal sealed class RuntimeSignResources : IDisposable
     internal void Plate(Transform parent, Unity.Mathematics.float3 anchor, RouteFilter.Persistence.TrafficLegend legend,string locale,string profile)
     {
         EnsurePlate();
-        if (m_PlateMaterial == null || m_TextQuad == null) throw new InvalidOperationException("RF-Plate resources unavailable");
-        var plate = MeshObject("RF-Plate", m_Plate, new[] { m_PlateMaterial }, parent);
+        if (m_PlateMaterial == null) throw new InvalidOperationException("RF-Plate resources unavailable");
+        var plate = MeshObject("RF-Plate", m_Plate, new[] { TextMaterial(legend,locale,profile) }, parent);
         plate.transform.localPosition = anchor;
-        MeshObject("RF-Plate.Text", m_TextQuad, new[] { TextMaterial(legend,locale,profile) }, plate.transform);
     }
     internal void ScaledMain(Transform parent, StaticObjectPrefab prefab, float scale, Game.Objects.ObjectState state)
     {
@@ -162,7 +145,7 @@ internal sealed class RuntimeSignResources : IDisposable
     }
     public void Dispose()
     {
-        Object.Destroy(m_Plate); Object.Destroy(m_TextQuad); Object.Destroy(m_PlateMaterial);
+        Object.Destroy(m_Plate);  Object.Destroy(m_PlateMaterial);
         foreach (var material in m_Text.Values) Object.Destroy(material);
         foreach (var texture in m_Textures) Object.Destroy(texture);
         foreach (var meshes in m_Main.Values) foreach (var info in meshes) Object.Destroy(info.mesh);

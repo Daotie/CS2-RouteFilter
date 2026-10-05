@@ -66,7 +66,7 @@ public sealed partial class RouteFilterUISystem
         AddBinding(new TriggerBinding<string,float>(Mod.Id,"setSignAdjustment",(parameter,step) =>
         {
             m_AppearanceParameter = parameter == "scale" || parameter == "height" || parameter == "offset" || parameter == "longitudinal" || parameter == "rotation" ? parameter : "";
-            m_AppearanceStep = SignAppearance.Clamp(step,.01f,1f,.05f);
+            m_AppearanceStep = SignAppearance.Clamp(step,.001f,1f,.05f);
         }));
         AddBinding(new TriggerBinding<string, float>(Mod.Id,"setSignAppearance", (key,value) =>
         {

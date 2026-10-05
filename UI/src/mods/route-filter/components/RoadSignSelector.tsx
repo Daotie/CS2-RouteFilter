@@ -61,13 +61,12 @@ export const RoadSignSelector = ({ closeToken = 0, onPopupOpen, onOpenChange }: 
     if (popup) { close(); return; }
     const rect = anchor.current?.getBoundingClientRect();
     if (!rect) return;
-    // Align the bottom beside the selector; keep the popup short and on-screen.
     const rowHeight = Math.max(1, rect.height);
-    const bottom = Math.min(rect.bottom, window.innerHeight - 12);
-    const maxHeight = Math.max(1, Math.min(rowHeight * 6, bottom - 12));
+    const gap=rowHeight/36*8;
     const width = Math.min(rect.width, Math.max(1, window.innerWidth - 24));
-    const left = Math.max(12, Math.min(rect.right + 8, window.innerWidth - width - 12));
-    const top = bottom - maxHeight;
+    const left = rect.right+gap+width<=window.innerWidth-12 ? rect.right+gap : Math.max(12,rect.left-width-gap);
+    const top=Math.max(12,Math.min(rect.top,window.innerHeight-rowHeight*2-12));
+    const maxHeight = Math.max(rowHeight*2,Math.min(rowHeight*6,window.innerHeight-top-12));
     setSearch(""); setScrollTop(0);
     onPopupOpen?.();onOpenChange?.(true);
     setPopup({ left, top, width, maxHeight, rowHeight });

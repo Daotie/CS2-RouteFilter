@@ -204,8 +204,8 @@ $rfDanger: #e07b73;
 .assetRow .favoriteButton:hover, .assetRow .favoriteActive:hover { background: transparent; border: 0; color: #ffd257; }
 .assetRow .favoriteButton:focus-visible, .assetRow .favoriteActive:focus-visible { outline: 1rem solid $rfAccent; }
 
-.secondaryMenu { position: fixed; z-index: 1050; width: 300rem; max-width: 90vw; max-height: 72vh; overflow-y: auto; padding: 4rem 0; border: 1rem solid $rfBorder; border-radius: 6rem; background: rgba(24, 31, 39, .98); color: #f3f5f7; font-family: var(--fontFamily); font-size: 12rem; pointer-events: auto; }
-.secondaryMenu .menuItem { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 36rem; padding: 0 14rem; border: 0; border-radius: 0; background: transparent; color: $rfText; font: inherit; text-align: left; cursor: pointer; }
+.secondaryMenu { position: fixed; z-index: 1050; width: 300rem; max-width: 90vw; max-height: 72vh; overflow-y: auto; padding: 4rem 0; border: 1rem solid $rfBorder; border-radius: 6rem; background-color: transparent; color: $rfText; font-family: var(--fontFamily); font-size: 12rem; pointer-events: auto; }
+.secondaryMenu .menuItem { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 36rem; padding: 0 14rem; border: 0; border-radius: 0; background: transparent; color: $rfText; font-family: var(--fontFamily); font-size: 12rem; text-align: left; cursor: pointer; }
 .secondaryMenu .menuItem:hover:not(:disabled) { background: $rfSurfaceHover; }
 .secondaryMenu .menuItem:disabled { opacity: .38; cursor: default; }
 .menuChevron { color: $rfMuted; margin-left: 16rem; font-size: 20rem; }
@@ -228,7 +228,7 @@ $rfDanger: #e07b73;
 .appearancePalette { position:fixed; z-index:1080; color:$rfText; background-color:$rfSurface; left: auto; right: 18rem; top: 72rem; width: 290rem; max-width: 40vw; border-radius: 10rem; background-image: linear-gradient(var(--panelGradientStart),var(--panelGradientEnd)); border: 0; pointer-events: auto; }
 .appearancePalette .auxContent { padding: 0; }
 .appearancePalette .auxHeader { padding: 10rem 14rem; margin: 0; border-bottom: 1rem solid $rfBorder; background: $rfSurfaceRaised; }
-.appearancePalette .parameterRow { display: flex; justify-content: space-between; align-items: center; height: 36rem; width: 100%; padding: 0 14rem; border: 0; border-left: 2rem solid transparent; border-radius: 0; background: transparent; color: $rfMuted; font: inherit; cursor: pointer; }
+.appearancePalette .parameterRow { display: flex; justify-content: space-between; align-items: center; height: 36rem; width: 100%; padding: 0 14rem; border: 0; border-left: 2rem solid transparent; border-radius: 0; background: transparent; color: $rfMuted; font-family: var(--fontFamily); font-size: 12rem; cursor: pointer; }
 .appearancePalette .parameterRow:hover { background: $rfSurfaceHover; }
 .appearancePalette .parameterActive { border-left-color: $rfAccent; color: $rfText; background: $rfAccentSoft; }
 .parameterRow strong { font-weight: 500; }
@@ -261,14 +261,13 @@ $rfDanger: #e07b73;
 .mapToolbar .secondaryAction { flex:0 0 auto; padding:0 12rem; }
 
 .appearancePalette .parameterRow > span:first-child { flex: 1 1 auto; min-width: 0; white-space: nowrap; }
-.appearancePalette .parameterRow input { flex: 0 0 64rem; width: 64rem; min-width: 0; height: 26rem; margin: 0 6rem; padding: 0 6rem; color: #f3f5f7; background: rgba(0,0,0,.28); border: 1rem solid rgba(255,255,255,.22); border-radius: 3rem; text-align: right; font: inherit; }
+.appearancePalette .parameterRow input { flex: 0 0 64rem; width: 64rem; min-width: 0; height: 26rem; margin: 0 6rem; padding: 0 6rem; color: #f3f5f7; background: rgba(0,0,0,.28); border: 1rem solid rgba(255,255,255,.22); border-radius: 3rem; text-align: right; font-family: var(--fontFamily); font-size: 12rem; }
 .appearancePalette .parameterUnit { flex: 0 0 16rem; text-align: left; }
 .appearancePalette .signSelector { padding: 10rem 14rem; }
-.appearancePalette { background-color: rgba(24,31,39,.98); }
 .segmentButton svg { flex: 0 0 16rem; margin-right: 4rem; }
 .commitActions .secondaryAction { flex: 0 0 auto; padding: 0 10rem; }
 
-.categoryHeader { display:flex; align-items:center; width:100%; min-height:36rem; padding:0 10rem; background:rgba(255,255,255,.045); color:$rfMuted; border:0; border-bottom:1rem solid rgba(255,255,255,.06); font:inherit; cursor:pointer; }
+.categoryHeader { display:flex; align-items:center; width:100%; min-height:36rem; padding:0 10rem; background:rgba(255,255,255,.045); color:$rfMuted; border:0; border-bottom:1rem solid rgba(255,255,255,.06); font-family:var(--fontFamily); font-size:12rem; cursor:pointer; }
 .categoryHeader:hover { background:rgba(255,255,255,.08); }
 .categoryHeader strong { flex:1; padding:0 8rem; text-align:left; font-size:12rem; font-weight:500; }
 .categoryHeader > span:last-child { font-size:11rem; }
@@ -292,12 +291,52 @@ $rfDanger: #e07b73;
 .categoryExpand strong { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .categoryExpand > svg { flex:0 0 12rem; margin-right:4rem; }
 .categoryExpand > span { flex:0 0 auto; font-size:10rem; white-space:nowrap; }
-.categoryAction { flex:0 0 auto; padding:4rem 5rem; margin-right:3rem; border:0; border-radius:3rem; color:#dae4e9; background:rgba(255,255,255,.08); font-size:10rem; cursor:pointer; }
 .profileChoices { display:flex; flex-wrap:wrap; margin-bottom:8rem; }
 .profileChoice, .profileChoiceActive { padding:5rem 7rem; margin:0 3rem 3rem 0; color:#b8c7ce; background:rgba(255,255,255,.06); border:1rem solid rgba(255,255,255,.12); border-radius:3rem; cursor:pointer; font-size:11rem; }
 .profileChoiceActive { color:#fff; background:rgba(50,180,220,.25); border-color:#32b4dc; }
-.appearancePalette { display:flex; flex-direction:column; padding-bottom:10rem; font-size:12rem; background-image:none; }
-.secondaryMenu, .signDropdownPopup { background-color:rgba(24,31,39,.98); }
+.appearancePalette { display:flex; flex-direction:column; padding-bottom:10rem; font-size:12rem; }
 .listHeading small { flex:0 0 auto; white-space:nowrap; }
 .panelContent { overflow-y:auto; max-height:calc(100vh - 150rem); }
 .assetList { flex:0 0 auto; height:32vh; min-height:120rem; overflow-y:auto; }
+
+// Every window uses the established main panel surface and legacy theme switch.
+@mixin sharedWindowSurface {
+  background-color:transparent;
+  background-image:linear-gradient(var(--panelGradientStart),var(--panelGradientEnd));
+  backdrop-filter:var(--panelBlur, none);
+  color:$rfText;
+  border-radius:10rem;
+}
+.secondaryMenu, .appearancePalette, .signDropdownPopup, .mapPanel { @include sharedWindowSurface; }
+:global(body.legacy-interface) {
+  .secondaryMenu, .appearancePalette, .signDropdownPopup, .mapPanel { background-image:none; background-color:var(--panelColorNormal); }
+}
+.secondaryMenu { border:0; padding:0; }
+.menuHeading, .appearancePalette .auxHeader { background-color:$rfSurfaceRaised; border-bottom:1rem solid $rfBorder; }
+.categoryHeader { padding:0 8rem 0 0; background-color:rgba(0,0,0,.12); color:$rfMuted; }
+.categoryExpand { color:$rfMuted; }
+.categoryExpand strong { color:$rfText; }
+.categoryIcon { flex:0 0 24rem; width:24rem; height:24rem; margin-left:8rem; object-fit:contain; }
+.categoryExpand > svg { flex:0 0 12rem; }
+.categoryHeader .selectionGlyph { margin-left:8rem; }
+.arrowIcon { flex-shrink:0; transform:rotate(0deg); transition:transform .15s ease; }
+.arrowIconOpen { transform:rotate(90deg); }
+.backArrow { display:flex; transform:rotate(180deg); }
+.appearancePalette .parameterRow input { height:28rem; padding:0 6rem; line-height:26rem; font-size:12rem; font-family:var(--fontFamily); box-sizing:border-box; color:$rfText; background-color:$rfSurfaceInset; border-color:$rfBorder; }
+.presetEditor input { height:34rem; line-height:32rem; padding:0 8rem; font-size:12rem; box-sizing:border-box; }
+.appearancePalette .wheelStep { padding:8rem 14rem; border-top:1rem solid $rfBorder; }
+.wheelStep .parameterRow { padding:0; }
+.profileChoice, .profileChoiceActive { color:$rfMuted; background-color:transparent; border-color:$rfBorder; }
+.profileChoiceActive { color:$rfText; background-color:$rfAccentSoft; border-color:$rfAccent; }
+.panel button, .secondaryMenu button, .appearancePalette button, .signDropdownPopup button, .mapPanel button {
+  transition:background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease, transform .12s ease;
+}
+.secondaryMenu button:hover, .appearancePalette button:hover, .signDropdownPopup button:hover { background-color:$rfSurfaceHover; color:$rfText; }
+.panel button:active, .secondaryMenu button:active, .appearancePalette button:active, .signDropdownPopup button:active { transform:translateY(1rem); opacity:.8; }
+@keyframes rfPopupEnter { from { opacity:0; transform:translateX(-8rem); } to { opacity:1; transform:translateX(0); } }
+@keyframes rfPageEnter { from { opacity:0; transform:translateX(6rem); } to { opacity:1; transform:translateX(0); } }
+.secondaryMenu, .signDropdownPopup { animation:rfPopupEnter .16s ease-out; }
+.menuPage, .presetEditor, .presetContext { animation:rfPageEnter .14s ease-out; }
+.presetEditorActions .secondaryAction { color:$rfText; }
+.presetEditorActions .secondaryAction:last-child { background-color:$rfAccentSoft; border-color:$rfAccent; }
+.appearancePalette input:focus, .presetEditor input:focus, .signSearch:focus { border-color:$rfText; outline:0; }

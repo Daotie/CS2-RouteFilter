@@ -3,6 +3,7 @@ import classNames from "classnames";
 import { Button, Tooltip } from "cs2/ui";
 import { VehicleAsset } from "../model";
 import { ChevronIcon } from "./ChevronIcon";
+import { SelectionCheckbox } from "./SelectionCheckbox";
 import styles from "../route-filter.module.scss";
 import { CategoryGlyph } from "./CategoryGlyph";
 import { FavoriteIcon } from "./FavoriteIcon";
@@ -50,8 +51,6 @@ export const AssetRow = ({ favorite, onFavorite, favoriteLabel, asset, child = f
     </div>
     {childCount === 0 && asset.maxSpeed > 0 && <span className={styles.assetMeta}>{Math.round(asset.maxSpeed)} km/h</span>}
     {childCount > 0 && <span className={styles.groupCount}>{childCount + 1}</span>}
-    <Button variant="flat" className={classNames(styles.selectionGlyph, { [styles.selectionGlyphActive]: selected, [styles.selectionGlyphPartial]: partial })} onSelect={onToggle} disabled={disabled} aria-label={asset.name} aria-pressed={partial ? "mixed" : selected}>
-      {partial ? <img className={styles.selectionMark} src={icons.partialSelection} alt="" /> : selected ? <img className={styles.selectionMark} src={icons.check} alt="" /> : null}
-    </Button>
+    <SelectionCheckbox selected={selected} partial={partial} disabled={disabled} label={asset.name} onSelect={onToggle}/>
   </div>
 );

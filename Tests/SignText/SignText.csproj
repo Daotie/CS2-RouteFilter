@@ -1,4 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net48</TargetFramework><LangVersion>latest</LangVersion></PropertyGroup>
-  <ItemGroup><Reference Include="System.Drawing" /><Compile Include="../../Systems/SignTextLayout.cs" Link="SignTextLayout.cs" /></ItemGroup>
+  <ItemGroup><Reference Include="System.Drawing" /><Compile Include="../../Systems/SignTextLayout.cs" Link="SignTextLayout.cs" /><Compile Include="../../Systems/PlateLegendAtlas.cs" Link="PlateLegendAtlas.cs" /></ItemGroup>
 </Project>

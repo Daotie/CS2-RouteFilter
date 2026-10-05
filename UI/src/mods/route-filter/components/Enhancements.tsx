@@ -37,16 +37,17 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
     const escape=(event:KeyboardEvent)=>{if(event.key==="Escape"){event.preventDefault();event.stopPropagation();onAppearance(false);onPopup("");trigger(mod.id,"closeAdvancedInteraction");}};
     document.addEventListener("keydown",escape,true);return()=>document.removeEventListener("keydown",escape,true);
   },[popup,onPopup,onAppearance]);
+  const utilityOpen=Boolean(popup&&popup!=="Map");
   useLayoutEffect(()=>{
-    if(!popup||popup==="Map")return;
+    if(!utilityOpen)return;
     const positionMenu=()=>{
       const anchor=document.getElementById("routefilter-tools")?.getBoundingClientRect();
-      const rectangle=menu.current?.getBoundingClientRect();
-      const width=rectangle?.width??300, height=rectangle?.height??160;
-      if(anchor)setPosition({left:Math.max(12,Math.min(anchor.right-width,window.innerWidth-width-12)),top:Math.max(12,Math.min(anchor.bottom+8,window.innerHeight-height-12))});
+      const panel=document.getElementById("routefilter-panel")?.getBoundingClientRect();
+      if(anchor&&panel){const gap=panel.width/400*8;setPosition({left:panel.right+gap,top:anchor.top});}
+
     };
     positionMenu();window.addEventListener("resize",positionMenu);return()=>window.removeEventListener("resize",positionMenu);
-  },[popup]);
+  },[utilityOpen]);
   useEffect(()=>{
     if(!popup||popup==="Map"||popup==="Range")return;
     const outside=(event:MouseEvent)=>{if(!menu.current?.contains(event.target as Node)&&!document.getElementById("routefilter-tools")?.contains(event.target as Node))onPopup("");};
@@ -55,13 +56,15 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
 
   return <>
     {popup && popup!=="Map" && <div ref={menu} className={styles.secondaryMenu} style={{left:position.left,top:position.top}} onMouseEnter={()=>trigger(mod.id,"setUiPointerArea","utility",true)} onMouseLeave={()=>trigger(mod.id,"setUiPointerArea","utility",false)}>
-      {popup!=="Tools" && <div className={styles.menuHeading}><button type="button" className={styles.windowControl} onClick={()=>onPopup("Tools")} aria-label={tr("Back","Back")}>‹</button><strong>{tr(popup,popup)}</strong><button type="button" className={styles.windowControl} onClick={()=>onPopup("")} aria-label={tr("Close","Close")}>×</button></div>}
+      {popup!=="Tools" && <div className={styles.menuHeading}><button type="button" className={styles.windowControl} onClick={()=>onPopup("Tools")} aria-label={tr("Back","Back")}><span className={styles.backArrow}><ChevronIcon/></span></button><strong>{tr(popup,popup)}</strong><button type="button" className={styles.windowControl} onClick={()=>onPopup("")} aria-label={tr("Close","Close")}>×</button></div>}
+      <div key={popup} className={styles.menuPage}>
       {popup==="Tools" && <div role="menu" aria-label={tr("Tools","Tools")}>
         <MenuItem submenu onSelect={()=>onPopup("Presets")}>{tr("Presets","Presets")}</MenuItem>
         <div className={styles.menuSeparator}/>
         <MenuItem onSelect={()=>onPopup("Map")}>{tr("Map","Restriction map")}</MenuItem>
       </div>}
       {popup==="Presets" && <PresetMenu editable={editable} onLoaded={()=>onPopup("")} />}
+      </div>
 
     </div>}
     {popup==="Map" && <Portal><Panel className={styles.mapPanel} contentClassName={styles.auxContent} onMouseEnter={()=>trigger(mod.id,"setUiPointerArea","utility",true)} onMouseLeave={()=>trigger(mod.id,"setUiPointerArea","utility",false)}><div className={styles.auxHeader}><strong>{tr("Map","Restriction map")}</strong><button type="button" className={styles.windowControl} onClick={()=>onPopup("")} aria-label={tr("Close","Close")}>×</button></div><div className={styles.mapBody}><RestrictionMap/></div></Panel></Portal>}
@@ -87,12 +90,12 @@ const PresetMenu=({editable,onLoaded}:{editable:boolean;onLoaded:()=>void})=>{
 };
 
 const parameters = [["scale","Scale",0,"×"],["offset","Lateral offset",2,"m"],["longitudinal","Longitudinal offset",3,"m"],["height","Height",1,"m"],["rotation","Rotation",4,"°"]] as const;
-const ParameterInput = ({id,label,value,unit,active,onActivate}: {id:string;label:string;value:number;unit:string;active:boolean;onActivate:()=>void}) => {
-  const [draft,setDraft]=useState(value.toFixed(2));
+const ParameterInput = ({id,label,value,unit,active,onActivate,onCommit,precision=2}: {id:string;label:string;value:number;unit:string;active:boolean;onActivate:()=>void;onCommit?:(value:number)=>void;precision?:number}) => {
+  const [draft,setDraft]=useState(value.toFixed(precision));
   const editing=useRef(false),cancelled=useRef(false);
-  useEffect(()=>{if(!editing.current)setDraft(value.toFixed(2));},[value]);
-  const commit=()=>{editing.current=false;if(cancelled.current){cancelled.current=false;setDraft(value.toFixed(2));return;}const number=Number(draft);if(draft.trim() && Number.isFinite(number))trigger(mod.id,"setSignAppearance",id,number);else setDraft(value.toFixed(2));};
-  return <label className={`${styles.parameterRow} ${active?styles.parameterActive:""}`}><span>{label}</span><input aria-label={label} type="text" inputMode="decimal" value={draft} onFocus={()=>{editing.current=true;cancelled.current=false;onActivate();}} onChange={event=>setDraft(event.target.value)} onBlur={commit} onKeyDown={event=>{if(event.key==="Enter")event.currentTarget.blur();if(event.key==="Escape"){cancelled.current=true;setDraft(value.toFixed(2));editing.current=false;event.currentTarget.blur();}}}/><span className={styles.parameterUnit}>{unit}</span></label>;
+  useEffect(()=>{if(!editing.current)setDraft(value.toFixed(precision));},[value,precision]);
+  const commit=()=>{editing.current=false;if(cancelled.current){cancelled.current=false;setDraft(value.toFixed(precision));return;}const number=Number(draft);if(draft.trim() && Number.isFinite(number)){if(onCommit)onCommit(number);else trigger(mod.id,"setSignAppearance",id,number);setDraft(value.toFixed(precision));}else setDraft(value.toFixed(precision));};
+  return <label className={`${styles.parameterRow} ${active?styles.parameterActive:""}`}><span>{label}</span><input aria-label={label} type="text" inputMode="decimal" value={draft} onFocus={()=>{editing.current=true;cancelled.current=false;onActivate();}} onChange={event=>setDraft(event.target.value)} onBlur={commit} onKeyDown={event=>{if(event.key==="Enter")event.currentTarget.blur();if(event.key==="Escape"){cancelled.current=true;setDraft(value.toFixed(precision));editing.current=false;event.currentTarget.blur();}}}/><span className={styles.parameterUnit}>{unit}</span></label>;
 };
 const AppearancePalette = ({ reset,onAppearance,onSignMenuChange }: { reset:number;onAppearance:(active:boolean)=>void;onSignMenuChange:(open:boolean)=>void }) => {
   const raw = useValue(appearance$), values = useMemo(() => raw.split("|").map(Number),[raw]);
@@ -106,7 +109,7 @@ const AppearancePalette = ({ reset,onAppearance,onSignMenuChange }: { reset:numb
     <div className={styles.auxHeader}><strong>{tr("SignTool","Traffic sign")}</strong></div>
     <RoadSignSelector closeToken={reset} onOpenChange={onSignMenuChange}/>
     <div className={styles.parameterList}>{parameters.map(([id,label,index,unit]) => <ParameterInput key={id} id={id} label={tr(`Appearance${id}`,label)} value={values[index]??0} unit={unit} active={parameter===id} onActivate={()=>setParameter(id)}/>)}</div>
-    <div className={styles.wheelStep}><span>{tr("WheelStep","Wheel step")}</span><div className={styles.segmentedControl}>{[.01,.05,.1,.5].map(value=><button type="button" key={value} className={`${styles.segmentButton} ${step===value?styles.segmentButtonActive:""}`} aria-pressed={step===value} onClick={()=>setStep(value)}>{parameter==="rotation"?`${value*20}°`:parameter==="scale"?`${value}×`:`${value}m`}</button>)}</div></div>
+    <div className={styles.wheelStep}><ParameterInput precision={3} id="wheelStep" label={tr("WheelStep","Wheel step")} value={parameter==="rotation"?step*20:step} unit={parameter==="rotation"?"°":parameter==="scale"?"×":"m"} active={false} onActivate={()=>{}} onCommit={value=>{if(value>0)setStep(Math.max(.001,Math.min(1,parameter==="rotation"?value/20:value)));}}/><div className={styles.segmentedControl}>{[.01,.05,.1,.5].map(value=><button type="button" key={value} className={`${styles.segmentButton} ${step===value?styles.segmentButtonActive:""}`} aria-pressed={step===value} onClick={()=>setStep(value)}>{parameter==="rotation"?`${value*20}°`:parameter==="scale"?`${value}×`:`${value}m`}</button>)}</div></div>
     <div className={styles.paletteActions}><button type="button" className={styles.utilityAction} onClick={()=>trigger(mod.id,"resetSignAppearance")}>{tr("AppearanceReset","Reset position")}</button><button type="button" className={styles.utilityAction} disabled={!parameter} onClick={()=>setParameter("")}>{tr("Finish","Finish")}</button></div>
   </div>;
 };

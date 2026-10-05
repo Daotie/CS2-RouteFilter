@@ -145,8 +145,6 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.Profile.MIXED"] = Chinese ? "按各入口道路主题匹配" : "Resolved per entry road theme",
             ["RouteFilter.UI.ProfileFallback"] = Chinese ? "使用兼容标志" : "Using compatible sign.",
             ["RouteFilter.UI.PlateLanguage"] = Chinese ? "辅助标志文字跟随界面语言；未支持的语言回退至英语。" : "Supplementary text follows UI language; unsupported languages fall back to English.",
-            ["RouteFilter.UI.CategoryEnable"] = Chinese ? "启用" : "Enable",
-            ["RouteFilter.UI.CategoryDisable"] = Chinese ? "禁用" : "Disable",
             ["RouteFilter.UI.Feedback.Copied"] = Chinese ? "已复制 {count} 项车辆限制。" : "Copied {count} vehicle restrictions.",
             ["RouteFilter.UI.Feedback.Pasted"] = Chinese ? "已载入 {count} 项车辆限制" : "Loaded {count} vehicle restrictions.",
             ["RouteFilter.UI.Feedback.Incompatible"] = Chinese ? "没有兼容车辆" : "No compatible vehicles.",
