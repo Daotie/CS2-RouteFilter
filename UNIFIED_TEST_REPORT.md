@@ -1,6 +1,12 @@
-# RouteFilter 2.1.0-dev — unified SIGN-32 test build
+# RouteFilter 2.1.0-dev — unified UX-33 emergency correction build
 
-Build: `RF21-20261005-SIGN-32`. Player game acceptance is pending.
+Build: `RF21-20261005-UX-33`. Player game acceptance is pending.
+
+## Emergency correction and acceptance status
+
+P0–P5 are IMPLEMENTED + BUILD VERIFIED. P0 preserves the main panel and cleans up input ownership. P1 restores the v2.0.0 base stylesheet/footer and shares one segmented selector. P2 uses anchored menu rows, contextual presets, counted clipboard feedback and successful-Apply-only Recent. P3 puts the persistent tool palette upper-right and aligns auxiliary front from native sign bounds. P4 uses a cached native road network, pixel SVG viewport, explicit X/Z matrix, fit/pan/zoom and chunked paths. P5 consolidates styles, prioritizes Escape and contains secondary UI failures.
+
+Authoritative prior player acceptance: overall UX, continuity, stability, map, menus, favorites, library selector, Recent, clipboard, appearance and auxiliary placement FAILED. Native primary spawning GAME VERIFIED; composition PARTIALLY WORKING. UX-33 remains pending unified game acceptance. Browser mocks are presentation evidence only; I/J physical signs and actual-network K/L game captures are NOT TESTED. See `EMERGENCY_ACCEPTANCE_CHECKLIST.md` and `docs/ux33-browser-evidence/README.md`.
 
 ## Implemented presentation changes
 
@@ -23,14 +29,14 @@ The prior compact main panel, independent stars, All/Favorites/Recent library, T
 | LeaseRules | BUILD VERIFIED — 65,536 ownership pairs plus native fixtures |
 | SafetyRules | BUILD VERIFIED — 23 checks |
 | SaveFormatTests | BUILD VERIFIED — 261 codec/schema/direction checks |
-| RoadSigns | BUILD VERIFIED — 43 placement/divider/visibility checks |
-| UxRules / actual visual semantics | BUILD VERIFIED — 2,086 checks, including all 511 nonempty fleet selection combinations, narrow coverage, consolidation, missing assets, profile matrix, manual overrides, locale fallback and stable-key handling |
+| RoadSigns | BUILD VERIFIED — 89 placement/divider/visibility/frame checks |
+| UxRules / actual visual semantics | BUILD VERIFIED — 2,090 checks, including all 511 nonempty fleet selection combinations, narrow coverage, consolidation, missing assets, profile matrix, manual overrides, locale fallback and stable-key handling |
 | Installed-font rasterization | BUILD VERIFIED — 17 locale/label combinations, actual ink bounds, unclipped margins and large short CN labels |
 | UI typecheck / tests / production build | BUILD VERIFIED — previous UX checks plus exposed/hidden profiles, fallback notice, locale policy and conservative native-info empty state |
 | Authored plate / positive facing / UV / whitespace | STATICALLY VERIFIED / BUILD VERIFIED |
 | Stable backend/schema | STATICALLY VERIFIED — no edits to enforcement, RestrictionIndex/topology, exact matcher, pathfind, leases, admission or city persistence |
 
-Test package: `dist/sign32-final/RouteFilter-2.1.0-dev-RF21-20261005-SIGN-32.zip`.
+Test package: `dist/ux33-final/RouteFilter-2.1.0-dev-RF21-20261005-UX-33.zip`.
 
 ## Exposed profiles and language coverage
 
@@ -51,4 +57,4 @@ GAME VERIFIED, PERFORMANCE VERIFIED, SAVELOAD VERIFIED and MIGRATION VERIFIED: *
 
 For each exposed profile test: all applicable vehicles (no redundant plate); complete goods (dedicated primary if independently supported, otherwise one legend); large-only and selected large assets; maintenance; mixed subsets (no tower); both faces on wide roads; curved/ramp/one-way/asymmetric/junction entries; EU/US mixed road themes; every AUTO locale matrix case; manual US/CN with English/Chinese locale changes; missing RF-Plate/font/localization/custom/NA assets; save/load and city switch. Confirm exact selected assets and direction masks remain authoritative in UI. CN/UK tests must acknowledge explicit fallback, not national asset coverage.
 
-Retest existing stars/search/filtered bulk/copy/paste/presets, upper-left wheel palette and camera barrier, start/end range and topology change before confirm, map layers/pan/zoom/Fit/click-to-edit, close/reset/unload cleanup. Use the complete playset: 370 mods, 345 enabled. No playset edits are part of this deployment.
+Retest existing stars/search/filtered bulk/copy/paste/presets, upper-right wheel palette and camera barrier, start/end range and topology change before confirm, map layers/pan/zoom/Fit/click-to-edit, close/reset/unload cleanup. Use the complete playset: 370 mods, 345 enabled. No playset edits are part of this deployment.

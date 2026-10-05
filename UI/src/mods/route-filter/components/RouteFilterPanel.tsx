@@ -11,6 +11,7 @@ import { PanelHeader } from "./PanelHeader";
 import { TargetSelector } from "./TargetSelector";
 import { icons } from "../assets";
 import { SegmentedSelector } from "./SegmentedSelector";
+import { FeatureBoundary } from "./FeatureBoundary";
 import { Enhancements } from "./Enhancements";
 import styles from "../route-filter.module.scss";
 
@@ -86,7 +87,7 @@ export const RouteFilterPanel = (props: Props) => {
     trigger(mod.id, "setFilteredAssetSelection", ids.join(","), forbidden);
   };
   return <Portal>
-    {<Panel id="routefilter-panel" data-build-id={props.buildId} className={styles.panel} contentClassName={styles.panelContent} onMouseEnter={props.onPointerEnter} onMouseLeave={props.onPointerLeave}>
+    <Panel id="routefilter-panel" data-build-id={props.buildId} className={styles.panel} contentClassName={styles.panelContent} onMouseEnter={props.onPointerEnter} onMouseLeave={props.onPointerLeave}>
       <PanelHeader onTools={() => openUtility(utilityPopup === "Tools" ? "" : "Tools")} toolsLabel={tr("RouteFilter.UI.Tools","Tools")} title={props.labels.title} version={mod.version} buildId={props.buildId} closeLabel={props.labels.close} onClose={props.onClose} />
       {!props.configurationEditable && <div className={styles.resetStatus} role="status">{tr("RouteFilter.UI.PersistenceLocked", "Save data is incompatible or damaged. Editing is locked; Reset removes RouteFilter configuration.")}</div>}
       <TargetSelector mode={props.targetMode} nodeLabel={props.labels.node} segmentLabel={props.labels.segment} status={props.labels.targetStatus} targetReady={targetReady} onModeChange={props.onTargetModeChange} />
@@ -115,8 +116,8 @@ export const RouteFilterPanel = (props: Props) => {
         <Button variant="flat" className={styles.utilityAction} onSelect={()=>setConfirmReset(true)}><img className={styles.utilityIcon} src={icons.reset} alt="" />{tr("RouteFilter.UI.Reset","Reset RouteFilter")}</Button>
       </div>
       {props.resetCompleted > 0 && <div className={styles.resetStatus} role="status">{tr("RouteFilter.UI.ResetCompleted", "Reset completed. Unknown lane and path state was left unchanged.")}</div>}
-    </Panel>}
-    <Enhancements onAppearance={setAppearanceActive} targetMode={props.targetMode} editable={props.configurationEditable} popup={utilityPopup} onPopup={openUtility} reset={props.resetCompleted} targetReady={targetReady} hasClipboard={hasClipboard} onReset={() => { openUtility(""); setConfirmReset(true); }} />
+    </Panel>
+    <FeatureBoundary onDismiss={()=>{openUtility("");setAppearanceActive(false);}}><Enhancements onAppearance={setAppearanceActive} targetMode={props.targetMode} editable={props.configurationEditable} popup={utilityPopup} onPopup={openUtility} reset={props.resetCompleted} targetReady={targetReady} hasClipboard={hasClipboard} onReset={() => { openUtility(""); setConfirmReset(true); }} /></FeatureBoundary>
     {confirmReset && <ConfirmationDialog
       title={tr("RouteFilter.UI.Reset", "Reset RouteFilter")}
       message={tr("RouteFilter.Settings.ResetConfirmation", "This removes all RouteFilter restrictions and safely identifiable runtime state. This cannot be undone. State with uncertain ownership is not modified.")}

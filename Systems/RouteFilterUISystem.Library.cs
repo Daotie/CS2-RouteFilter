@@ -74,8 +74,8 @@ public sealed partial class RouteFilterUISystem
     internal void RecordRecentApply()
     {
         var target = m_RestrictionTool.SelectedTarget;
-        if (target == Entity.Null || !EntityManager.Exists(target) || EntityManager.HasComponent<Game.Common.Deleted>(target) || !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable ||
-            !EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets)) return;
+        if (target == Entity.Null || !EntityManager.Exists(target) || EntityManager.HasComponent<Game.Common.Deleted>(target) || !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable ) return;
+        if (!EntityManager.TryGetBuffer(target,true,out DynamicBuffer<RestrictedVehicleAssetV1> assets) || assets.Length==0) { LibraryFeedback("AllowAll",0); return; }
         RecordRecentAssets(assets.Select(asset => asset.m_Prefab));
     }
     internal void RecordRecentAssets(IEnumerable<Entity> assets)

@@ -99,7 +99,6 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
     protected override void OnStopRunning()
     {
-        World.GetExistingSystemManaged<RouteFilterUISystem>()?.StopAdvancedInteraction();
         CancelBrush(); BrushEnabled = false; UpdateMouseHints();
         if (m_MouseApplyDisplay != null) m_MouseApplyDisplay.active = false;
         if (m_MouseCancelDisplay != null) m_MouseCancelDisplay.active = false;
@@ -138,6 +137,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         if (m_ToolSystem.activeTool != this) return inputDeps;
         HoveredSignTarget = Entity.Null;
         if (!P0Diagnostics.Tool) { m_ToolSystem.selected = Entity.Null; return inputDeps; }
+        if (cancelAction.WasPressedThisFrame() && World.GetExistingSystemManaged<RouteFilterUISystem>()?.TryCancelAdvancedInteraction()==true) return inputDeps;
         if (BrushEnabled) UpdateBrushInput();
 
         // Handle native cancel independently of raycast/pointer state. First cancel clears

@@ -1,10 +1,10 @@
-# RouteFilter 2.1.0-dev — localized traffic-sign semantic test build
+# RouteFilter 2.1.0-dev — emergency UX correction test build
 
-Build: `RF21-20261005-SIGN-32`.
+Build: `RF21-20261005-UX-33`.
 
-Replaces internal category plate stacks with coverage-aware vehicle semantics, concise text-only legends and independent Signage Profile selection. Full vehicle restrictions use the main sign alone; partial assets retain selected qualifiers. Adds CN / British / American semantic terminology, measured locale font fitting, theme-and-locale AUTO, explicit regional-asset fallback and ordinary roadside placement. CN/UK dedicated national assets are unavailable; HK/JP remain hidden. No standards compliance is claimed.
+Restores the 2.0 panel foundation and Reset footer, unifies Node/Segment and All/Favorites/Recent selectors, restores small independent stars, and replaces secondary action walls with anchored menu rows and contextual preset editing. Copy/Paste shows counts and leaves Paste pending until Apply. Recent follows successful application only. The persistent five-parameter wheel palette sits upper-right with Reset/Finish. Auxiliary plates use the native primary front bounds. The cached road map uses an explicit pixel viewport/world matrix, layers, fit, pan, zoom and target selection.
 
-Previous UX-31 editing, presets, appearance, native info, range and map improvements remain. Stable 2.0 enforcement and city-save schema are unchanged. SIGN-32 game, performance and save/load acceptance remain NOT TESTED. See `UNIFIED_TEST_REPORT.md`.
+Adds Escape priority, centralized teardown and secondary failure containment. Localized signage semantics from SIGN-32 remain. Stable enforcement and city-save schema are unchanged. P0–P5 are IMPLEMENTED + BUILD VERIFIED; game, performance and save/load acceptance remain pending. Deployment preserves the complete compatibility playset. See `UNIFIED_TEST_REPORT.md` and `EMERGENCY_ACCEPTANCE_CHECKLIST.md`.
 
 ## RouteFilter 2.0.0 — Previous stable release
 

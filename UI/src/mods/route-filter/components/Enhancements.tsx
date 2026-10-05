@@ -6,6 +6,7 @@ import mod from "mod.json";
 import { parseMap, path, fitMap, mapMatrix, zoomMap, MapView } from "../mapGeometry";
 import { RoadSignSelector } from "./RoadSignSelector";
 import styles from "../route-filter.module.scss";
+const feedback$ = bindValue<string>(mod.id,"libraryFeedback","");
 const advancedClosed$ = bindValue<number>(mod.id,"advancedClosed",0);
 const presets$ = bindValue<string>(mod.id,"userPresets","");
 const missing$ = bindValue<number>(mod.id,"presetMissing",0);
@@ -19,12 +20,16 @@ const appearance$ = bindValue<string>(mod.id,"signAppearance","1|0|0|0|0");
 type Props = { targetMode: number; editable: boolean; popup: string; onPopup: (value: string) => void; reset: number; targetReady: boolean; hasClipboard: boolean; onReset: () => void; onAppearance: (open: boolean) => void };
 export const MenuItem = ({children,onSelect,disabled=false,submenu=false}: {children: React.ReactNode; onSelect:()=>void; disabled?:boolean; submenu?:boolean}) => <button type="button" role="menuitem" className={styles.menuItem} disabled={disabled} onClick={onSelect}><span>{children}</span>{submenu && <span className={styles.menuChevron} aria-hidden="true">›</span>}</button>;
 export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetReady,hasClipboard,onAppearance}: Props) => {
+  const feedback=useValue(feedback$);
+  const [feedbackKind,feedbackCount]=feedback.split("|");
+  const feedbackFallback:Record<string,string>={Copied:"Copied {count} vehicle restrictions.",Pasted:"Loaded {count} vehicle restrictions. Press Apply; entry directions stay unchanged.",Incompatible:"No clipboard vehicles match this target."};
   const advancedClosed=useValue(advancedClosed$),range=useValue(range$),pending=useValue(pending$),status=useValue(status$);
   const [palette,setPalette]=useState(false);
   const menu=useRef<HTMLDivElement>(null);
   const [position,setPosition]=useState({left:18,top:126});
   const {translate}=useLocalization();
   const tr=(id:string,fallback:string)=>String(translate(`RouteFilter.UI.${id}`,fallback)??fallback);
+  useEffect(()=>{trigger(mod.id,"setSecondaryInteraction",Boolean(popup||palette));return()=>trigger(mod.id,"setSecondaryInteraction",false);},[popup,palette]);
   useEffect(()=>{
     trigger(mod.id,"setRestrictionMapOpen",popup==="Map"); trigger(mod.id,"setSegmentBrush",popup==="Range");
     return ()=>{trigger(mod.id,"setRestrictionMapOpen",false);trigger(mod.id,"setSegmentBrush",false);trigger(mod.id,"setUiPointerArea","utility",false);};
@@ -40,8 +45,9 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
     if(!popup||popup==="Map")return;
     const positionMenu=()=>{
       const anchor=document.getElementById("routefilter-tools")?.getBoundingClientRect();
-      const width=menu.current?.getBoundingClientRect().width??300;
-      if(anchor)setPosition({left:Math.max(12,Math.min(anchor.right-width,window.innerWidth-width-12)),top:Math.min(anchor.bottom+8,window.innerHeight-160)});
+      const rectangle=menu.current?.getBoundingClientRect();
+      const width=rectangle?.width??300, height=rectangle?.height??160;
+      if(anchor)setPosition({left:Math.max(12,Math.min(anchor.right-width,window.innerWidth-width-12)),top:Math.max(12,Math.min(anchor.bottom+8,window.innerHeight-height-12))});
     };
     positionMenu();window.addEventListener("resize",positionMenu);return()=>window.removeEventListener("resize",positionMenu);
   },[popup]);
@@ -64,6 +70,7 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
         <div className={styles.menuSeparator}/>
         <MenuItem onSelect={()=>onPopup("Map")}>{tr("Map","Restriction map")}</MenuItem>
         <MenuItem disabled={targetMode!==1||!editable} onSelect={()=>onPopup("Range")}>{tr("Brush","Batch segment restrictions")}</MenuItem>
+        {feedbackFallback[feedbackKind]&&<div className={styles.workflowStatus} role="status">{tr(`Feedback.${feedbackKind}`,feedbackFallback[feedbackKind]).replace("{count}",feedbackCount??"0")}</div>}
       </div>}
       {popup==="Presets" && <PresetMenu editable={editable} onLoaded={()=>onPopup("")} />}
       {popup==="SignStyle" && <RoadSignSelector closeToken={0} onPopupOpen={()=>{}}/>}
@@ -75,7 +82,7 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
         <MenuItem onSelect={()=>{trigger(mod.id,"cancelSegmentRange");onPopup("");}}>{tr("Cancel","Cancel")}</MenuItem>
       </div>}
     </div></Portal>}
-    {popup==="Map" && <Portal><Panel className={styles.mapPanel} contentClassName={styles.auxContent} onMouseEnter={()=>trigger(mod.id,"setUiPointerArea","utility",true)} onMouseLeave={()=>trigger(mod.id,"setUiPointerArea","utility",false)}><div className={styles.auxHeader}><strong>{tr("Map","Restriction map")}</strong><button type="button" className={styles.windowControl} onClick={()=>onPopup("")} aria-label={tr("Close","Close")}>×</button></div><RestrictionMap/></Panel></Portal>}
+    {popup==="Map" && <Portal><Panel className={styles.mapPanel} contentClassName={styles.auxContent} onMouseEnter={()=>trigger(mod.id,"setUiPointerArea","utility",true)} onMouseLeave={()=>trigger(mod.id,"setUiPointerArea","utility",false)}><div className={styles.auxHeader}><strong>{tr("Map","Restriction map")}</strong><button type="button" className={styles.windowControl} onClick={()=>onPopup("")} aria-label={tr("Close","Close")}>×</button></div><div className={styles.mapBody}><RestrictionMap/></div></Panel></Portal>}
     {palette && <AppearancePalette onClose={finish}/>}
   </>;
 };

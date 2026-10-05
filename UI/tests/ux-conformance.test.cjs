@@ -18,6 +18,7 @@ function load(file) {
  const source=fs.readFileSync(file,'utf8');
  const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.React,esModuleInterop:true}}).outputText;
  const requireMock = name => {
+   if(name==='react') return {...React,useLayoutEffect:React.useEffect};
    if(name==='cs2/ui') return ui;
    if(name==='cs2/api') return {bindValue:(group,key,value)=>({key,value}),useValue:binding=>bindings.has(binding.key)?bindings.get(binding.key):binding.value,trigger:(...args)=>events.push(args)};
    if(name==='cs2/l10n') return {useLocalization:()=>({translate:(key,fallback)=>fallback})};
@@ -70,3 +71,9 @@ const segments=renderToStaticMarkup(React.createElement(SegmentedSelector,{value
 assert.equal((segments.match(/aria-selected="true"/g)||[]).length,1);assert.match(segments,/segmentButtonActive/);assert.match(segments,/role="tablist"/);
 assert.doesNotMatch(tools,/Reset RouteFilter/);assert.match(tools,/role="menuitem"/);
 console.log('PASS: shared single-active segmented selector; real menu rows; progressive preset editor; Reset excluded from secondary menu.');
+
+bindings.set('libraryFeedback','Copied|2|1');
+const copiedTools=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Tools',hasClipboard:true}));
+assert.match(copiedTools,/Copied 2 vehicle restrictions/);
+assert.doesNotMatch(copiedTools,/disabled=""[^>]*><span>Paste vehicle restrictions/);
+console.log('PASS: Copy result remains visible inside the open menu with Paste available.');

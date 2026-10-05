@@ -35,7 +35,7 @@ public sealed partial class RouteFilterUISystem
                 var truck = cargo || EntityManager.HasComponent<Game.Prefabs.GarbageTruckData>(asset) || EntityManager.HasComponent<Game.Prefabs.FireEngineData>(asset);
                 if (name == "CargoTrucks" ? cargo : truck) Mod.SelectedVehicleAssets.Add(asset);
             }
-            m_PresetMissing.Update(0); m_PresetUnsupported.Update(0); UpdateSelectedBinding(); PublishRestriction();
+            m_PresetMissing.Update(0); m_PresetUnsupported.Update(0); UpdateSelectedBinding(); PublishRestriction(); LibraryFeedback("Preset",Mod.SelectedVehicleAssets.Count);
         }));
         AddBinding(new TriggerBinding<string>(Mod.Id, "saveUserPreset", name =>
         {
@@ -68,7 +68,7 @@ public sealed partial class RouteFilterUISystem
                 Mod.SelectedVehicleAssets.Add(asset);
             }
             m_PresetMissing.Update(missing); m_PresetUnsupported.Update(unsupported);
-            UpdateSelectedBinding(); PublishRestriction();
+            UpdateSelectedBinding(); PublishRestriction(); LibraryFeedback("Preset",Mod.SelectedVehicleAssets.Count);
         }));
         PublishPresets();
     }

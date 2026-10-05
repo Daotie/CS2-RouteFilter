@@ -17,7 +17,8 @@ public sealed partial class RouteFilterUISystem
 {
     private ValueBinding<int> m_AdvancedClosed;
     private int m_AdvancedCloseRevision;
-    private bool m_MapOpen, m_MapDirty = true;
+    private bool m_MapOpen, m_MapDirty = true, m_SecondaryInteraction;
+    private int m_AdvancedClosedFrame=-1;
     private ValueBinding<string> m_MapSnapshot, m_MapGeometry;
     private Game.Input.InputBarrier m_ZoomBarrier;
     private string m_AppearanceParameter = "";
@@ -33,6 +34,7 @@ public sealed partial class RouteFilterUISystem
     private readonly Dictionary<Entity,uint> m_MapRoadStamps = new();
     private void InitializeMapAndBrush()
     {
+        AddBinding(new TriggerBinding<bool>(Mod.Id,"setSecondaryInteraction",open=>m_SecondaryInteraction=open));
         m_AdvancedClosed=CreateValue("advancedClosed",0);
         AddBinding(new TriggerBinding(Mod.Id,"closeAdvancedInteraction",StopAdvancedInteraction));
         AddBinding(new TriggerBinding(Mod.Id,"refreshRestrictionMap",()=>m_MapDirty=true));
@@ -190,8 +192,15 @@ public sealed partial class RouteFilterUISystem
         }
         PublishAppearance(); m_AppearanceSavePending = true; m_AppearanceSaveAt = UnityEngine.Time.realtimeSinceStartup+.4f;
     }
+    internal bool TryCancelAdvancedInteraction()
+    {
+        if (m_AdvancedClosedFrame==UnityEngine.Time.frameCount) return true;
+        if (!m_SecondaryInteraction && !m_MapOpen && m_AppearanceParameter.Length==0 && !m_RestrictionTool.BrushEnabled) return false;
+        StopAdvancedInteraction(); return true;
+    }
     internal void StopAdvancedInteraction()
     {
+        m_SecondaryInteraction=false; m_AdvancedClosedFrame=UnityEngine.Time.frameCount;
         m_AdvancedClosed?.Update(++m_AdvancedCloseRevision);
         m_RestrictionTool.SetPointerOverUi(false);
         m_AppearanceParameter = ""; m_MapOpen = false; m_RestrictionTool.SetBrushEnabled(false); ClearMap();
