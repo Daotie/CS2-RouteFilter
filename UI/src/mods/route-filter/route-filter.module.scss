@@ -278,3 +278,11 @@ $rfDanger: #e07b73;
 .batchActions { display:flex; align-items:center; margin:6rem 0; padding-top:6rem; border-top:1rem solid rgba(255,255,255,.08); }
 .batchActions button { flex:0 0 auto; padding:0 10rem; margin-right:6rem; }
 .batchActions span { flex:1; text-align:right; font-size:11rem; color:$rfMuted; }
+
+// Reserve the persistent sign tool's column so the map close/control area stays usable.
+.mapPanel { right:326rem; width:calc(100vw - 770rem); min-width:360rem; max-width:780rem; max-height:calc(100vh - 108rem); overflow-y:auto; }
+.appearancePalette { max-height:calc(100vh - 90rem); overflow-y:auto; }
+
+.categorySelected { color:$rfText; }
+.categoryHeader[data-selection="all"] { border-left:2rem solid $rfAccent; }
+.categoryHeader[data-selection="partial"] { border-left:2rem solid #bca35d; }

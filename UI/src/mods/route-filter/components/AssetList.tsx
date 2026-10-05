@@ -52,7 +52,7 @@ export const AssetList = ({ favorites, onFavorite, favoriteLabel, roots, childre
       const ids=categoryIds(group.assets),count=ids.filter(id=>selected.has(id)).length;
       const open=Boolean(searchTerm)||!collapsed.has(group.id);
       const label=String(translate(`RouteFilter.UI.Category.${group.id}`,names[group.id]??names.Other)??names.Other);
-      return <React.Fragment key={group.id}><button type="button" className={styles.categoryHeader} aria-expanded={open} aria-label={`${label}: ${count} / ${ids.length}`} onClick={()=>setCollapsed(previous=>{const next=new Set(previous);if(next.has(group.id))next.delete(group.id);else next.add(group.id);return next;})}><span className={styles.categoryChevron}>{open?"⌄":"›"}</span><CategoryGlyph category={group.id}/><strong>{label}</strong><span>{count} / {ids.length}</span></button>{open&&group.assets.map(asset=>renderRow(asset))}</React.Fragment>;
+      return <React.Fragment key={group.id}><button type="button" className={`${styles.categoryHeader} ${count?styles.categorySelected:""}`} data-selection={count===0?"none":count===ids.length?"all":"partial"} aria-expanded={open} aria-label={`${label}: ${count} / ${ids.length}`} onClick={()=>setCollapsed(previous=>{const next=new Set(previous);if(next.has(group.id))next.delete(group.id);else next.add(group.id);return next;})}><span className={styles.categoryChevron}>{open?"⌄":"›"}</span><CategoryGlyph category={group.id}/><strong>{label}</strong><span>{count} / {ids.length}</span></button>{open&&group.assets.map(asset=>renderRow(asset))}</React.Fragment>;
     })}
     {roots.length === 0 && <div className={styles.emptyState}>{emptyLabel}</div>}
   </Scrollable>;

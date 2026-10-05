@@ -54,7 +54,7 @@ assert.doesNotMatch(range,/Apply to range/);
 const {SignInfoSection}=load(path.join(base,'components/SignInfoSection.tsx'));
 const info=renderToStaticMarkup(React.createElement(SignInfoSection,{targetKind:'Segment',targetName:'Oak Street',categories:'Trucks',assets:2,entries:1,entryOrdinal:1}));
 assert.match(info,/Oak Street/);assert.match(info,/Vehicle categories/);assert.match(info,/Edit in RouteFilter/);
-console.log('PASS: independent favorite, right checkbox, secondary-only tools, empty clipboard, built-in presets, range confirmation gating, native-section data props.');
+console.log('PASS: independent favorite, right checkbox, compact utility menu, persistent sign tool, built-in presets and footer clipboard gating, native-section data props.');
 
 const {RoadSignSelector}=load(path.join(base,'components/RoadSignSelector.tsx'));
 bindings.set('signageProfile','AUTO');bindings.set('signageProfileResolved','US');bindings.set('signageProfileFallback',true);
@@ -76,7 +76,7 @@ bindings.set('libraryFeedback','Copied|2|1');
 const copiedTools=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Tools',hasClipboard:true}));
 assert.doesNotMatch(copiedTools,/Copy vehicle restrictions/);
 assert.doesNotMatch(copiedTools,/disabled=""[^>]*><span>Paste vehicle restrictions/);
-console.log('PASS: Copy result remains visible inside the open menu with Paste available.');
+console.log('PASS: Clipboard actions remain outside the utility menu.');
 
 const {ActionBar}=load(path.join(base,'components/ActionBar.tsx'));
 const footer=renderToStaticMarkup(React.createElement(ActionBar,{copyLabel:'复制',pasteLabel:'粘贴',copyReady:true,pasteReady:false,targetReady:true,applyLabel:'应用',clearLabel:'清除'}));

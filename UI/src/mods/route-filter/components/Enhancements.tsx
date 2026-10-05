@@ -14,9 +14,6 @@ const unsupported$ = bindValue<number>(mod.id,"presetUnsupported",0);
 const map$ = bindValue<string>(mod.id,"restrictionMap","");
 const terrain$ = bindValue<string>(mod.id,"restrictionMapTerrain","");
 const roads$ = bindValue<string>(mod.id,"restrictionMapRoads","");
-const range$ = bindValue<boolean>(mod.id,"segmentBrush",false);
-const status$ = bindValue<string>(mod.id,"rangeStatus","Start");
-const pending$ = bindValue<number>(mod.id,"brushPending",0);
 const appearance$ = bindValue<string>(mod.id,"signAppearance","1|0|0|0|0");
 type Props = { targetMode: number; editable: boolean; popup: string; onPopup: (value: string) => void; reset: number; targetReady: boolean; hasClipboard: boolean; onReset: () => void; onAppearance: (open: boolean) => void };
 export const MenuItem = ({children,onSelect,disabled=false,submenu=false}: {children: React.ReactNode; onSelect:()=>void; disabled?:boolean; submenu?:boolean}) => <button type="button" role="menuitem" className={styles.menuItem} disabled={disabled} onClick={onSelect}><span>{children}</span>{submenu && <span className={styles.menuChevron} aria-hidden="true">›</span>}</button>;
@@ -24,13 +21,14 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
   const feedback=useValue(feedback$);
   const [feedbackKind,feedbackCount]=feedback.split("|");
   const feedbackFallback:Record<string,string>={Copied:"Copied {count} vehicle restrictions.",Pasted:"Loaded {count} vehicle restrictions. Press Apply; entry directions stay unchanged.",Incompatible:"No clipboard vehicles match this target."};
-  const advancedClosed=useValue(advancedClosed$),range=useValue(range$),pending=useValue(pending$),status=useValue(status$);
+  const advancedClosed=useValue(advancedClosed$);
 
+  const [signMenuOpen,setSignMenuOpen]=useState(false);
   const menu=useRef<HTMLDivElement>(null);
   const [position,setPosition]=useState({left:18,top:126});
   const {translate}=useLocalization();
   const tr=(id:string,fallback:string)=>String(translate(`RouteFilter.UI.${id}`,fallback)??fallback);
-  useEffect(()=>{trigger(mod.id,"setSecondaryInteraction",Boolean(popup));return()=>trigger(mod.id,"setSecondaryInteraction",false);},[popup]);
+  useEffect(()=>{trigger(mod.id,"setSecondaryInteraction",Boolean(popup||signMenuOpen));return()=>trigger(mod.id,"setSecondaryInteraction",false);},[popup,signMenuOpen]);
   useEffect(()=>{
     trigger(mod.id,"setRestrictionMapOpen",popup==="Map");
     return ()=>{trigger(mod.id,"setRestrictionMapOpen",false);trigger(mod.id,"setSegmentBrush",false);trigger(mod.id,"setUiPointerArea","utility",false);};
@@ -71,7 +69,7 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
 
     </div></Portal>}
     {popup==="Map" && <Portal><Panel className={styles.mapPanel} contentClassName={styles.auxContent} onMouseEnter={()=>trigger(mod.id,"setUiPointerArea","utility",true)} onMouseLeave={()=>trigger(mod.id,"setUiPointerArea","utility",false)}><div className={styles.auxHeader}><strong>{tr("Map","Restriction map")}</strong><button type="button" className={styles.windowControl} onClick={()=>onPopup("")} aria-label={tr("Close","Close")}>×</button></div><div className={styles.mapBody}><RestrictionMap/></div></Panel></Portal>}
-    <AppearancePalette reset={advancedClosed+reset} onAppearance={onAppearance}/>
+    <AppearancePalette reset={advancedClosed+reset} onAppearance={onAppearance} onSignMenuChange={setSignMenuOpen}/>
   </>;
 };
 const PresetMenu=({editable,onLoaded}:{editable:boolean;onLoaded:()=>void})=>{
@@ -100,7 +98,7 @@ const ParameterInput = ({id,label,value,unit,active,onActivate}: {id:string;labe
   const commit=()=>{editing.current=false;if(cancelled.current){cancelled.current=false;setDraft(value.toFixed(2));return;}const number=Number(draft);if(draft.trim() && Number.isFinite(number))trigger(mod.id,"setSignAppearance",id,number);else setDraft(value.toFixed(2));};
   return <label className={`${styles.parameterRow} ${active?styles.parameterActive:""}`}><span>{label}</span><input aria-label={label} type="text" inputMode="decimal" value={draft} onFocus={()=>{editing.current=true;cancelled.current=false;onActivate();}} onChange={event=>setDraft(event.target.value)} onBlur={commit} onKeyDown={event=>{if(event.key==="Enter")event.currentTarget.blur();if(event.key==="Escape"){cancelled.current=true;setDraft(value.toFixed(2));editing.current=false;event.currentTarget.blur();}}}/><span className={styles.parameterUnit}>{unit}</span></label>;
 };
-const AppearancePalette = ({ reset,onAppearance }: { reset:number;onAppearance:(active:boolean)=>void }) => {
+const AppearancePalette = ({ reset,onAppearance,onSignMenuChange }: { reset:number;onAppearance:(active:boolean)=>void;onSignMenuChange:(open:boolean)=>void }) => {
   const raw = useValue(appearance$), values = useMemo(() => raw.split("|").map(Number),[raw]);
   const [parameter,setParameter] = useState(""), [step,setStep] = useState(.05);
   const { translate } = useLocalization();
@@ -110,7 +108,7 @@ const AppearancePalette = ({ reset,onAppearance }: { reset:number;onAppearance:(
   useEffect(() => () => trigger(mod.id,"setUiPointerArea","appearance",false),[]);
   return <Portal><Panel className={styles.appearancePalette} contentClassName={styles.auxContent} onMouseEnter={() => trigger(mod.id,"setUiPointerArea","appearance",true)} onMouseLeave={() => trigger(mod.id,"setUiPointerArea","appearance",false)}>
     <div className={styles.auxHeader}><strong>{tr("SignTool","Traffic sign")}</strong></div>
-    <RoadSignSelector closeToken={reset}/>
+    <RoadSignSelector closeToken={reset} onOpenChange={onSignMenuChange}/>
     <div className={styles.parameterList}>{parameters.map(([id,label,index,unit]) => <ParameterInput key={id} id={id} label={tr(`Appearance${id}`,label)} value={values[index]??0} unit={unit} active={parameter===id} onActivate={()=>setParameter(id)}/>)}</div>
     <div className={styles.wheelStep}><span>{tr("WheelStep","Wheel step")}</span><div className={styles.segmentedControl}>{[.01,.05,.1,.5].map(value=><button type="button" key={value} className={`${styles.segmentButton} ${step===value?styles.segmentButtonActive:""}`} aria-pressed={step===value} onClick={()=>setStep(value)}>{parameter==="rotation"?`${value*20}°`:parameter==="scale"?`${value}×`:`${value}m`}</button>)}</div></div>
     <div className={styles.paletteActions}><button type="button" className={styles.utilityAction} onClick={()=>trigger(mod.id,"resetSignAppearance")}>{tr("AppearanceReset","Reset position")}</button><button type="button" className={styles.utilityAction} disabled={!parameter} onClick={()=>setParameter("")}>{tr("Finish","Finish")}</button></div>

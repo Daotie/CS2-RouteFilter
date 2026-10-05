@@ -71,8 +71,8 @@ for(int mask=1;mask<(1<<fleet.Count);mask++)
     }
 }
 foreach(var locale in new[]{"en-US","en-GB","zh-CN","zh-HK","ja-JP"}) Check(SignageProfiles.Resolve("AUTO","NA",locale)=="US","US road family dominates language");
-Check(SignageProfiles.Resolve("AUTO","EU","zh-CN")=="CN","EU Chinese refines AUTO to CN");
-Check(SignageProfiles.Resolve("AUTO","EU","en-GB")=="UK","EU British English refines AUTO to UK");
+Check(SignageProfiles.Resolve("AUTO","EU","zh-CN")=="GENERIC_EUROPE","EU physical sign ignores Chinese text locale");
+Check(SignageProfiles.Resolve("AUTO","EU","en-GB")=="GENERIC_EUROPE","EU physical sign ignores British text locale");
 foreach(var locale in new[]{"zh-HK","ja-JP","en-US","de-DE"}) Check(SignageProfiles.Resolve("AUTO","EU",locale)=="GENERIC_EUROPE","unfinished / generic refinement uses safe baseline");
 foreach(var profile in SignageProfiles.Exposed.Where(value=>value!="AUTO")) foreach(var locale in new[]{"en-US","zh-CN"}) foreach(var theme in new[]{"NA","EU"}) Check(SignageProfiles.Resolve(profile,theme,locale)==profile,"manual profile survives theme and language changes");
 Check(!SignageProfiles.IsExposed("HK") && !SignageProfiles.IsExposed("JP"),"unreviewed regional profiles hidden");

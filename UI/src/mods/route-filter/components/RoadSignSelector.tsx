@@ -16,7 +16,7 @@ const selection$ = bindValue<string>(mod.id, "roadSignSelection", "");
 const resolved$ = bindValue<string>(mod.id, "roadSignResolved", "");
 const unavailable$ = bindValue<boolean>(mod.id, "roadSignUnavailable", false);
 
-export const RoadSignSelector = ({ closeToken = 0, onPopupOpen }: {closeToken?: number; onPopupOpen?: () => void}) => {
+export const RoadSignSelector = ({ closeToken = 0, onPopupOpen, onOpenChange }: {closeToken?: number; onPopupOpen?: () => void; onOpenChange?: (open:boolean)=>void}) => {
   const catalog = useValue(catalog$);
   const profile = useValue(profile$);
   const profileResolved = useValue(profileResolved$);
@@ -42,7 +42,7 @@ export const RoadSignSelector = ({ closeToken = 0, onPopupOpen }: {closeToken?: 
       return id ? [{ id, icon: icon || icons.prohibition }] : [];
     } catch { return []; }
   }), [catalog]);
-  const close = useCallback(() => { setPopup(null); trigger(mod.id, "setUiPointerArea", "sign", false); },[]);
+  const close = useCallback(() => { setPopup(null); onOpenChange?.(false); trigger(mod.id, "setUiPointerArea", "sign", false); },[onOpenChange]);
   useEffect(() => { close(); },[closeToken,close]);
   useEffect(() => () => { trigger(mod.id,"setUiPointerArea","sign",false); },[]);
   useEffect(() => {
@@ -50,7 +50,7 @@ export const RoadSignSelector = ({ closeToken = 0, onPopupOpen }: {closeToken?: 
     const outside = (event: MouseEvent) => {
       if (!anchor.current?.contains(event.target as Node) && !menu.current?.contains(event.target as Node)) close();
     };
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); close(); } };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); close(); trigger(mod.id,"closeAdvancedInteraction"); } };
     document.addEventListener("mousedown", outside);
     document.addEventListener("keydown", escape, true);
     window.addEventListener("resize", close);
@@ -68,13 +68,13 @@ export const RoadSignSelector = ({ closeToken = 0, onPopupOpen }: {closeToken?: 
     const left = Math.max(12, Math.min(rect.right + 8, window.innerWidth - width - 12));
     const top = bottom - maxHeight;
     setSearch(""); setScrollTop(0);
-    onPopupOpen?.();
+    onPopupOpen?.();onOpenChange?.(true);
     setPopup({ left, top, width, maxHeight, rowHeight });
   };
   const select = (value: string) => { trigger(mod.id, "selectRoadSignPrefab", value); close(); };
   const selected = useMemo(() => options.find(option => option.id === selection), [options, selection]);
   const automatic = useMemo(() => options.find(option => option.id === resolved), [options, resolved]);
-  const auto = tr("RouteFilter.UI.RoadSignAuto", "Auto — Match Road Theme and Language");
+  const auto = tr("RouteFilter.UI.RoadSignAuto", "Auto — Match Road Theme");
   const query = search.trim().toLocaleLowerCase();
   const namedOptions = useMemo(() => options.map(option => ({ ...option, displayName: name(option.id) })), [options, translate]);
   const filtered = useMemo(() => namedOptions.filter(option => !query || `${option.displayName} ${option.id}`.toLocaleLowerCase().includes(query)), [namedOptions, query]);

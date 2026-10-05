@@ -49,11 +49,8 @@ internal static class SignageProfiles
     {
         if (IsExposed(choice) && choice!="AUTO") return choice;
         if (themePrefix=="NA") return "US"; // ThemePrefab.assetPrefix metadata, never name substrings.
-        if (themePrefix!="EU") return "GENERIC_EUROPE";
-        var language=(locale??"").Replace('_','-').ToLowerInvariant();
-        if (language=="zh-cn" || language=="zh-hans" || language.StartsWith("zh-hans-")) return "CN";
-        if (language=="en-gb") return "UK";
-        // HK and JP remain architectural IDs only, until independently completed.
+        // Physical primary follows the road theme. Supplementary text resolves
+        // independently from the active locale; CN/UK remain explicit choices.
         return "GENERIC_EUROPE";
     }
 }
