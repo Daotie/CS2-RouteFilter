@@ -41,10 +41,21 @@ assert.ok(terrain.landPath.endsWith(' Z'));assert.ok(terrain.waterPath.endsWith(
 const terrainFit=fitMap(terrain.bounds,720,440);const shore=projectMap([7000,7000],terrainFit,720,440);assert.ok(shore[0]<=696 && shore[1]>=24);
 console.log('PASS: cached land/water layers share road coordinates and combined terrain/network fit.');
 
-const arrow=result.exports.navigationArrow([0,0],[8,4],terrainFit.scale);
+const arrow=result.exports.navigationArrow([0,0],[8,4]);
 const arrowLength=view=>{const tip=projectMap(arrow[0],view,720,440),notch=projectMap(arrow[2],view,720,440);return Math.hypot(tip[0]-notch[0],tip[1]-notch[1]);};
 assert.ok(Math.abs(arrowLength(zoomMap(terrainFit,.5,360,220,720,440))/arrowLength(terrainFit)-.5)<1e-8);
 assert.ok(Math.abs(arrowLength(zoomMap(terrainFit,2,360,220,720,440))/arrowLength(terrainFit)-2)<1e-8);
 const rail=parseMap('B||-100,0;100,0\nR|rail-edge|0,0;80,0|2|0/0\nR|rail-node|80,0|2|0/0');
 assert.equal(rail.restrictions.length,2);assert.equal(rail.restrictions[1].points.length,1);
 console.log('PASS: navigation arrows scale with zoom; rail segment/node data remains visible without road entry records.');
+
+// A ratio-only test missed the oversized world geometry. Check physical size and
+// fit views spanning neighborhood, city and full terrain bounds as well.
+assert.ok(Math.hypot(arrow[0][0]-arrow[2][0],arrow[0][1]-arrow[2][1])<=4);
+for(const extent of [200,2000,14000]) {
+ const fitted=fitMap({x:-extent/2,y:-extent/2,width:extent,height:extent},720,440);
+ assert.ok(arrowLength(fitted)<=8,`navigation marker oversized at ${extent}m extent`);
+ const shrunk=zoomMap(fitted,.1,360,220,720,440);
+ assert.ok(arrowLength(shrunk)<arrowLength(fitted));
+}
+console.log('PASS: marker physical length is bounded independently of city/terrain extent.');

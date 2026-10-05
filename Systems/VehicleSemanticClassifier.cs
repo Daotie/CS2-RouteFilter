@@ -19,8 +19,9 @@ internal static class VehicleSemanticClassifier
         if (manager.HasComponent<TaxiData>(asset)) return RouteFilter.Persistence.TrafficVehicleSemantic.Taxi;
         if (manager.HasComponent<DeliveryTruckData>(asset) || manager.HasComponent<CargoTransportVehicleData>(asset))
             return manager.GetComponentData<CarData>(asset).m_SizeClass==Game.Vehicles.SizeClass.Large ? RouteFilter.Persistence.TrafficVehicleSemantic.HeavyGoodsVehicle : RouteFilter.Persistence.TrafficVehicleSemantic.GoodsVehicle;
-        // Native CarData cannot reliably distinguish motorcycle / passenger car / work vehicle.
-        return RouteFilter.Persistence.TrafficVehicleSemantic.SpecifiedVehicles;
+        // Exact remainder of the UI road category partition; not an invented passenger-car taxonomy.
+        // Missing/non-road assets still return SpecifiedVehicles above.
+        return RouteFilter.Persistence.TrafficVehicleSemantic.OtherRoadVehicles;
 
     }
     internal static string Category(EntityManager manager, Entity asset, int mode)

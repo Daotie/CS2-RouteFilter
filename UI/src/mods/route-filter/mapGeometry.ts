@@ -31,7 +31,7 @@ export function zoomMap(view:MapView,factor:number,x:number,y:number,width:numbe
 }
 
 // Fixed world geometry: visible arrow size follows map zoom, unlike the hit target.
-export function navigationArrow(a:[number,number],b:[number,number],baseScale:number):[number,number][] {
-  const dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy)||1,ux=dx/length,uy=dy/length,size=6/baseScale;
+export function navigationArrow(a:[number,number],b:[number,number]):[number,number][] {
+  const dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy)||1,ux=dx/length,uy=dy/length,size=3;
   return [[a[0]+ux*size,a[1]+uy*size],[a[0]-ux*size-uy*size*.6,a[1]-uy*size+ux*size*.6],[a[0]-ux*size*.25,a[1]-uy*size*.25],[a[0]-ux*size+uy*size*.6,a[1]-uy*size-ux*size*.6],[a[0]+ux*size,a[1]+uy*size]];
 }

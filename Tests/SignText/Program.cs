@@ -64,7 +64,7 @@ internal static class Program
             Console.WriteLine("PASS opaque baked atlas: glyph ink present, light face retained, border/back/edge unchanged");
         }
         foreach (var locale in new[] { "zh-CN","en-GB","en-US" })
-        foreach (var text in new[] { "货车","大型货车","车辆限行","公交车、出租车除外","公交车、出租车\n市政车辆除外","道路养护车辆","指定大型载货汽车","指定道路养护车辆","ROAD MAINTENANCE","SELECTED LARGE GOODS VEHICLES","SELECTED EMERGENCY VEHICLES","MOTORCYCLES","GOODS VEHICLES","TRUCKS" })
+        foreach (var text in new[] { "货车","其它车辆除外","大型货车","车辆限行","公交车、出租车除外","公交车、出租车\n市政车辆除外","道路养护车辆","指定大型载货汽车","指定道路养护车辆","ROAD MAINTENANCE","SELECTED LARGE GOODS VEHICLES","SELECTED EMERGENCY VEHICLES","MOTORCYCLES","GOODS VEHICLES","TRUCKS" })
         {
             if((text[0]>127)!=(locale=="zh-CN")) continue;
             using var bitmap = new Bitmap(SignTextLayout.Width,SignTextLayout.Height);

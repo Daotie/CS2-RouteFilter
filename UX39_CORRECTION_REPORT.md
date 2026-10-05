@@ -1,9 +1,3 @@
-# RouteFilter 2.1.0-dev — UX-39
-
-Fix map entry arrow physical size: independent of city/terrain extent, following map zoom. Fix complete Other-category exemption: 其它车辆除外, preserving the allowed set and keeping unknown/missing assets separate.
-
-Build/test verification passed. Native visual acceptance of UX-39 remains pending. See UX39_CORRECTION_REPORT.md for reproduced scenarios and validation.
-
 # UX-39 — focused correction
 
 User UX-38 game screenshots show oversized map arrows overlapping in a starburst and the 46/98 selected restriction (Other 0/52, all five other categories selected) printing 车辆限行 instead of 其它车辆除外.

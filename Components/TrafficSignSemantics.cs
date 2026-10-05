@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 namespace RouteFilter.Persistence;
 // Visual-only classification. Never used by matching, topology, admission or persistence.
-internal enum TrafficVehicleSemantic { SpecifiedVehicles, AllRoadMotorVehicles, GoodsVehicle, HeavyGoodsVehicle, Bus, Taxi, Motorcycle, WorkVehicle, RoadMaintenance, EmergencyVehicle, FireEngine, Ambulance, PoliceVehicle, RefuseVehicle, PassengerCar, MunicipalVehicle }
+internal enum TrafficVehicleSemantic { SpecifiedVehicles, AllRoadMotorVehicles, GoodsVehicle, HeavyGoodsVehicle, Bus, Taxi, Motorcycle, WorkVehicle, RoadMaintenance, EmergencyVehicle, FireEngine, Ambulance, PoliceVehicle, RefuseVehicle, PassengerCar, MunicipalVehicle, OtherRoadVehicles }
 internal enum SupplementaryLegendKind { Restricted, Except, Notice }
 internal readonly struct TrafficLegend
 {
@@ -74,9 +74,9 @@ internal static class SignageProfiles
 internal static class TrafficSignLocalization
 {
     // Independent semantic dictionaries: no UI labels, prefab names or internal keys on plates.
-    private static readonly string[] EnglishUS={"SELECTED VEHICLES","ALL MOTOR VEHICLES","TRUCKS","LARGE TRUCKS","BUSES","TAXIS","MOTORCYCLES","WORK VEHICLES","ROAD MAINTENANCE","EMERGENCY VEHICLES","FIRE ENGINES","AMBULANCES","POLICE VEHICLES","REFUSE VEHICLES","PASSENGER CARS","MUNICIPAL VEHICLES"};
-    private static readonly string[] EnglishGB={"SELECTED VEHICLES","ALL MOTOR VEHICLES","GOODS VEHICLES","LARGE GOODS VEHICLES","BUSES","TAXIS","MOTORCYCLES","WORK VEHICLES","ROAD MAINTENANCE","EMERGENCY VEHICLES","FIRE ENGINES","AMBULANCES","POLICE VEHICLES","REFUSE VEHICLES","CARS","MUNICIPAL VEHICLES"};
-    private static readonly string[] ChineseCN={"车辆限行","全部机动车","货车","大型货车","公交车","出租车","摩托车","工程车辆","市政车辆","紧急车辆","消防车","救护车","警车","环卫车","小客车","市政车辆"};
+    private static readonly string[] EnglishUS={"SELECTED VEHICLES","ALL MOTOR VEHICLES","TRUCKS","LARGE TRUCKS","BUSES","TAXIS","MOTORCYCLES","WORK VEHICLES","ROAD MAINTENANCE","EMERGENCY VEHICLES","FIRE ENGINES","AMBULANCES","POLICE VEHICLES","REFUSE VEHICLES","PASSENGER CARS","MUNICIPAL VEHICLES","OTHER VEHICLES"};
+    private static readonly string[] EnglishGB={"SELECTED VEHICLES","ALL MOTOR VEHICLES","GOODS VEHICLES","LARGE GOODS VEHICLES","BUSES","TAXIS","MOTORCYCLES","WORK VEHICLES","ROAD MAINTENANCE","EMERGENCY VEHICLES","FIRE ENGINES","AMBULANCES","POLICE VEHICLES","REFUSE VEHICLES","CARS","MUNICIPAL VEHICLES","OTHER VEHICLES"};
+    private static readonly string[] ChineseCN={"车辆限行","全部机动车","货车","大型货车","公交车","出租车","摩托车","工程车辆","市政车辆","紧急车辆","消防车","救护车","警车","环卫车","小客车","市政车辆","其它车辆"};
     internal static string Language(string locale)
     {
         var id=(locale??"").Replace('_','-').ToLowerInvariant();

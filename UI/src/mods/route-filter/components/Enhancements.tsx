@@ -151,7 +151,7 @@ export const RestrictionMap = () => {
             {row.points.length===1?<><circle cx={row.points[0][0]} cy={row.points[0][1]} r={10/view.scale} fill="transparent"/><circle cx={row.points[0][0]} cy={row.points[0][1]} r={4/view.scale} fill="#ff8877"/></>:<><path d={path(row.points)} fill="none" stroke="transparent" strokeWidth={14/view.scale}/><path d={path(row.points)} fill="none" stroke="#ff8877" strokeWidth={3/view.scale}/></>}
           </g>)}
           {layers.entries&&overlay.entries.map((row,index)=>{
-            const [a,b]=row.points,arrow=navigationArrow(a,b,fitMap(geometry.bounds,size.width,size.height).scale);
+            const [a,b]=row.points,arrow=navigationArrow(a,b);
             return <g key={index} onMouseDown={event=>event.stopPropagation()} onClick={()=>trigger(mod.id,"selectMapTarget",row.key)}><circle cx={a[0]} cy={a[1]} r={10/view.scale} fill="transparent"/><path d={path(arrow)} fill="#ffd575"/></g>;
           })}
         </g>

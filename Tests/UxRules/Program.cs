@@ -126,6 +126,25 @@ var busTaxi=TrafficSignSemantics.Resolve(new[]{3,4,5,6},mixedFleet.Keys,id=>mixe
 Check(busTaxi.Kind==SupplementaryLegendKind.Except && busTaxi.Subjects.Length==2 && TrafficSignLocalization.Text(busTaxi,"zh-CN")=="公交车、出租车除外","bus/taxi exception uses one plate without an invented umbrella");
 var busTaxiMunicipal=TrafficSignSemantics.Resolve(new[]{5,6},mixedFleet.Keys,id=>mixedFleet[id]).Single();
 Check(TrafficSignLocalization.Text(busTaxiMunicipal,"zh-CN")=="公交车、出租车\n市政车辆除外","three complete allowed classes use two readable lines");
+// Actual UI Other category is an explicit remainder, distinct from missing assets.
+var roadPartition=new Dictionary<int,TrafficVehicleSemantic>{[1]=TrafficVehicleSemantic.OtherRoadVehicles,[2]=TrafficVehicleSemantic.OtherRoadVehicles,[3]=TrafficVehicleSemantic.Bus,[4]=TrafficVehicleSemantic.Taxi,[5]=TrafficVehicleSemantic.GoodsVehicle,[6]=TrafficVehicleSemantic.FireEngine,[7]=TrafficVehicleSemantic.RoadMaintenance};
+var otherException=TrafficSignSemantics.Resolve(new[]{3,4,5,6,7},roadPartition.Keys,id=>roadPartition[id]).Single();
+Check(otherException.Kind==SupplementaryLegendKind.Except && TrafficSignLocalization.Text(otherException,"zh-CN")=="其它车辆除外","all categories restricted except full Other prints actual exception");
+Check(TrafficSignLocalization.Text(TrafficSignSemantics.Resolve(new[]{1,2},roadPartition.Keys,id=>roadPartition[id]).Single(),"zh-CN")=="其它车辆","Other positive uses same vocabulary");
+Check(!TrafficSignSemantics.Resolve(new[]{2,3,4,5,6,7},roadPartition.Keys,id=>roadPartition[id]).Any(l=>l.Except),"partially allowed Other cannot claim full category exception");
+for(int mask=1;mask<128;mask++) {
+ var selected=roadPartition.Keys.Where(id=>(mask&(1<<(id-1)))!=0).ToHashSet();
+ var legend=TrafficSignSemantics.Resolve(selected,roadPartition.Keys,id=>roadPartition[id]).Single();
+ if(legend.Kind==SupplementaryLegendKind.Notice || legend.Partial)continue;
+ var represented=roadPartition.Keys.Where(id=>legend.Semantic==TrafficVehicleSemantic.AllRoadMotorVehicles || legend.Subjects.Any(subject=>TrafficSignSemantics.Belongs(roadPartition[id],subject))).ToHashSet();
+ if(legend.Except)represented=roadPartition.Keys.Except(represented).ToHashSet();
+ Check(selected.SetEquals(represented),"Other category compression never changes asset coverage");
+}
+var screenshotFleet=Enumerable.Repeat(TrafficVehicleSemantic.OtherRoadVehicles,52).Concat(Enumerable.Repeat(TrafficVehicleSemantic.FireEngine,9)).Concat(Enumerable.Repeat(TrafficVehicleSemantic.Bus,19)).Concat(Enumerable.Repeat(TrafficVehicleSemantic.GoodsVehicle,11)).Concat(Enumerable.Repeat(TrafficVehicleSemantic.MunicipalVehicle,5)).Concat(Enumerable.Repeat(TrafficVehicleSemantic.Taxi,2)).ToArray();
+var screenshotSelection=Enumerable.Range(52,46).ToArray();
+var screenshotLegend=TrafficSignSemantics.Resolve(screenshotSelection,Enumerable.Range(0,98),id=>screenshotFleet[id]).Single();
+Check(screenshotLegend.Except && screenshotLegend.Subjects.Single()==TrafficVehicleSemantic.OtherRoadVehicles,"screenshot 46/98 restrictions retain Other allowed class identity");
+Check(TrafficSignLocalization.Text(screenshotLegend,"zh-CN")=="其它车辆除外","screenshot 0/52 Other permitted renders exception rather than neutral notice");
 var history=new[]{"Old truck","Missing mod prefab","Bus"};
 Check(RecentAssetHistory.AfterSuccessfulApply(history,new[]{"Bus","Truck","Bus"}).SequenceEqual(new[]{"Bus","Truck","Old truck","Missing mod prefab"}),"Recent successful batch first, stable ties and deduplication");
 Check(RecentAssetHistory.AfterSuccessfulApply(history,Array.Empty<string>()).SequenceEqual(history),"allow-all Apply does not invent Recent assets");
