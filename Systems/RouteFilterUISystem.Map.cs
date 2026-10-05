@@ -76,6 +76,12 @@ public sealed partial class RouteFilterUISystem
             }
             Mod.Settings.ApplyAndSave(); PublishAppearance();
         }));
+        AddBinding(new TriggerBinding(Mod.Id,"resetSignAppearance",()=>
+        {
+            Mod.Settings.RoadSignScale=1; Mod.Settings.RoadSignHeight=0; Mod.Settings.RoadSignLateralOffset=0;
+            Mod.Settings.RoadSignLongitudinalOffset=0; Mod.Settings.RoadSignRotation=0; Mod.Settings.RoadPlateSpacing=.04f;
+            Mod.Settings.ApplyAndSave(); PublishAppearance(); World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.InvalidateAppearance();
+        }));
         m_Appearance = CreateValue("signAppearance",string.Empty); PublishAppearance();
     }
     private ValueBinding<string> m_Appearance;
@@ -164,7 +170,7 @@ public sealed partial class RouteFilterUISystem
         var keyboard = UnityEngine.InputSystem.Keyboard.current;
         var fine = keyboard?.leftShiftKey.isPressed == true || keyboard?.rightShiftKey.isPressed == true;
         var coarse = keyboard?.leftCtrlKey.isPressed == true || keyboard?.rightCtrlKey.isPressed == true;
-        var step = m_AppearanceParameter == "rotation" ? 1f : m_AppearanceStep;
+        var step = m_AppearanceParameter == "rotation" ? m_AppearanceStep * 20f : m_AppearanceStep;
         step *= (delta > 0 ? 1 : -1) * (fine ? .2f : coarse ? 5f : 1f);
         switch (m_AppearanceParameter)
         {

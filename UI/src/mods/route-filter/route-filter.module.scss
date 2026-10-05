@@ -236,3 +236,15 @@ $rfDanger: #e07b73;
 .presetEditorActions { display: flex; }
 .workflowStatus { flex: 0 0 auto; padding: 6rem 14rem; color: $rfMuted; font-size: 11rem; line-height: 1.4; }
 .toolInstructions { padding: 8rem; font-size: 12rem; }
+
+.appearancePalette { left: auto; right: 18rem; top: 72rem; width: 290rem; max-width: 40vw; border-radius: 10rem; background-image: linear-gradient(var(--panelGradientStart),var(--panelGradientEnd)); border: 0; pointer-events: auto; }
+.appearancePalette .auxContent { padding: 0; }
+.appearancePalette .auxHeader { padding: 10rem 14rem; margin: 0; border-bottom: 1rem solid $rfBorder; background: $rfSurfaceRaised; }
+.appearancePalette .parameterRow { display: flex; justify-content: space-between; align-items: center; height: 36rem; width: 100%; padding: 0 14rem; border: 0; border-left: 2rem solid transparent; border-radius: 0; background: transparent; color: $rfMuted; font: inherit; cursor: pointer; }
+.appearancePalette .parameterRow:hover { background: $rfSurfaceHover; }
+.appearancePalette .parameterActive { border-left-color: $rfAccent; color: $rfText; background: $rfAccentSoft; }
+.parameterRow strong { font-weight: 500; }
+.wheelStep { padding: 10rem 14rem; font-size: 11rem; color: $rfMuted; }
+.wheelStep .segmentedControl { margin-top: 6rem; height: 30rem; }
+.paletteActions { display: flex; justify-content: space-between; padding: 0 8rem; }
+.appearancePalette small { padding: 0 14rem 12rem; }

@@ -89,12 +89,12 @@ internal sealed class RuntimeSignResources : IDisposable
         obj.AddComponent<MeshRenderer>().sharedMaterials = materials;
         return obj;
     }
-    internal void Plate(Transform parent, float height, RouteFilter.Persistence.TrafficLegend legend,string locale,string profile)
+    internal void Plate(Transform parent, Unity.Mathematics.float3 anchor, RouteFilter.Persistence.TrafficLegend legend,string locale,string profile)
     {
         EnsurePlate();
         if (m_PlateMaterial == null || m_TextQuad == null) throw new InvalidOperationException("RF-Plate resources unavailable");
         var plate = MeshObject("RF-Plate", m_Plate, new[] { m_PlateMaterial }, parent);
-        plate.transform.localPosition = new Vector3(0,height,0);
+        plate.transform.localPosition = anchor;
         MeshObject("RF-Plate.Text", m_TextQuad, new[] { TextMaterial(legend,locale,profile) }, plate.transform);
     }
     internal void ScaledMain(Transform parent, StaticObjectPrefab prefab, float scale, Game.Objects.ObjectState state)

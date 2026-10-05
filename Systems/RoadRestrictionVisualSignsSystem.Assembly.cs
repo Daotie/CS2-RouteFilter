@@ -93,6 +93,7 @@ public sealed partial class RoadRestrictionVisualSignsSystem
         root.transform.position = position; root.transform.rotation = rotation;
         if (!m_Assemblies.TryGetValue(target,out var list)) m_Assemblies[target] = list = new();
         list.Add(root);
+        var actualMainScale=1f;
         if (m_Scale != 1f)
         {
             try
@@ -101,6 +102,7 @@ public sealed partial class RoadRestrictionVisualSignsSystem
                 state |= World.GetOrCreateSystemManaged<Game.City.CityConfigurationSystem>().leftHandTraffic ? Game.Objects.ObjectState.LefthandTraffic : Game.Objects.ObjectState.RighthandTraffic;
                 if (Enum.TryParse<Game.Objects.ObjectState>("Locale" + GameManager.instance.localizationManager.activeDictionary.localeID.Replace("-",""),true,out var locale)) state |= locale;
                 m_Resources.ScaledMain(root.transform,m_PrefabSystem.GetPrefab<StaticObjectPrefab>(prefab.Entity),m_Scale,state);
+                actualMainScale=m_Scale;
                 EntityManager.AddComponent<Game.Tools.Hidden>(marker);
                 EntityManager.AddComponent<Game.Common.BatchesUpdated>(marker);
             }
@@ -109,7 +111,11 @@ public sealed partial class RoadRestrictionVisualSignsSystem
         // Auxiliary failures must never discard the native main sign.
         try
         {
-            for (int i = 0; i < legends.Length; i++) m_Resources.Plate(root.transform, SignAppearance.PlateHeight(firstPlate,i,m_PlateSpacing),legends[i],ActiveSignLocale,profile);
+            var bounds=EntityManager.GetComponentData<ObjectGeometryData>(prefab.Entity).m_Bounds;
+            for(int i=0;i<legends.Length;i++)
+                if(SignAssemblyFrame.TryPlateAnchor(bounds.min,bounds.max,actualMainScale,SignAppearance.PlateHeight(firstPlate,i,m_PlateSpacing),out var plateAnchor))
+                    m_Resources.Plate(root.transform,plateAnchor,legends[i],ActiveSignLocale,profile);
+            if(legends.Length>0) Mod.Log.Info($"[RouteFilter.SignFrame] target={target} main={prefab.Name} frontLocal=+Z mainBoundsFront={bounds.max.z} scale={actualMainScale} approach={-math.forward(rotation)} plateFront={bounds.max.z*actualMainScale+.020f}");
         }
         catch (Exception error) { WarnOnce("RF-Plate", "RF-Plate unavailable; main sign retained: " + error.Message); }
     }

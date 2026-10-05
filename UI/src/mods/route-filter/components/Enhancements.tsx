@@ -106,9 +106,10 @@ const AppearancePalette = ({ onClose }: { onClose: () => void }) => {
   useEffect(() => { trigger(mod.id,"setSignAdjustment",parameter,step); return () => trigger(mod.id,"setSignAdjustment","",step); },[parameter,step]);
   useEffect(() => () => trigger(mod.id,"setUiPointerArea","appearance",false),[]);
   return <Portal><Panel className={styles.appearancePalette} contentClassName={styles.auxContent} onMouseEnter={() => trigger(mod.id,"setUiPointerArea","appearance",true)} onMouseLeave={() => trigger(mod.id,"setUiPointerArea","appearance",false)}>
-    <div className={styles.auxHeader}><strong>{tr("Appearance","Sign position adjustment")}</strong><Button variant="flat" onSelect={onClose}>×</Button></div>
-    <div className={styles.parameterList}>{parameters.map(([id,label,index,unit]) => <Button key={id} variant="flat" selected={parameter === id} onSelect={() => setParameter(id)}><span>{tr(`Appearance${id}`,label)}</span><span>{(values[index] ?? 0).toFixed(2)} {unit}</span></Button>)}</div>
-    <div className={styles.libraryToolbar}><span>{tr("WheelStep","Step")}</span>{[.01,.05,.1,.5].map(value => <Button key={value} variant="flat" selected={step === value} onSelect={() => setStep(value)}>{value} m</Button>)}</div>
+    <div className={styles.auxHeader}><strong>{tr("Appearance","Sign position adjustment")}</strong><button type="button" className={styles.windowControl} onClick={onClose} aria-label={tr("Close","Close")}>×</button></div>
+    <div className={styles.parameterList}>{parameters.map(([id,label,index,unit]) => <button type="button" key={id} className={`${styles.parameterRow} ${parameter===id?styles.parameterActive:""}`} aria-pressed={parameter===id} onClick={()=>setParameter(id)}><span>{tr(`Appearance${id}`,label)}</span><strong>{(values[index]??0).toFixed(2)} {unit}</strong></button>)}</div>
+    <div className={styles.wheelStep}><span>{tr("WheelStep","Wheel step")}</span><div className={styles.segmentedControl}>{[.01,.05,.1,.5].map(value=><button type="button" key={value} className={`${styles.segmentButton} ${step===value?styles.segmentButtonActive:""}`} aria-pressed={step===value} onClick={()=>setStep(value)}>{parameter==="rotation"?`${value*20}°`:parameter==="scale"?`${value}×`:`${value}m`}</button>)}</div></div>
+    <div className={styles.paletteActions}><button type="button" className={styles.utilityAction} onClick={()=>trigger(mod.id,"resetSignAppearance")}>{tr("AppearanceReset","Reset position")}</button><button type="button" className={styles.utilityAction} onClick={onClose}>{tr("Finish","Finish")}</button></div>
     <small>{tr("WheelHint","Scroll over the world to adjust. Shift: fine · Ctrl: coarse.")}</small>
   </Panel></Portal>;
 };

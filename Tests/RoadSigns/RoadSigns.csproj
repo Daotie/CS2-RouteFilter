@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Unity.Mathematics"><HintPath>$(ManagedPath)\Unity.Mathematics.dll</HintPath></Reference>
+    <Compile Include="../../Systems/SignAssemblyFrame.cs" Link="SignAssemblyFrame.cs" />
     <Compile Include="../../Systems/RoadSignPlacement.cs" Link="RoadSignPlacement.cs" />
   </ItemGroup>
 </Project>

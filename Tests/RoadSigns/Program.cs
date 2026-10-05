@@ -32,4 +32,15 @@ lm = rm = .8f;
 RoadSignPlacement.ConstrainToDivider(-3, 3, 3.2f, 7, ref lm, ref rm);
 Check(math.abs(lm - .1f) < .001f, "painted divider midpoint");
 Check(!RoadSignPlacement.RepeatOppositeSide(-1.75f,1.75f) && RoadSignPlacement.RepeatOppositeSide(-5,5),"ordinary roadside placement; wide approaches repeat for gameplay visibility");
+foreach(var signOffset in new[]{-.25f,0f,.25f}) foreach(var scale in new[]{.5f,1f,2f})
+{
+    Check(SignAssemblyFrame.TryPlateAnchor(new float3(-.4f,0,signOffset-.01f),new float3(.4f,2.5f,signOffset+.01f),scale,1.3f,out var plate),"plate anchor uses native prefab bounds");
+    Check(math.abs(plate.z+.012f-((signOffset+.01f)*scale+.02f))<.0001f,"supplementary FRONT aligned in front of primary metadata plane, including signed native mesh offsets");
+    foreach(var direction in new[]{new float3(0,0,1),math.normalize(new float3(1,0,1)),new float3(-1,0,0)})
+    {
+        var rotation=quaternion.LookRotationSafe(-direction,math.up());
+        Check(math.dot(math.rotate(rotation,new float3(0,0,1)),-direction)>.999f,"same positive frame faces vehicle approach on both roadsides");
+    }
+}
+Check(!SignAssemblyFrame.TryPlateAnchor(default,new float3(float.NaN),1,1,out _),"ambiguous plate geometry skipped safely");
 Console.WriteLine($"Road sign geometry: {checks} checks passed. Native rendering, theme assets and save/load require game testing.");

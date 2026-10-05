@@ -157,6 +157,8 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.SignStyle"] = Chinese ? "道路限制标志样式" : "Road restriction sign style",
             ["RouteFilter.UI.Appearancelongitudinal"] = Chinese ? "纵向偏移" : "Longitudinal offset",
             ["RouteFilter.UI.Appearancerotation"] = Chinese ? "旋转" : "Rotation",
+            ["RouteFilter.UI.AppearanceReset"] = Chinese ? "重置位置" : "Reset position",
+            ["RouteFilter.UI.Finish"] = Chinese ? "完成调整" : "Finish",
             ["RouteFilter.UI.WheelStep"] = Chinese ? "步长" : "Step",
             ["RouteFilter.UI.WheelHint"] = Chinese ? "在游戏画面滚动鼠标滚轮调整；Shift 精调，Ctrl 粗调。" : "Scroll over the world to adjust. Shift: fine · Ctrl: coarse.",
             ["RouteFilter.UI.PresetRename"] = Chinese ? "重命名" : "Rename",
