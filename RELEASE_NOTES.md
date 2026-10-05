@@ -1,7 +1,7 @@
-# RouteFilter 2.1.0-dev — UX-37
+# RouteFilter 2.1.0-dev — UX-38
 
-Wheel adjusts only the hovered input and synchronizes three-decimal values. Scale/Finish removed. EU/US profiles only; custom supplementary plate requires a force checkbox. Full-category exceptions use Except wording; detailed asset labels replace generic mixed labels. US plaque placement reserves clearance for Wrong Way panel.
+Independent supplementary wording: compact CN names, exact Restricted/Except comparison, one combined plate with at most two lines, no raw asset-name/UI translation fallback. Unknown/mixed scope uses a neutral restriction notice. Slightly smaller glyphs; no arbitrary Chinese word splitting.
 
-Batch apply/clear merged: left applies, right clears; rail/TrainData path admission repaired. Goods-only presets exclude service/emergency vehicles and support cargo trains. Main panel does not scroll; list shrinks, footer stays visible. Clipboard/Clear spacing added, resolved name single-line, map entry arrow has navigation notch.
+Map now includes train/tram track geometry and rail restriction targets. Swallowtail navigation arrows shrink/grow with map zoom. Batch button changes only to 批量应用 / Batch apply.
 
-Build/tests and mock browser checks pass. Native US overlap and rail batch acceptance remain pending.
+Build/test verification passed; final semantics suite has 2075 checks. Game acceptance of rendered plates and real rail maps remains pending. See UX38_CORRECTION_REPORT.md for scope, evidence and limits.

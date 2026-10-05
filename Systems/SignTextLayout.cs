@@ -26,11 +26,11 @@ internal static class SignTextLayout
         using var glyphs = new GraphicsPath();
         glyphs.AddString(label,family,(int)FontStyle.Bold,360,PointF.Empty,format);
         var bounds = glyphs.GetBounds();
-        var scale = Math.Min(1080/Math.Max(1,bounds.Width),254/Math.Max(1,bounds.Height));
+        var scale = Math.Min(1040/Math.Max(1,bounds.Width),230/Math.Max(1,bounds.Height));
         var hasSpace = text.IndexOf(' ') >= 0;
         var cjk = Cjk(text);
         var tier=Tier(text);
-        if (bounds.Height*scale < Height*.58f && (!cjk && hasSpace || cjk && (tier=="LONG" || tier=="VERY_LONG") || !cjk && text.Length > 16))
+        if (!text.Contains("\n") && bounds.Height*scale < Height*.58f && (!cjk && (hasSpace || text.Length > 16)))
         {
             var split = text.Length/2;
             if (hasSpace)
@@ -41,7 +41,7 @@ internal static class SignTextLayout
             }
             label = text.Substring(0,split).Trim()+"\n"+text.Substring(split).Trim();
             glyphs.Reset(); glyphs.AddString(label,family,(int)FontStyle.Bold,360,PointF.Empty,format);
-            bounds = glyphs.GetBounds(); scale = Math.Min(1080/Math.Max(1,bounds.Width),254/Math.Max(1,bounds.Height));
+            bounds = glyphs.GetBounds(); scale = Math.Min(1040/Math.Max(1,bounds.Width),230/Math.Max(1,bounds.Height));
         }
         using var transform = new Matrix(scale,0,0,scale,(Width-bounds.Width*scale)/2-bounds.X*scale,(Height-bounds.Height*scale)/2-bounds.Y*scale);
         glyphs.Transform(transform); graphics.FillPath(Brushes.Black,glyphs);

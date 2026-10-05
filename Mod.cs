@@ -19,7 +19,7 @@ public sealed class Mod : IMod
     public const string Version = "2.1.0-dev";
     // Bump this for every deployable build so the in-game panel and log identify
     // exactly which compiled payload is loaded by the active playset.
-    public const string BuildId = "RF21-20261006-UX-37";
+    public const string BuildId = "RF21-20261006-UX-38";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";

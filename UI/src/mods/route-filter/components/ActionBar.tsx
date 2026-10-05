@@ -51,5 +51,5 @@ const BatchControls=({editable}:{editable:boolean})=>{
   const active=useValue(brush$),pending=useValue(pending$);
   const {translate}=useLocalization();const tr=(key:string,fallback:string)=>String(translate(`RouteFilter.UI.${key}`,fallback)??fallback);
   const select=(operation:boolean)=>{trigger(mod.id,"setSegmentBrushOperation",operation);trigger(mod.id,"setSegmentBrush",!active);};
-  return <div className={styles.batchActions}><button type="button" className={`${styles.secondaryAction} ${active?styles.segmentButtonActive:""}`} aria-pressed={active} disabled={!editable} onClick={()=>select(false)} onContextMenu={event=>{event.preventDefault();select(true);}}>{tr("Batch","Batch")}</button>{active&&<span role="status">{pending>0?`${pending} ${tr("RangeSegments","segments")}`:tr("BatchDrag","Drag road segments")}</span>}</div>;
+  return <div className={styles.batchActions}><button type="button" className={`${styles.secondaryAction} ${active?styles.segmentButtonActive:""}`} aria-pressed={active} disabled={!editable} onClick={()=>select(false)} onContextMenu={event=>{event.preventDefault();select(true);}}>{tr("Batch","Batch apply")}</button>{active&&<span role="status">{pending>0?`${pending} ${tr("RangeSegments","segments")}`:tr("BatchDrag","Drag road segments")}</span>}</div>;
 };

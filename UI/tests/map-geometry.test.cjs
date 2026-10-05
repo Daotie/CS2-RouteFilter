@@ -40,3 +40,11 @@ const terrain=parseMap('W||-7000,-7000;7000,-7000;7000,7000;-7000,7000;-7000,-70
 assert.ok(terrain.landPath.endsWith(' Z'));assert.ok(terrain.waterPath.endsWith(' Z'));assert.equal(terrain.roadCount,1);assert.equal(terrain.restrictions.length,0);
 const terrainFit=fitMap(terrain.bounds,720,440);const shore=projectMap([7000,7000],terrainFit,720,440);assert.ok(shore[0]<=696 && shore[1]>=24);
 console.log('PASS: cached land/water layers share road coordinates and combined terrain/network fit.');
+
+const arrow=result.exports.navigationArrow([0,0],[8,4],terrainFit.scale);
+const arrowLength=view=>{const tip=projectMap(arrow[0],view,720,440),notch=projectMap(arrow[2],view,720,440);return Math.hypot(tip[0]-notch[0],tip[1]-notch[1]);};
+assert.ok(Math.abs(arrowLength(zoomMap(terrainFit,.5,360,220,720,440))/arrowLength(terrainFit)-.5)<1e-8);
+assert.ok(Math.abs(arrowLength(zoomMap(terrainFit,2,360,220,720,440))/arrowLength(terrainFit)-2)<1e-8);
+const rail=parseMap('B||-100,0;100,0\nR|rail-edge|0,0;80,0|2|0/0\nR|rail-node|80,0|2|0/0');
+assert.equal(rail.restrictions.length,2);assert.equal(rail.restrictions[1].points.length,1);
+console.log('PASS: navigation arrows scale with zoom; rail segment/node data remains visible without road entry records.');

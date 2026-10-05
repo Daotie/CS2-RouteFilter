@@ -47,10 +47,11 @@ public sealed partial class RouteFilterUISystem
         AddBinding(new TriggerBinding<bool>(Mod.Id,"setSegmentBrushOperation",m_RestrictionTool.SetBrushOperation));
         m_BrushPendingBinding = CreateValue("brushPending", 0);
         m_RangeStatus = CreateValue("rangeStatus","Start");
-        m_MapRoads = GetEntityQuery(new EntityQueryDesc { All = new[] { ComponentType.ReadOnly<Edge>(), ComponentType.ReadOnly<Curve>(), ComponentType.ReadOnly<Road>() },
+        m_MapRoads = GetEntityQuery(new EntityQueryDesc { All = new[] { ComponentType.ReadOnly<Edge>(), ComponentType.ReadOnly<Curve>() },
+            Any = new[] { ComponentType.ReadOnly<Road>(), ComponentType.ReadOnly<TrainTrack>(), ComponentType.ReadOnly<TramTrack>() },
             None = new[] { ComponentType.ReadOnly<Deleted>(), ComponentType.ReadOnly<Game.Tools.Temp>() } });
         m_MapTargets = GetEntityQuery(ComponentType.ReadOnly<RestrictedVehicleAssetV1>());
-        m_MapChanged = GetEntityQuery(new EntityQueryDesc { All = new[] { ComponentType.ReadOnly<Edge>(), ComponentType.ReadOnly<Road>() },
+        m_MapChanged = GetEntityQuery(new EntityQueryDesc { All = new[] { ComponentType.ReadOnly<Edge>() },
             Any = new[] { ComponentType.ReadOnly<Updated>(), ComponentType.ReadOnly<Deleted>() },
             None = new[] { ComponentType.ReadOnly<Game.Tools.Temp>() } });
         AddBinding(new TriggerBinding<bool>(Mod.Id,"setRestrictionMapOpen", open => { m_MapOpen = open; m_MapDirty = true; if (!open) ClearMap(); }));
@@ -136,7 +137,7 @@ public sealed partial class RouteFilterUISystem
             {
                 if (EntityManager.HasComponent<Deleted>(target)) continue;
                 var assets = EntityManager.GetBuffer<RestrictedVehicleAssetV1>(target,true);
-                if (assets.Length == 0 || (!EntityManager.HasComponent<Road>(target) && !EntityManager.HasComponent<Node>(target))) continue;
+                if (assets.Length == 0 || (!EntityManager.HasComponent<Road>(target) && !EntityManager.HasComponent<TrainTrack>(target) && !EntityManager.HasComponent<TramTrack>(target) && !EntityManager.HasComponent<Node>(target))) continue;
                 var key = target.Index + ":" + target.Version; m_MapSelection[key] = target;
                 snapshot.Append("R|").Append(key).Append('|');
                 if (EntityManager.TryGetComponent(target,out Curve curve))
@@ -164,6 +165,7 @@ public sealed partial class RouteFilterUISystem
             foreach (var road in changed)
             {
                 if (EntityManager.HasComponent<Deleted>(road)) { if (m_MapRoadStamps.Remove(road)) m_MapGeometryChanged = true; continue; }
+                if(!EntityManager.HasComponent<Road>(road) && !EntityManager.HasComponent<TrainTrack>(road) && !EntityManager.HasComponent<TramTrack>(road))continue;
                 var stamp = VisualGeometryStamp.Read(EntityManager,road);
                 if (!m_MapRoadStamps.TryGetValue(road,out var previous) || previous != stamp) m_MapGeometryChanged = true;
                 m_MapRoadStamps[road] = stamp;

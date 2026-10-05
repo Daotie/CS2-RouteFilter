@@ -64,7 +64,7 @@ internal static class Program
             Console.WriteLine("PASS opaque baked atlas: glyph ink present, light face retained, border/back/edge unchanged");
         }
         foreach (var locale in new[] { "zh-CN","en-GB","en-US" })
-        foreach (var text in new[] { "载货汽车","大型载货汽车","道路养护车辆","指定大型载货汽车","指定道路养护车辆","ROAD MAINTENANCE","SELECTED LARGE GOODS VEHICLES","SELECTED EMERGENCY VEHICLES","MOTORCYCLES","GOODS VEHICLES","TRUCKS" })
+        foreach (var text in new[] { "货车","大型货车","车辆限行","公交车、出租车除外","公交车、出租车\n市政车辆除外","道路养护车辆","指定大型载货汽车","指定道路养护车辆","ROAD MAINTENANCE","SELECTED LARGE GOODS VEHICLES","SELECTED EMERGENCY VEHICLES","MOTORCYCLES","GOODS VEHICLES","TRUCKS" })
         {
             if((text[0]>127)!=(locale=="zh-CN")) continue;
             using var bitmap = new Bitmap(SignTextLayout.Width,SignTextLayout.Height);
@@ -74,7 +74,7 @@ internal static class Program
             { var color=bitmap.GetPixel(x,y); if(color.R<100 && color.G<100 && color.B<100) { dark++;minX=Math.Min(minX,x);maxX=Math.Max(maxX,x);minY=Math.Min(minY,y);maxY=Math.Max(maxY,y); } }
             if (dark < 100 || minX<54 || maxX>1146 || minY<30 || maxY>296) throw new Exception("Clipped or missing sign text: "+text);
             if (text[0]>127 && text.Length<=6 && maxY-minY<150) throw new Exception("Short category label too small: "+text);
-            bitmap.Save(Path.Combine(output,locale+"-"+text+".png"),ImageFormat.Png);
+            bitmap.Save(Path.Combine(output,locale+"-"+text.Replace("\n","_")+".png"),ImageFormat.Png);
             Console.WriteLine("PASS measured label: "+locale+" "+text+" bounds="+minX+","+minY+"–"+maxX+","+maxY);
         }
     }

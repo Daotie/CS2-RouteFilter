@@ -56,8 +56,7 @@ public sealed partial class RoadRestrictionVisualSignsSystem
         }
         var selected=new List<Entity>(); foreach(var asset in assets) selected.Add(asset.m_Prefab);
         var applicable=World.GetExistingSystemManaged<RouteFilterUISystem>()?.RoadVehicleAssets ?? Enumerable.Empty<Entity>();
-        var dictionary=GameManager.instance.localizationManager.activeDictionary;
-        var meanings=RouteFilter.Persistence.TrafficSignSemantics.Resolve(selected,applicable,VehicleCategory,asset=>{if(!EntityManager.Exists(asset))return "UNAVAILABLE VEHICLE ASSET";var name=m_PrefabSystem.GetPrefabName(asset);return dictionary.TryGetValue("Assets.NAME["+name+"]",out var display)?display:name;});
+        var meanings=RouteFilter.Persistence.TrafficSignSemantics.Resolve(selected,applicable,VehicleCategory);
         m_LabelCache[target]=new LabelCache {Assets=selected.ToArray(),Catalog=m_VehicleCatalogRevision,Meanings=meanings};
         return meanings;
     }

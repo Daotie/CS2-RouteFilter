@@ -185,7 +185,7 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.Presets"] = Chinese ? "限制预设" : "Presets",
             ["RouteFilter.UI.Map"] = Chinese ? "限行地图" : "Restriction Map",
             ["RouteFilter.UI.Appearance"] = Chinese ? "标志位置调整" : "Sign appearance",
-            ["RouteFilter.UI.Batch"] = Chinese ? "批量" : "Batch",
+            ["RouteFilter.UI.Batch"] = Chinese ? "批量应用" : "Batch apply",
             ["RouteFilter.UI.ForcePlate"] = Chinese ? "强制显示辅助牌" : "Force supplementary plate",
             ["RouteFilter.UI.BatchApply"] = Chinese ? "批量应用" : "Batch apply",
             ["RouteFilter.UI.BatchClear"] = Chinese ? "批量清除" : "Batch clear",

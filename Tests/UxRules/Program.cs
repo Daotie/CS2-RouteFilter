@@ -51,7 +51,7 @@ Check(Mean(1,2,3).Single().Semantic==TrafficVehicleSemantic.GoodsVehicle && !Mea
 Check(Mean(2,3).Single().Semantic==TrafficVehicleSemantic.HeavyGoodsVehicle && !Mean(2,3)[0].Partial,"large goods restriction never widens to all goods vehicles");
 Check(Mean(2).Single().Partial,"subset of heavy goods retains selected qualifier");
 Check(Mean(2,2,3).Length==1,"multiple prefabs and duplicates make one semantic legend");
-Check(Mean(5,6).Single().Semantic==TrafficVehicleSemantic.RoadMaintenance,"native maintenance class remains one category");
+Check(Mean(5,6).Single().Semantic==TrafficVehicleSemantic.MunicipalVehicle,"native maintenance class remains one category");
 Check(Mean(7,8,9).Single().Semantic==TrafficVehicleSemantic.EmergencyVehicle,"only complete emergency family consolidates");
 Check(Mean(7).Single().Semantic==TrafficVehicleSemantic.FireEngine,"fire-only never claims all emergency vehicles");
 Check(Mean(1,4,5,7).Single().Semantic==TrafficVehicleSemantic.SpecifiedVehicles,"complex mixed selection becomes concise safe description");
@@ -66,7 +66,7 @@ for(int mask=1;mask<(1<<fleet.Count);mask++)
     foreach(var legend in legends)
     {
         Check(!TrafficSignLocalization.Text(legend,"zh-CN").Contains("TrafficSign."),"no localization keys on physical plate");
-        if(!legend.Partial && !legend.Except && legend.Semantic!=TrafficVehicleSemantic.SpecifiedVehicles && legend.Semantic!=TrafficVehicleSemantic.GoodsVehicle && legend.Semantic!=TrafficVehicleSemantic.EmergencyVehicle && legend.Semantic!=TrafficVehicleSemantic.AllRoadMotorVehicles)
+        if(legend.Subjects.Length==1 && !legend.Partial && !legend.Except && legend.Semantic!=TrafficVehicleSemantic.SpecifiedVehicles && legend.Semantic!=TrafficVehicleSemantic.GoodsVehicle && legend.Semantic!=TrafficVehicleSemantic.EmergencyVehicle && legend.Semantic!=TrafficVehicleSemantic.AllRoadMotorVehicles)
             Check(fleet.Where(pair=>pair.Value==legend.Semantic).All(pair=>selected.Contains(pair.Key)),"unqualified category never broadens partial selection");
     }
 }
@@ -77,8 +77,8 @@ foreach(var locale in new[]{"zh-HK","ja-JP","en-US","de-DE"}) Check(SignageProfi
 foreach(var profile in SignageProfiles.Exposed.Where(value=>value!="AUTO")) foreach(var locale in new[]{"en-US","zh-CN"}) foreach(var theme in new[]{"NA","EU"}) Check(SignageProfiles.Resolve(profile,theme,locale)==profile,"manual profile survives theme and language changes");
 Check(!SignageProfiles.IsExposed("HK") && !SignageProfiles.IsExposed("JP"),"unreviewed regional profiles hidden");
 Check(SignageProfiles.Resolve("AUTO","Unknown","zh-CN")=="GENERIC_EUROPE","unknown theme is not guessed from locale");
-Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.GoodsVehicle),"zh-CN")=="载货汽车","formal CN goods term");
-Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.HeavyGoodsVehicle),"zh-CN")=="大型载货汽车","precise large goods term");
+Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.GoodsVehicle),"zh-CN")=="货车","independent compact CN goods term");
+Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.HeavyGoodsVehicle),"zh-CN")=="大型货车","precise large goods term");
 Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.RoadMaintenance),"en-US")=="ROAD MAINTENANCE","short professional maintenance legend");
 Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.GoodsVehicle),"en-GB")=="GOODS VEHICLES","independent British terminology");
 Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.GoodsVehicle),"en-US")=="TRUCKS","independent American terminology");
@@ -88,7 +88,7 @@ Check(exceptGoods.Except && exceptGoods.Semantic==TrafficVehicleSemantic.GoodsVe
 var exceptBus=Mean(fleet.Keys.Where(id=>id!=4).ToArray()).Single();
 Check(exceptBus.Except && exceptBus.Semantic==TrafficVehicleSemantic.Bus,"complete bus exemption");
 Check(TrafficSignLocalization.Text(exceptBus,"en-US")=="EXCEPT BUSES","GB exception syntax even on US signs");
-Check(TrafficSignLocalization.Text(exceptBus,"zh-CN")=="除公共汽车外","localized exception meaning");
+Check(TrafficSignLocalization.Text(exceptBus,"zh-CN")=="公交车除外","localized exception meaning");
 Check(!Mean(fleet.Keys.Where(id=>id!=2).ToArray()).Any(l=>l.Except),"partial category exemption must not imply whole family");
 Check(!TrafficSignSemantics.PrimaryFullyExpresses(new[]{exceptBus},TrafficVehicleSemantic.Bus),"exception plate cannot disappear beneath prohibition");
 foreach(var profile in new[]{"GENERIC_EUROPE","US"})
@@ -101,13 +101,31 @@ foreach(var profile in new[]{"GENERIC_EUROPE","US"})
 }
 Check(!SignageProfiles.IsExposed("CN")&&!SignageProfiles.IsExposed("UK"),"unfinished profiles removed");
 var named=TrafficSignSemantics.Resolve(new[]{10},new[]{10,11},id=>TrafficVehicleSemantic.SpecifiedVehicles,id=>"City bicycle").Single();
-Check(TrafficSignLocalization.Text(named,"en-GB")=="City bicycle","unclassified selection identifies actual asset instead of bare selected vehicles");
+Check(TrafficSignLocalization.Text(named,"en-GB")=="VEHICLE RESTRICTIONS","unclassified selection identifies actual asset instead of bare selected vehicles");
 var goodsLegend=new TrafficLegend(TrafficVehicleSemantic.GoodsVehicle);
 Check(TrafficSignLocalization.ResolveText(goodsLegend,"en-GB",key=>"GOODS VEHICLES")=="GOODS VEHICLES","exact reviewed dictionary overrides semantic text");
-Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-HANS",key=>"载货汽车")=="载货汽车","supported base language dictionary");
-Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-HK",key=>"载货汽车")=="TRUCKS","unreviewed locale never inherits mainland terminology");
-Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-CN",key=>key)=="载货汽车","missing key never rendered");
-Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-CN",key=>new string('x',65))=="载货汽车","invalid overlong legend uses equivalent semantic fallback");
+Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-HANS",key=>"货车")=="货车","supported base language dictionary");
+Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-HK",key=>"货车")=="TRUCKS","unreviewed locale never inherits mainland terminology");
+Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-CN",key=>key)=="货车","missing key never rendered");
+Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-CN",key=>new string('x',65))=="货车","invalid overlong legend uses equivalent semantic fallback");
+// Independent sign vocabulary and equivalent positive/reverse compression.
+Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-CN",key=>"garbled asset/internal UI name")=="货车","UI translations cannot override the physical legend");
+var mixedFleet=new Dictionary<int,TrafficVehicleSemantic>{[1]=TrafficVehicleSemantic.Bus,[2]=TrafficVehicleSemantic.Taxi,[3]=TrafficVehicleSemantic.RoadMaintenance,[4]=TrafficVehicleSemantic.RefuseVehicle,[5]=TrafficVehicleSemantic.GoodsVehicle,[6]=TrafficVehicleSemantic.SpecifiedVehicles};
+for(int mask=1;mask<64;mask++)
+{
+ var chosen=mixedFleet.Keys.Where(id=>(mask&(1<<(id-1)))!=0).ToHashSet();
+ var legend=TrafficSignSemantics.Resolve(chosen,mixedFleet.Keys,id=>mixedFleet[id],id=>"BAD_PREFAB_乱码").Single();
+ var text=TrafficSignLocalization.Text(legend,"zh-CN");
+ Check(!text.Contains("BAD")&&!text.Contains("乱码")&&!text.Contains("其它车辆")&&text.Split('\n').Length<=2,"catchall never prints prefab names or an invented class");
+ if(legend.Kind==SupplementaryLegendKind.Notice || legend.Partial)continue;
+ var represented=mixedFleet.Keys.Where(id=>legend.Semantic==TrafficVehicleSemantic.AllRoadMotorVehicles || legend.Subjects.Any(subject=>TrafficSignSemantics.Belongs(mixedFleet[id],subject))).ToHashSet();
+ if(legend.Except)represented=mixedFleet.Keys.Except(represented).ToHashSet();
+ Check(chosen.SetEquals(represented),"every unqualified combined or exception legend describes exactly the selected fleet");
+}
+var busTaxi=TrafficSignSemantics.Resolve(new[]{3,4,5,6},mixedFleet.Keys,id=>mixedFleet[id]).Single();
+Check(busTaxi.Kind==SupplementaryLegendKind.Except && busTaxi.Subjects.Length==2 && TrafficSignLocalization.Text(busTaxi,"zh-CN")=="公交车、出租车除外","bus/taxi exception uses one plate without an invented umbrella");
+var busTaxiMunicipal=TrafficSignSemantics.Resolve(new[]{5,6},mixedFleet.Keys,id=>mixedFleet[id]).Single();
+Check(TrafficSignLocalization.Text(busTaxiMunicipal,"zh-CN")=="公交车、出租车\n市政车辆除外","three complete allowed classes use two readable lines");
 var history=new[]{"Old truck","Missing mod prefab","Bus"};
 Check(RecentAssetHistory.AfterSuccessfulApply(history,new[]{"Bus","Truck","Bus"}).SequenceEqual(new[]{"Bus","Truck","Old truck","Missing mod prefab"}),"Recent successful batch first, stable ties and deduplication");
 Check(RecentAssetHistory.AfterSuccessfulApply(history,Array.Empty<string>()).SequenceEqual(history),"allow-all Apply does not invent Recent assets");

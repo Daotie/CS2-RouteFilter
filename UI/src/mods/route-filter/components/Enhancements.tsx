@@ -3,7 +3,7 @@ import { bindValue, trigger, useValue } from "cs2/api";
 import { Button, Panel, Portal } from "cs2/ui";
 import { useLocalization } from "cs2/l10n";
 import mod from "mod.json";
-import { parseMap, path, fitMap, mapMatrix, zoomMap, MapView } from "../mapGeometry";
+import { parseMap, path, fitMap, mapMatrix, zoomMap, navigationArrow, MapView } from "../mapGeometry";
 import { RoadSignSelector } from "./RoadSignSelector";
 import { ChevronIcon } from "./ChevronIcon";
 import styles from "../route-filter.module.scss";
@@ -151,8 +151,8 @@ export const RestrictionMap = () => {
             {row.points.length===1?<><circle cx={row.points[0][0]} cy={row.points[0][1]} r={10/view.scale} fill="transparent"/><circle cx={row.points[0][0]} cy={row.points[0][1]} r={4/view.scale} fill="#ff8877"/></>:<><path d={path(row.points)} fill="none" stroke="transparent" strokeWidth={14/view.scale}/><path d={path(row.points)} fill="none" stroke="#ff8877" strokeWidth={3/view.scale}/></>}
           </g>)}
           {layers.entries&&overlay.entries.map((row,index)=>{
-            const [a,b]=row.points,dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy)||1,ux=dx/length,uy=dy/length,size=6/view.scale;
-            return <g key={index} onMouseDown={event=>event.stopPropagation()} onClick={()=>trigger(mod.id,"selectMapTarget",row.key)}><circle cx={a[0]} cy={a[1]} r={10/view.scale} fill="transparent"/><path d={path([[a[0]+ux*size,a[1]+uy*size],[a[0]-ux*size-uy*size*.6,a[1]-uy*size+ux*size*.6],[a[0]-ux*size*.25,a[1]-uy*size*.25],[a[0]-ux*size+uy*size*.6,a[1]-uy*size-ux*size*.6],[a[0]+ux*size,a[1]+uy*size]])} fill="#ffd575"/></g>;
+            const [a,b]=row.points,arrow=navigationArrow(a,b,fitMap(geometry.bounds,size.width,size.height).scale);
+            return <g key={index} onMouseDown={event=>event.stopPropagation()} onClick={()=>trigger(mod.id,"selectMapTarget",row.key)}><circle cx={a[0]} cy={a[1]} r={10/view.scale} fill="transparent"/><path d={path(arrow)} fill="#ffd575"/></g>;
           })}
         </g>
       </svg>

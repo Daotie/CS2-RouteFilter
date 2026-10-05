@@ -85,7 +85,7 @@ console.log('PASS: persistent merged sign tool, five numeric fields, no sliders,
 
 const segmentFooter=renderToStaticMarkup(React.createElement(ActionBar,{targetMode:1,editable:true}));
 const nodeFooter=renderToStaticMarkup(React.createElement(ActionBar,{targetMode:0,editable:true}));
-assert.match(segmentFooter,/>Batch</);assert.doesNotMatch(segmentFooter,/Batch apply|Batch clear/);assert.doesNotMatch(nodeFooter,/>Batch</);
+assert.match(segmentFooter,/>Batch apply</);assert.doesNotMatch(segmentFooter,/Batch clear/);assert.doesNotMatch(nodeFooter,/>Batch apply</);
 console.log('PASS: segment-only batch controls in lower functional row, absent from tools menu and Node mode.');
 
 const {AssetList}=load(path.join(base,'components/AssetList.tsx'));
