@@ -5,6 +5,12 @@ namespace RouteFilter.Systems;
 internal static class RoadSignPlacement
 {
     internal static bool RepeatOppositeSide(float low,float high) => math.isfinite(low) && math.isfinite(high) && high-low >= 7f;
+    internal static bool HasMedian(float low,float high,float otherLow,float otherHigh,bool leftHand)
+    {
+        var gap=leftHand ? low-otherHigh : otherLow-high;
+        return IsMedianGap(gap);
+    }
+    internal static bool IsMedianGap(float gap) => math.isfinite(gap) && gap>=1.6f;
     // Narrow gaps between opposing carriageways are painted dividers, not space
     // for an 0.8m verge offset. Wide medians retain the existing verge placement.
     internal static void ConstrainToDivider(float low, float high, float otherLow, float otherHigh,

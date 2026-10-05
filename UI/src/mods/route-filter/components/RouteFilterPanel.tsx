@@ -92,24 +92,23 @@ export const RouteFilterPanel = (props: Props) => {
       <PanelHeader onTools={() => openUtility(utilityPopup === "Tools" ? "" : "Tools")} toolsLabel={tr("RouteFilter.UI.Tools","Tools")} title={props.labels.title} version={mod.version} buildId={props.buildId} closeLabel={props.labels.close} onClose={props.onClose} />
       {!props.configurationEditable && <div className={styles.resetStatus} role="status">{tr("RouteFilter.UI.PersistenceLocked", "Save data is incompatible or damaged. Editing is locked; Reset removes RouteFilter configuration.")}</div>}
       <TargetSelector mode={props.targetMode} nodeLabel={props.labels.node} segmentLabel={props.labels.segment} status={props.labels.targetStatus} targetReady={targetReady} onModeChange={props.onTargetModeChange} />
-      {props.showEntryDirections && <Tooltip tooltip={tr(props.entriesSupported ? "RouteFilter.UI.EntryDirectionsHint" : "RouteFilter.UI.EntryDirectionsUnsupported", props.entriesSupported ? "Click approach bars, then Apply." : "Entries cannot be separated reliably; all-entry restrictions remain active.")}>
-        <div className={styles.directionSummary}>
+      {props.showEntryDirections &&         <div className={styles.directionSummary}>
           <span>{tr("RouteFilter.UI.EntryDirections", "Restricted entries")} {props.entriesSupported ? `${props.enabledEntryCount} / ${props.entryCount}` : tr("RouteFilter.UI.EntryDirectionsUnavailable", "All entries (unavailable)")}</span>
           <Button variant="flat" disabled={!props.configurationEditable} onSelect={() => trigger(mod.id, "allEntryDirections")}>
             {tr("RouteFilter.UI.AllEntries", "All entries")}
           </Button>
         </div>
-      </Tooltip>}
+      }
       {feedback && <div className={styles.workflowStatus} role="status">{tr(`RouteFilter.UI.Feedback.${feedback.split("|")[0]}`,feedback.split("|")[0]).replace("{count}",feedback.split("|")[1]??"0")}</div>}
       <div className={styles.listHeading}>
-        <div><strong>{props.labels.assetTitle}</strong><span>{props.labels.assetSubtitle}</span></div>
+        <div><strong>{props.labels.assetTitle}</strong></div>
         <small>{props.selectedCount} / {props.assetCount}</small>
       </div>
       <AssetSearch value={props.search} placeholder={props.labels.search} onChange={props.onSearchChange} />
       <div className={styles.libraryFilter}>
         <SegmentedSelector value={view} label={tr("RouteFilter.UI.LibraryAll","Library")} options={[{id:"all",label:tr("RouteFilter.UI.LibraryAll","All")},{id:"favorites",label:<><FavoriteIcon filled/> {tr("RouteFilter.UI.LibraryFavorites","Favorites")}</>},{id:"recent",label:tr("RouteFilter.UI.LibraryRecent","Recent")}]} onChange={setView} />
       </div>
-      <AssetList favorites={favorites} onFavorite={id => trigger(mod.id, "toggleFavoriteAsset", id)} favoriteLabel={tr("RouteFilter.UI.LibraryFavoriteToggle", "Toggle favorite")} roots={visible.roots} childrenByParent={visible.children} selected={props.selected} expanded={props.expanded} searchTerm={props.search.trim().toLocaleLowerCase()} emptyLabel={props.labels.empty} trailerLabel={props.labels.trailer} expandLabel={props.labels.expand} collapseLabel={props.labels.collapse} roadGroupLabel={props.labels.roadGroup} railGroupLabel={props.labels.railGroup} onToggle={props.onToggleAsset} onExpand={props.onExpandAsset} />
+      <AssetList favorites={favorites} onFavorite={id => trigger(mod.id, "toggleFavoriteAsset", id)} favoriteLabel={tr("RouteFilter.UI.LibraryFavoriteToggle", "Toggle favorite")} roots={visible.roots} childrenByParent={visible.children} selected={props.selected} expanded={props.expanded} searchTerm={props.search.trim().toLocaleLowerCase()} emptyLabel={props.labels.empty} trailerLabel={props.labels.trailer} expandLabel={props.labels.expand} collapseLabel={props.labels.collapse} roadGroupLabel={props.labels.roadGroup} railGroupLabel={props.labels.railGroup} selectionScope={visible.matches} editable={props.configurationEditable} onToggle={props.onToggleAsset} onExpand={props.onExpandAsset} />
       <ActionBar targetMode={props.targetMode} editable={props.configurationEditable} copyLabel={tr("RouteFilter.UI.Copy","Copy")} pasteLabel={tr("RouteFilter.UI.Paste","Paste")} copyReady={targetReady} pasteReady={targetReady && hasClipboard && props.configurationEditable} onCopy={()=>trigger(mod.id,"copyAssetRestriction")} onPaste={()=>trigger(mod.id,"pasteAssetRestriction")} allowAllLabel={props.labels.allowAll} forbidAllLabel={props.labels.forbidAll} applyLabel={props.labels.apply} clearLabel={props.labels.clear} refreshLabel={props.labels.refresh} targetReady={targetReady && props.configurationEditable} onAllowAll={() => bulk(false)} onForbidAll={() => bulk(true)} onApply={props.onApply} onClear={props.onClear} onRefresh={props.onRefresh} />
 
       <div className={styles.utilityFooter}>

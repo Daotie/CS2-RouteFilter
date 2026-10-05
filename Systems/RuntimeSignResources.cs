@@ -84,18 +84,23 @@ internal sealed class RuntimeSignResources : IDisposable
         if (material.HasProperty("_CullModeForward")) material.SetFloat("_CullModeForward",2);
         // Transparent glyphs leave the authored face, black border and lighting
         // visible; the former opaque text rectangle covered the border UV band.
-        if (material.HasProperty("_SurfaceType")) material.SetFloat("_SurfaceType",1);
-        if (material.HasProperty("_Mode")) material.SetFloat("_Mode",3);
+        if (material.HasProperty("_SurfaceType")) material.SetFloat("_SurfaceType",0);
+        if (material.HasProperty("_Mode")) material.SetFloat("_Mode",1);
         if (material.HasProperty("_BlendMode")) material.SetFloat("_BlendMode",0);
-        if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend",5);
-        if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend",10);
+        if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend",1);
+        if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend",0);
         if (material.HasProperty("_AlphaSrcBlend")) material.SetFloat("_AlphaSrcBlend",1);
         if (material.HasProperty("_AlphaDstBlend")) material.SetFloat("_AlphaDstBlend",10);
-        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite",0);
-        material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        material.EnableKeyword("_ALPHABLEND_ON");
-        material.DisableKeyword("_ALPHATEST_ON");
-        material.renderQueue=3000;
+        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite",1);
+        if (material.HasProperty("_AlphaCutoffEnable")) material.SetFloat("_AlphaCutoffEnable",1);
+        if (material.HasProperty("_AlphaClip")) material.SetFloat("_AlphaClip",1);
+        if (material.HasProperty("_AlphaCutoff")) material.SetFloat("_AlphaCutoff",.1f);
+        if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff",.1f);
+        material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.DisableKeyword("_ALPHABLEND_ON");
+        material.EnableKeyword("_ALPHATEST_ON");
+        material.SetOverrideTag("RenderType","TransparentCutout");
+        material.renderQueue=2450;
         material.SetShaderPassEnabled("TransparentDepthPrepass",false);
         material.SetShaderPassEnabled("TransparentDepthPostpass",false);
         m_Text[key] = material; return material;

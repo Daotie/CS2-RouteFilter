@@ -19,7 +19,7 @@ public sealed class Mod : IMod
     public const string Version = "2.1.0-dev";
     // Bump this for every deployable build so the in-game panel and log identify
     // exactly which compiled payload is loaded by the active playset.
-    public const string BuildId = "RF21-20261005-UX-34";
+    public const string BuildId = "RF21-20261005-UX-35";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";
@@ -120,6 +120,7 @@ public sealed class Mod : IMod
         // Register static visuals before Objects.SearchSystem (Modification5).
         // UIUpdate is too late: next-frame cleanup strips Created/Updated first.
         updateSystem.UpdateAt<RoadRestrictionVisualSignsSystem>(SystemUpdatePhase.Modification4);
+        updateSystem.UpdateBefore<RoadRestrictionSignVisibilitySystem, Game.Rendering.BatchInstanceSystem>(SystemUpdatePhase.Rendering);
         updateSystem.UpdateAt<RestrictionGroundIndicatorSystem>(SystemUpdatePhase.Modification4);
         updateSystem.UpdateBefore<RoadRestrictionSignSaveGuardSystem, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
         updateSystem.UpdateAt<RoadRestrictionSignGeometryChangedSystem>(SystemUpdatePhase.ModificationEnd);

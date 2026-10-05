@@ -286,3 +286,18 @@ $rfDanger: #e07b73;
 .categorySelected { color:$rfText; }
 .categoryHeader[data-selection="all"] { border-left:2rem solid $rfAccent; }
 .categoryHeader[data-selection="partial"] { border-left:2rem solid #bca35d; }
+
+.categoryHeader { padding:0; }
+.categoryExpand { flex:1 1 auto; min-width:0; display:flex; align-items:center; height:36rem; padding:0 6rem; border:0; color:inherit; background:transparent; cursor:pointer; }
+.categoryExpand strong { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.categoryExpand > svg { flex:0 0 12rem; margin-right:4rem; }
+.categoryExpand > span { flex:0 0 auto; font-size:10rem; white-space:nowrap; }
+.categoryAction { flex:0 0 auto; padding:4rem 5rem; margin-right:3rem; border:0; border-radius:3rem; color:#dae4e9; background:rgba(255,255,255,.08); font-size:10rem; cursor:pointer; }
+.profileChoices { display:flex; flex-wrap:wrap; margin-bottom:8rem; }
+.profileChoice, .profileChoiceActive { padding:5rem 7rem; margin:0 3rem 3rem 0; color:#b8c7ce; background:rgba(255,255,255,.06); border:1rem solid rgba(255,255,255,.12); border-radius:3rem; cursor:pointer; font-size:11rem; }
+.profileChoiceActive { color:#fff; background:rgba(50,180,220,.25); border-color:#32b4dc; }
+.appearancePalette { display:flex; flex-direction:column; padding-bottom:10rem; font-size:12rem; background-image:none; }
+.secondaryMenu, .signDropdownPopup { background-color:rgba(24,31,39,.98); }
+.listHeading small { flex:0 0 auto; white-space:nowrap; }
+.panelContent { overflow-y:auto; max-height:calc(100vh - 150rem); }
+.assetList { flex:0 0 auto; height:32vh; min-height:120rem; overflow-y:auto; }

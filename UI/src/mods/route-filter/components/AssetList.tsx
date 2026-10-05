@@ -2,8 +2,11 @@ import React, { useMemo, useState } from "react";
 import { useLocalization } from "cs2/l10n";
 import { CategoryGlyph } from "./CategoryGlyph";
 import { Scrollable } from "cs2/ui";
-import { VehicleAsset, categoryGroups } from "../model";
+import { VehicleAsset, categoryGroups, filteredAssetIds } from "../model";
 import { AssetRow } from "./AssetRow";
+import { ChevronIcon } from "./ChevronIcon";
+import { trigger } from "cs2/api";
+import mod from "mod.json";
 import styles from "../route-filter.module.scss";
 
 type Props = {
@@ -23,9 +26,11 @@ type Props = {
   railGroupLabel: string;
   onToggle: (asset: VehicleAsset, hasChildren: boolean) => void;
   onExpand: (id: number) => void;
+  editable?: boolean;
+  selectionScope?: (id:number)=>boolean;
 };
 
-export const AssetList = ({ favorites, onFavorite, favoriteLabel, roots, childrenByParent, selected, expanded, searchTerm, emptyLabel, trailerLabel, expandLabel, collapseLabel, roadGroupLabel, railGroupLabel, onToggle, onExpand }: Props) => {
+export const AssetList = ({ favorites, onFavorite, favoriteLabel, roots, childrenByParent, selected, expanded, searchTerm, emptyLabel, trailerLabel, expandLabel, collapseLabel, roadGroupLabel, railGroupLabel, onToggle, onExpand, editable=true, selectionScope=()=>true }: Props) => {
   const renderRow = (asset: VehicleAsset, child = false): React.ReactNode => {
     const children = childrenByParent.get(asset.id) ?? [];
     const visibleChildren = searchTerm
@@ -52,7 +57,13 @@ export const AssetList = ({ favorites, onFavorite, favoriteLabel, roots, childre
       const ids=categoryIds(group.assets),count=ids.filter(id=>selected.has(id)).length;
       const open=Boolean(searchTerm)||!collapsed.has(group.id);
       const label=String(translate(`RouteFilter.UI.Category.${group.id}`,names[group.id]??names.Other)??names.Other);
-      return <React.Fragment key={group.id}><button type="button" className={`${styles.categoryHeader} ${count?styles.categorySelected:""}`} data-selection={count===0?"none":count===ids.length?"all":"partial"} aria-expanded={open} aria-label={`${label}: ${count} / ${ids.length}`} onClick={()=>setCollapsed(previous=>{const next=new Set(previous);if(next.has(group.id))next.delete(group.id);else next.add(group.id);return next;})}><span className={styles.categoryChevron}>{open?"⌄":"›"}</span><CategoryGlyph category={group.id}/><strong>{label}</strong><span>{count} / {ids.length}</span></button>{open&&group.assets.map(asset=>renderRow(asset))}</React.Fragment>;
+      const visibleIds=filteredAssetIds(group.assets,childrenByParent,searchTerm).filter(selectionScope);
+      const selection=visibleIds.join(",");
+      return <React.Fragment key={group.id}><div className={`${styles.categoryHeader} ${count?styles.categorySelected:""}`} data-selection={count===0?"none":count===ids.length?"all":"partial"}>
+        <button type="button" className={styles.categoryExpand} aria-expanded={open} aria-label={`${label}: ${count} / ${ids.length}`} onClick={()=>setCollapsed(previous=>{const next=new Set(previous);if(next.has(group.id))next.delete(group.id);else next.add(group.id);return next;})}><ChevronIcon open={open}/><CategoryGlyph category={group.id}/><strong>{label}</strong><span>{count} / {ids.length}</span></button>
+        <button type="button" className={styles.categoryAction} disabled={!editable||!visibleIds.length} onClick={()=>trigger(mod.id,"setFilteredAssetSelection",selection,true)}>{String(translate("RouteFilter.UI.CategoryEnable","Enable")??"Enable")}</button>
+        <button type="button" className={styles.categoryAction} disabled={!editable||!visibleIds.length} onClick={()=>trigger(mod.id,"setFilteredAssetSelection",selection,false)}>{String(translate("RouteFilter.UI.CategoryDisable","Disable")??"Disable")}</button>
+      </div>{open&&group.assets.map(asset=>renderRow(asset))}</React.Fragment>;
     })}
     {roots.length === 0 && <div className={styles.emptyState}>{emptyLabel}</div>}
   </Scrollable>;

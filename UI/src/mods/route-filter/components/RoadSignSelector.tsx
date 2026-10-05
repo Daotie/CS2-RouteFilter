@@ -4,6 +4,7 @@ import { Button, Portal } from "cs2/ui";
 import { useLocalization } from "cs2/l10n";
 import mod from "mod.json";
 import { icons } from "../assets";
+import { ChevronIcon } from "./ChevronIcon";
 import styles from "../route-filter.module.scss";
 
 const profile$ = bindValue<string>(mod.id,"signageProfile","AUTO");
@@ -87,18 +88,14 @@ export const RoadSignSelector = ({ closeToken = 0, onPopupOpen, onOpenChange }: 
   </span>;
   return <div className={styles.signSelector}>
     <div className={styles.signTitle}>{tr("RouteFilter.UI.RoadSignStyle", "Road restriction sign style")}</div>
-    <label className={styles.signTitle}>{tr("RouteFilter.UI.SignageProfile","Signage profile")}
-      <select className={styles.signSearch} value={profiles.includes(profile as typeof profiles[number]) ? profile : "AUTO"} onChange={event=>trigger(mod.id,"selectSignageProfile",event.target.value)}>
-        {profiles.map(id=><option key={id} value={id}>{tr(`RouteFilter.UI.Profile.${id}`,profileNames[id])}</option>)}
-      </select>
-    </label>
+    <div className={styles.signTitle}>{tr("RouteFilter.UI.SignageProfile","Signage profile")}</div>
+    <div className={styles.profileChoices}>{profiles.map(id=><button type="button" key={id} className={profile===id?styles.profileChoiceActive:styles.profileChoice} aria-pressed={profile===id} onClick={()=>trigger(mod.id,"selectSignageProfile",id)}>{tr(`RouteFilter.UI.Profile.${id}`,profileNames[id])}</button>)}</div>
     {profile==="AUTO" && <div className={styles.signResolved}>{tr("RouteFilter.UI.RoadSignResolved","Auto resolved")}: {tr(`RouteFilter.UI.Profile.${profileResolved}`,profileNames[profileResolved] ?? profileNames.GENERIC_EUROPE)}</div>}
-    {profileFallback && <div className={styles.signResolved}>{tr("RouteFilter.UI.ProfileFallback","Verified regional primary asset unavailable; using a compatible no-entry fallback.")}</div>}
-    <div className={styles.signResolved}>{tr("RouteFilter.UI.PlateLanguage","Supplementary text follows UI language; unsupported languages fall back to English.")}</div>
+    {profileFallback && <div className={styles.signResolved}>{tr("RouteFilter.UI.ProfileFallback","Using compatible sign.")}</div>}
     <div ref={anchor}>
       <Button variant="flat" className={styles.signToggle} onSelect={toggle} aria-expanded={!!popup} aria-haspopup="listbox">
         {row(selected?.icon ?? automatic?.icon ?? icons.prohibition, selection ? name(selection) : auto)}
-        <img className={popup ? styles.signArrowOpen : styles.signArrow} src={icons.chevron} alt="" />
+        <ChevronIcon open={!!popup}/>
       </Button>
     </div>
     {popup && <Portal><div ref={menu} className={styles.signDropdownPopup} style={{ left: popup.left, top: popup.top, width: popup.width, height: popup.maxHeight, maxHeight: popup.maxHeight }} role="listbox"
@@ -115,7 +112,7 @@ export const RoadSignSelector = ({ closeToken = 0, onPopupOpen, onOpenChange }: 
         </div>
       </div>
     </div></Portal>}
-    {!selection && <div className={styles.signResolved}>{resolved ? `${tr("RouteFilter.UI.RoadSignResolved", "Auto resolved")}: ${name(resolved)}` : tr("RouteFilter.UI.RoadSignUnavailable", "No compatible sign; restrictions remain active")}</div>}
-    {unavailable && <div className={styles.signResolved}>{tr("RouteFilter.UI.RoadSignMissing", "Custom sign unavailable; using Auto temporarily")}</div>}
+    {!selection && <div className={styles.signResolved}>{resolved ? `${tr("RouteFilter.UI.RoadSignResolved", "Auto resolved")}: ${name(resolved)}` : tr("RouteFilter.UI.RoadSignUnavailable", "No compatible sign")}</div>}
+    {unavailable && <div className={styles.signResolved}>{tr("RouteFilter.UI.RoadSignMissing", "Using Auto style")}</div>}
   </div>;
 };

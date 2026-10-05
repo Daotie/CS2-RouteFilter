@@ -59,9 +59,9 @@ console.log('PASS: independent favorite, right checkbox, compact utility menu, p
 const {RoadSignSelector}=load(path.join(base,'components/RoadSignSelector.tsx'));
 bindings.set('signageProfile','AUTO');bindings.set('signageProfileResolved','US');bindings.set('signageProfileFallback',true);
 const signStyle=renderToStaticMarkup(React.createElement(RoadSignSelector,{}));
-assert.match(signStyle,/Signage profile/);assert.match(signStyle,/value="CN"/);assert.match(signStyle,/value="UK"/);assert.match(signStyle,/value="US"/);
+assert.match(signStyle,/Signage profile/);assert.match(signStyle,/Mainland China/);assert.match(signStyle,/United Kingdom/);assert.match(signStyle,/United States/);assert.doesNotMatch(signStyle,/<select|<option/);
 assert.doesNotMatch(signStyle,/value="HK"|value="JP"/);
-assert.match(signStyle,/Auto resolved/);assert.match(signStyle,/no-entry fallback/);assert.match(signStyle,/unsupported languages fall back to English/);
+assert.match(signStyle,/Auto resolved/);assert.match(signStyle,/Using compatible sign/);assert.doesNotMatch(signStyle,/unsupported languages fall back to English/);
 const emptyInfo=renderToStaticMarkup(React.createElement(SignInfoSection,{targetKind:'Segment',categories:'',assets:1,entries:1,entryOrdinal:1}));
 assert.match(emptyInfo,/Selected vehicles/);assert.doesNotMatch(emptyInfo,/All road vehicles/);
 console.log('PASS: regional profile choices, hidden unfinished profiles, visible fallback, locale policy and conservative native info.');
@@ -87,3 +87,10 @@ const segmentFooter=renderToStaticMarkup(React.createElement(ActionBar,{targetMo
 const nodeFooter=renderToStaticMarkup(React.createElement(ActionBar,{targetMode:0,editable:true}));
 assert.match(segmentFooter,/Batch apply/);assert.match(segmentFooter,/Batch clear/);assert.doesNotMatch(nodeFooter,/Batch apply|Batch clear/);
 console.log('PASS: segment-only batch controls in lower functional row, absent from tools menu and Node mode.');
+
+const {AssetList}=load(path.join(base,'components/AssetList.tsx'));
+ui.Scrollable=({children,vertical,trackVisibility,...props})=>React.createElement('div',props,children);
+const bus={id:1,name:'Bus',category:'Bus',mode:1,parentId:0};
+const category=renderToStaticMarkup(React.createElement(AssetList,{roots:[bus],childrenByParent:new Map(),selected:new Set(),expanded:new Set(),favorites:new Set(),onFavorite:()=>{},onToggle:()=>{},onExpand:()=>{},searchTerm:'',editable:true}));
+assert.match(category,/categoryAction[^]*Enable/);assert.match(category,/categoryAction[^]*Disable/);assert.match(category,/<svg/);assert.doesNotMatch(category,/⌄|›/);
+console.log('PASS: category bulk controls and SVG expand; profile choices avoid unsupported native HTML select.');

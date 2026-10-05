@@ -5,8 +5,8 @@ import { useLocalization } from "cs2/l10n";
 import mod from "mod.json";
 import { parseMap, path, fitMap, mapMatrix, zoomMap, MapView } from "../mapGeometry";
 import { RoadSignSelector } from "./RoadSignSelector";
+import { ChevronIcon } from "./ChevronIcon";
 import styles from "../route-filter.module.scss";
-const feedback$ = bindValue<string>(mod.id,"libraryFeedback","");
 const advancedClosed$ = bindValue<number>(mod.id,"advancedClosed",0);
 const presets$ = bindValue<string>(mod.id,"userPresets","");
 const missing$ = bindValue<number>(mod.id,"presetMissing",0);
@@ -16,11 +16,8 @@ const terrain$ = bindValue<string>(mod.id,"restrictionMapTerrain","");
 const roads$ = bindValue<string>(mod.id,"restrictionMapRoads","");
 const appearance$ = bindValue<string>(mod.id,"signAppearance","1|0|0|0|0");
 type Props = { targetMode: number; editable: boolean; popup: string; onPopup: (value: string) => void; reset: number; targetReady: boolean; hasClipboard: boolean; onReset: () => void; onAppearance: (open: boolean) => void };
-export const MenuItem = ({children,onSelect,disabled=false,submenu=false}: {children: React.ReactNode; onSelect:()=>void; disabled?:boolean; submenu?:boolean}) => <button type="button" role="menuitem" className={styles.menuItem} disabled={disabled} onClick={onSelect}><span>{children}</span>{submenu && <span className={styles.menuChevron} aria-hidden="true">›</span>}</button>;
+export const MenuItem = ({children,onSelect,disabled=false,submenu=false}: {children: React.ReactNode; onSelect:()=>void; disabled?:boolean; submenu?:boolean}) => <button type="button" role="menuitem" className={styles.menuItem} disabled={disabled} onClick={onSelect}><span>{children}</span>{submenu && <span className={styles.menuChevron}><ChevronIcon/></span>}</button>;
 export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetReady,hasClipboard,onAppearance}: Props) => {
-  const feedback=useValue(feedback$);
-  const [feedbackKind,feedbackCount]=feedback.split("|");
-  const feedbackFallback:Record<string,string>={Copied:"Copied {count} vehicle restrictions.",Pasted:"Loaded {count} vehicle restrictions. Press Apply; entry directions stay unchanged.",Incompatible:"No clipboard vehicles match this target."};
   const advancedClosed=useValue(advancedClosed$);
 
   const [signMenuOpen,setSignMenuOpen]=useState(false);
@@ -57,17 +54,16 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
   },[popup,onPopup]);
 
   return <>
-    {popup && popup!=="Map" && <Portal><div ref={menu} className={styles.secondaryMenu} style={{left:position.left,top:position.top}} onMouseEnter={()=>trigger(mod.id,"setUiPointerArea","utility",true)} onMouseLeave={()=>trigger(mod.id,"setUiPointerArea","utility",false)}>
+    {popup && popup!=="Map" && <div ref={menu} className={styles.secondaryMenu} style={{left:position.left,top:position.top}} onMouseEnter={()=>trigger(mod.id,"setUiPointerArea","utility",true)} onMouseLeave={()=>trigger(mod.id,"setUiPointerArea","utility",false)}>
       {popup!=="Tools" && <div className={styles.menuHeading}><button type="button" className={styles.windowControl} onClick={()=>onPopup("Tools")} aria-label={tr("Back","Back")}>‹</button><strong>{tr(popup,popup)}</strong><button type="button" className={styles.windowControl} onClick={()=>onPopup("")} aria-label={tr("Close","Close")}>×</button></div>}
       {popup==="Tools" && <div role="menu" aria-label={tr("Tools","Tools")}>
         <MenuItem submenu onSelect={()=>onPopup("Presets")}>{tr("Presets","Presets")}</MenuItem>
         <div className={styles.menuSeparator}/>
         <MenuItem onSelect={()=>onPopup("Map")}>{tr("Map","Restriction map")}</MenuItem>
-        {feedbackFallback[feedbackKind]&&<div className={styles.workflowStatus} role="status">{tr(`Feedback.${feedbackKind}`,feedbackFallback[feedbackKind]).replace("{count}",feedbackCount??"0")}</div>}
       </div>}
       {popup==="Presets" && <PresetMenu editable={editable} onLoaded={()=>onPopup("")} />}
 
-    </div></Portal>}
+    </div>}
     {popup==="Map" && <Portal><Panel className={styles.mapPanel} contentClassName={styles.auxContent} onMouseEnter={()=>trigger(mod.id,"setUiPointerArea","utility",true)} onMouseLeave={()=>trigger(mod.id,"setUiPointerArea","utility",false)}><div className={styles.auxHeader}><strong>{tr("Map","Restriction map")}</strong><button type="button" className={styles.windowControl} onClick={()=>onPopup("")} aria-label={tr("Close","Close")}>×</button></div><div className={styles.mapBody}><RestrictionMap/></div></Panel></Portal>}
     <AppearancePalette reset={advancedClosed+reset} onAppearance={onAppearance} onSignMenuChange={setSignMenuOpen}/>
   </>;
@@ -106,14 +102,13 @@ const AppearancePalette = ({ reset,onAppearance,onSignMenuChange }: { reset:numb
   useEffect(() => { trigger(mod.id,"setSignAdjustment",parameter,step);onAppearance(Boolean(parameter));return () => trigger(mod.id,"setSignAdjustment","",step); },[parameter,step,onAppearance]);
   useEffect(()=>{setParameter("");},[reset]);
   useEffect(() => () => trigger(mod.id,"setUiPointerArea","appearance",false),[]);
-  return <Portal><Panel className={styles.appearancePalette} contentClassName={styles.auxContent} onMouseEnter={() => trigger(mod.id,"setUiPointerArea","appearance",true)} onMouseLeave={() => trigger(mod.id,"setUiPointerArea","appearance",false)}>
+  return <div className={styles.appearancePalette} onMouseEnter={() => trigger(mod.id,"setUiPointerArea","appearance",true)} onMouseLeave={() => trigger(mod.id,"setUiPointerArea","appearance",false)}>
     <div className={styles.auxHeader}><strong>{tr("SignTool","Traffic sign")}</strong></div>
     <RoadSignSelector closeToken={reset} onOpenChange={onSignMenuChange}/>
     <div className={styles.parameterList}>{parameters.map(([id,label,index,unit]) => <ParameterInput key={id} id={id} label={tr(`Appearance${id}`,label)} value={values[index]??0} unit={unit} active={parameter===id} onActivate={()=>setParameter(id)}/>)}</div>
     <div className={styles.wheelStep}><span>{tr("WheelStep","Wheel step")}</span><div className={styles.segmentedControl}>{[.01,.05,.1,.5].map(value=><button type="button" key={value} className={`${styles.segmentButton} ${step===value?styles.segmentButtonActive:""}`} aria-pressed={step===value} onClick={()=>setStep(value)}>{parameter==="rotation"?`${value*20}°`:parameter==="scale"?`${value}×`:`${value}m`}</button>)}</div></div>
     <div className={styles.paletteActions}><button type="button" className={styles.utilityAction} onClick={()=>trigger(mod.id,"resetSignAppearance")}>{tr("AppearanceReset","Reset position")}</button><button type="button" className={styles.utilityAction} disabled={!parameter} onClick={()=>setParameter("")}>{tr("Finish","Finish")}</button></div>
-    <small>{tr("WheelHint","Scroll over the world to adjust. Shift: fine · Ctrl: coarse.")}</small>
-  </Panel></Portal>;
+  </div>;
 };
 
 export const RestrictionMap = () => {

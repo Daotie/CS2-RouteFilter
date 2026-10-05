@@ -19,6 +19,10 @@ foreach (var direction in new[] { new float3(0, 0, 1), new float3(0, 0, -1), new
 Check(!RoadSignPlacement.TryCreate(default, default, -1, 1, 0, out _, out _, out _), "zero direction skipped");
 Check(!RoadSignPlacement.TryCreate(new float3(float.NaN), new float3(0, 0, 1), -1, 1, 0, out _, out _, out _), "invalid position skipped");
 Check(!RoadSignPlacement.TryCreate(default, new float3(0, 0, 1), 2, 1, 0, out _, out _, out _), "invalid bounds skipped");
+Check(!RoadSignPlacement.HasMedian(-3,3,3,6,false),"painted divider is not a median");
+Check(!RoadSignPlacement.HasMedian(-3,3,3.4f,6,false),"narrow painted gap is not a median");
+Check(RoadSignPlacement.HasMedian(-3,3,5,8,false),"separated right-hand approach has median");
+Check(RoadSignPlacement.HasMedian(-3,3,-8,-5,true),"separated left-hand approach has median");
 float lm = .8f, rm = .8f;
 RoadSignPlacement.ConstrainToDivider(-3, 3, 3, 6, ref lm, ref rm);
 Check(lm == 0 && rm == .8f, "unseparated left divider: centered; sidewalk unchanged");

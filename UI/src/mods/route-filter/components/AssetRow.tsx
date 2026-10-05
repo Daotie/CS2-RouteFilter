@@ -2,6 +2,7 @@ import React from "react";
 import classNames from "classnames";
 import { Button, Tooltip } from "cs2/ui";
 import { VehicleAsset } from "../model";
+import { ChevronIcon } from "./ChevronIcon";
 import styles from "../route-filter.module.scss";
 import { CategoryGlyph } from "./CategoryGlyph";
 import { FavoriteIcon } from "./FavoriteIcon";
@@ -40,7 +41,7 @@ export const AssetRow = ({ favorite, onFavorite, favoriteLabel, asset, child = f
   })}>
     <button type="button" className={favorite ? styles.favoriteActive : styles.favoriteButton} onClick={event => { event.stopPropagation(); onFavorite(); }} aria-label={favoriteLabel} aria-pressed={favorite}><FavoriteIcon filled={favorite}/></button>
     {childCount > 0
-      ? <Button variant="flat" className={styles.expandButton} onSelect={onExpand} aria-label={expanded ? collapseLabel : expandLabel}><img className={classNames(styles.chevron, { [styles.chevronExpanded]: expanded })} src={icons.chevron} alt="" /></Button>
+      ? <Button variant="flat" className={styles.expandButton} onSelect={onExpand} aria-label={expanded ? collapseLabel : expandLabel}><ChevronIcon open={expanded}/></Button>
       : <span className={styles.expandSpacer} />}
     <AssetGlyph asset={asset} />
     <div className={styles.assetIdentity}>

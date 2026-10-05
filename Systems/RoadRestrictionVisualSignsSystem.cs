@@ -331,7 +331,7 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
             { Skip("NO_RENDER_PREFAB", $"prefab={prefab.Name}"); continue; }
             if (!m_Index.TryGetApproachFrame(entry, true, out var center, out var forward, out var low, out var high))
             { Skip("NO_ENTRY_GEOMETRY", DescribeGeometryFailure(entry)); continue; }
-            GetSignMargins(entry, center, forward, low, high, out var leftMargin, out var rightMargin);
+            GetSignMargins(entry, center, forward, low, high, out var leftMargin, out var rightMargin,out var hasMedian);
             leftMargin = math.max(0,leftMargin + m_Lateral); rightMargin = math.max(0,rightMargin + m_Lateral);
             if (!RoadSignPlacement.TryCreate(center, forward, low, high, prefab.GroundOffset, out var first, out var second, out var rotation, leftMargin, rightMargin))
             { Skip("INVALID_TRANSFORM", $"connection={entry.Connection} center={center} forward={forward} bounds={low}/{high}"); continue; }
@@ -351,16 +351,17 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
             var before = markers.Count;
             try
             {
-                var anchor = CreateVisualAnchor(target,target,prefab,first,rotation,entry.Connection,ordinal);
                 var leftHand = World.GetOrCreateSystemManaged<CityConfigurationSystem>().leftHandTraffic;
                 var roadside = leftHand ? first : second;
+                var anchor = CreateVisualAnchor(target,entry.Connection,prefab,roadside,rotation,entry.Connection,ordinal);
                 var main = CreateMarker(target, anchor, prefab, roadside, rotation, entry.Connection,ordinal); markers.Add(main);
                 CreateAssembly(target,main,prefab,roadside,rotation,legends,profile,firstPlate-lift+m_Height);
                 // Repeat only on wide approaches, as a gameplay visibility adjustment.
-                if (RoadSignPlacement.RepeatOppositeSide(low,high))
+                if (hasMedian && RoadSignPlacement.RepeatOppositeSide(low,high))
                 {
                     var opposite = leftHand ? second : first;
-                    var repeat = CreateMarker(target, anchor, prefab, opposite, rotation, entry.Connection,ordinal); markers.Add(repeat);
+                    var oppositeAnchor = CreateVisualAnchor(target,entry.Connection,prefab,opposite,rotation,entry.Connection,ordinal);
+                    var repeat = CreateMarker(target, oppositeAnchor, prefab, opposite, rotation, entry.Connection,ordinal); markers.Add(repeat);
                     CreateAssembly(target,repeat,prefab,opposite,rotation,legends,profile,firstPlate-lift+m_Height);
                 }
                 var gate = entry.Gates[0];
@@ -373,9 +374,12 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
     }
 
     private void GetSignMargins(LogicalEntryGroup entry, float3 center, float3 travel, float low, float high,
-        out float leftMargin, out float rightMargin)
+        out float leftMargin, out float rightMargin,out bool hasMedian)
     {
         leftMargin = rightMargin = .8f;
+        hasMedian=false;
+        var nearestGap=float.PositiveInfinity;
+        var leftHand=World.GetOrCreateSystemManaged<CityConfigurationSystem>().leftHandTraffic;
         // Local, rebuild-only geometry check; no topology or enforcement changes.
         if (!EntityManager.TryGetBuffer(entry.Connection, true, out DynamicBuffer<Game.Net.SubLane> lanes)) return;
         var lateral = new float3(-travel.z, 0f, travel.x);
@@ -392,9 +396,12 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
             var direction = math.normalizesafe(Colossal.Mathematics.MathUtils.Tangent(curve.m_Bezier, t));
             if (math.dot(direction, travel) > -.5f || math.abs(math.dot(point - center, travel)) > 2f) continue;
             var offset = math.dot(point - center, lateral);
+            var gap=leftHand ? low-(offset+data.m_Width*.5f) : offset-data.m_Width*.5f-high;
+            if(gap>=-.35f) nearestGap=math.min(nearestGap,gap);
             RoadSignPlacement.ConstrainToDivider(low, high, offset - data.m_Width * .5f,
                 offset + data.m_Width * .5f, ref leftMargin, ref rightMargin);
         }
+        hasMedian=RoadSignPlacement.IsMedianGap(nearestGap);
     }
 
     private string ExplainEmptyTarget(Entity target)
