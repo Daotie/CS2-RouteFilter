@@ -194,6 +194,15 @@ $rfDanger: #e07b73;
 .libraryToolbar { display: flex; flex: 0 0 auto; padding: 0 14rem 4rem; font-size: 11rem; }
 .libraryToolbar button { padding: 3rem 6rem; color: $rfText; }
 .favoriteButton, .favoriteActive { width: 18rem; height: 24rem; padding: 2rem; flex-shrink: 0; }
-.favoriteButton { opacity: .3; }
-.favoriteActive { opacity: 1; }
+.favoriteButton { opacity: 1; color: $rfMuted; }
+.favoriteActive { opacity: 1; color: #ffd257; }
+.favoriteButton, .favoriteActive { border: 0; background: transparent; font-size: 19rem; cursor: pointer; padding: 0; margin-right: 3rem; }
+.toolsMenu { display: flex; flex-direction: column; button { text-align: left; padding: 8rem 10rem; } hr { width: 100%; border: 0; border-top: 1rem solid $rfBorder; } }
+.mapPanel { position: fixed; top: 90rem; left: 440rem; width: 780rem; max-width: 65vw; max-height: 80vh; z-index: 1050; background: var(--panelColorNormal); color: $rfText; }
+.mapPanel .restrictionMap { height: 490rem; max-height: 60vh; }
+.appearancePalette { position: fixed; top: 72rem; left: 18rem; width: 290rem; z-index: 1080; background: var(--panelColorNormal); color: $rfText; }
+.parameterList { display: flex; flex-direction: column; button { display: flex; justify-content: space-between; padding: 7rem; } }
+.nativeSignInfo { display: flex; flex-direction: column; padding: 12rem; font-size: 14rem; span { margin-top: 6rem; } button { margin-top: 10rem; } }
+.libraryTabs { display: flex; margin: 2rem 14rem 7rem; border-bottom: 1rem solid $rfBorder; button { flex: 1; border-bottom: 2rem solid transparent; } }
+.libraryTabs button[aria-selected="true"] { border-bottom-color: $rfAccent; }
 .favoriteButton img, .favoriteActive img { width: 14rem; height: 14rem; }

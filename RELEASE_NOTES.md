@@ -1,10 +1,10 @@
-# RouteFilter 2.1.0-dev — Unified test build
+# RouteFilter 2.1.0-dev — UX conformance test build
 
-Build: `RF21-20261004-UNIFIED-30`.
+Build: `RF21-20261005-UX-31`.
 
-A–G UX features are implemented: road signs and prefab dropdown, localized RF-Plate assemblies, favorites/recent/copy/paste, user presets, Restriction Map, Segment Brush, and appearance controls. The 2.0 enforcement outcomes and save schema are unchanged.
+Restores the compact restriction panel, search-first library tabs, independent favorite stars and secondary Tools menu. Reworks auxiliary plate orientation and measured typography, removes persistent red ground lines, integrates native selected-info sections, adds built-in/rename presets, introduces wheel-driven sign adjustment and start/end connected Segment Range, and separates cached road geometry from restriction map overlays.
 
-This is a local unified test build. C# and UI builds plus automated tests pass; the new runtime rendering, performance and save/load behavior are NOT TESTED in-game. See `UNIFIED_TEST_REPORT.md` for the complete test checklist and limitations.
+This unified build is prepared for player game acceptance. The stable 2.0 enforcement and save schema remain unchanged. See `UNIFIED_TEST_REPORT.md` for validation and the game checklist.
 
 ## RouteFilter 2.0.0 — Previous stable release
 

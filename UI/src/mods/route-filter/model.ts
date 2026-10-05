@@ -1,6 +1,7 @@
 export type VehicleAsset = {
   id: number;
   name: string;
+  prefabName?: string;
   mode: number;
   maxSpeed: number;
   acceleration: number;
@@ -22,6 +23,7 @@ export const parseCatalog = (raw: string): VehicleAsset[] => raw.split("\n").red
   result.push({
     id,
     name,
+    prefabName: name,
     mode: Number(part[2]),
     maxSpeed: Number(part[3]),
     acceleration: Number(part[4]),

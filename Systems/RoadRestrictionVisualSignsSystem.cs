@@ -23,6 +23,8 @@ namespace RouteFilter.Systems;
 internal struct RoadRestrictionSignOwner : IComponentData
 {
     internal Entity Target;
+    internal Entity Connection;
+    internal int EntryOrdinal;
 }
 
 internal struct RoadRestrictionSignGeometryWatch : IComponentData { }
@@ -69,6 +71,8 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
     public bool CustomUnavailable { get; private set; }
     public int MarkerCount { get; private set; }
     public bool ContainsPrefab(string name) => m_Prefabs.ContainsKey(name);
+    internal void InvalidateVehicleLabels() { m_VehicleCatalogRevision++; m_LoadDirty = true; }
+    internal void InvalidateAppearance() => m_LoadDirty = true;
 
     protected override void OnCreate()
     {
@@ -135,7 +139,13 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
         var enabled = Mod.Settings.ShowRoadRestrictionSigns;
         var custom = Mod.Settings.RoadSignPrefabMode == "CUSTOM" ? Mod.Settings.CustomRoadSignPrefab ?? string.Empty : string.Empty;
         var appearanceChanged = RefreshAppearance();
-        var settingChanged = enabled != m_Enabled || custom != m_Custom || appearanceChanged;
+        var settingChanged = enabled != m_Enabled || custom != m_Custom;
+        if (appearanceChanged)
+        {
+            var previewTarget = World.GetExistingSystemManaged<RouteFilterUISystem>()?.AppearancePreviewTarget ?? Entity.Null;
+            if (previewTarget != Entity.Null) MarkDirty(previewTarget);
+            else foreach (var target in m_Markers.Keys) MarkDirty(target);
+        }
         if (m_TopologyRevision != m_Index.Revision)
         {
             m_TopologyRevision = m_Index.Revision;
@@ -263,8 +273,10 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
             reasons.TryGetValue(reason, out var count); reasons[reason] = count + markerCount;
             Mod.Log.Info($"[RouteFilter.RoadSigns] target={target} SkipReason={reason} {detail}");
         }
+        var ordinal = 0;
         foreach (var entry in entries)
         {
+            ordinal++;
             Watch(target, entry.Connection);
             foreach (var gate in entry.Gates) { Watch(target, gate.m_EntryLane); Watch(target, gate.m_NextLane); }
             if (!entry.Enabled) continue;
@@ -280,6 +292,9 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
             if (!RoadSignPlacement.TryCreate(center, forward, low, high, prefab.GroundOffset, out var first, out var second, out var rotation, leftMargin, rightMargin))
             { Skip("INVALID_TRANSFORM", $"connection={entry.Connection} center={center} forward={forward} bounds={low}/{high}"); continue; }
             pairs++;
+            var longitudinal = math.normalizesafe(new float3(forward.x,0,forward.z)) * m_Longitudinal;
+            first += longitudinal; second += longitudinal;
+            rotation = math.mul(rotation,quaternion.RotateY(math.radians(m_Rotation)));
             var geometry = EntityManager.GetComponentData<ObjectGeometryData>(prefab.Entity);
             // A prohibition face is approximately as tall as it is wide; exclude its pole.
             var faceWidth = math.max(geometry.m_Bounds.max.x-geometry.m_Bounds.min.x,geometry.m_Bounds.max.z-geometry.m_Bounds.min.z);
@@ -292,10 +307,10 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
             var before = markers.Count;
             try
             {
-                var anchor = CreateVisualAnchor(target, target);
-                var left = CreateMarker(target, anchor, prefab, first, rotation); markers.Add(left);
+                var anchor = CreateVisualAnchor(target,target,prefab,first,rotation,entry.Connection,ordinal);
+                var left = CreateMarker(target, anchor, prefab, first, rotation, entry.Connection,ordinal); markers.Add(left);
                 CreateAssembly(target,left,prefab,first,rotation,labels,firstPlate-lift+m_Height);
-                var right = CreateMarker(target, anchor, prefab, second, rotation); markers.Add(right);
+                var right = CreateMarker(target, anchor, prefab, second, rotation, entry.Connection,ordinal); markers.Add(right);
                 CreateAssembly(target,right,prefab,second,rotation,labels,firstPlate-lift+m_Height);
                 var gate = entry.Gates[0];
                 Mod.Log.Info($"[RouteFilter.RoadSigns] target={target} connection={entry.Connection} EntryLane={gate.m_EntryLane} NextLane={gate.m_NextLane} LEFT={first} RIGHT={second} Rotation={rotation.value} Scale=1 edgeMargins={leftMargin}/{rightMargin} laneBounds={low}/{high} prefab={prefab.Name}");
@@ -356,7 +371,7 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
         return $"connection={entry.Connection} invariant=ZERO_OR_NONFINITE_COMBINED_TANGENT";
     }
 
-    private Entity CreateVisualAnchor(Entity target, Entity road)
+    private Entity CreateVisualAnchor(Entity target, Entity road,SignPrefab prefab,float3 position,quaternion rotation,Entity connection,int ordinal)
     {
         // A private visual assembly root. No Object/Net entity and no road buffer writes.
         // Native OverrideSystem follows the child Owner to Attached on its parent and
@@ -364,21 +379,25 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
         var anchor = EntityManager.CreateEntity(ComponentType.ReadWrite<Game.Objects.Attached>(),
             ComponentType.ReadWrite<RoadRestrictionSignOwner>());
         EntityManager.SetComponentData(anchor, new Game.Objects.Attached(road, Entity.Null, 0f));
-        EntityManager.SetComponentData(anchor, new RoadRestrictionSignOwner { Target = target });
+        EntityManager.SetComponentData(anchor, new RoadRestrictionSignOwner { Target = target,Connection = connection,EntryOrdinal = ordinal });
+        // Native selection may promote a sub-object hit to its owning assembly.
+        // Give that visual root a name/position source without making it a road.
+        EntityManager.AddComponentData(anchor,new PrefabRef(prefab.Entity));
+        EntityManager.AddComponentData(anchor,new ObjectTransform(position,rotation));
         EntityManager.AddBuffer<Game.Objects.SubObject>(anchor);
         if (!m_VisualAnchors.TryGetValue(target, out var anchors)) m_VisualAnchors[target] = anchors = new();
         anchors.Add(anchor);
         return anchor;
     }
 
-    private Entity CreateMarker(Entity target, Entity anchor, SignPrefab prefab, float3 position, quaternion rotation)
+    private Entity CreateMarker(Entity target, Entity anchor, SignPrefab prefab, float3 position, quaternion rotation, Entity connection,int ordinal)
     {
         var entity = EntityManager.CreateEntity(prefab.Archetype);
         try
         {
             EntityManager.SetComponentData(entity, new PrefabRef(prefab.Entity));
             EntityManager.SetComponentData(entity, new ObjectTransform(position, rotation));
-            EntityManager.SetComponentData(entity, new RoadRestrictionSignOwner { Target = target });
+            EntityManager.SetComponentData(entity, new RoadRestrictionSignOwner { Target = target, Connection = connection,EntryOrdinal = ordinal });
             EntityManager.AddComponentData(entity, new Owner(anchor));
             if (EntityManager.HasComponent<Game.Objects.NetObject>(entity))
                 EntityManager.SetComponentData(entity, new Game.Objects.NetObject());
@@ -411,6 +430,7 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
 
     private void RemoveTarget(Entity target)
     {
+        if (!EntityManager.Exists(target) || EntityManager.HasComponent<Deleted>(target) || !EntityManager.HasBuffer<RestrictedVehicleAssetV1>(target)) m_LabelCache.Remove(target);
         RemoveAssembly(target);
         if (m_WatchedByTarget.TryGetValue(target, out var watched))
         {
@@ -505,7 +525,11 @@ public sealed class RoadRestrictionSignSaveGuardSystem : GameSystemBase
 
 public sealed class RoadRestrictionSignGeometryChangedSystem : GameSystemBase
 {
-    protected override void OnUpdate() => World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.CollectGeometryChanges();
+    protected override void OnUpdate()
+    {
+        World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.CollectGeometryChanges();
+        World.GetExistingSystemManaged<RouteFilterUISystem>()?.CollectMapGeometryChanges();
+    }
 }
 
 public sealed class RoadRestrictionSignSaveFinishSystem : GameSystemBase

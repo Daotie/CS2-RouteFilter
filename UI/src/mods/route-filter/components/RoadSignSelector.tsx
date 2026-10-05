@@ -24,7 +24,10 @@ export const RoadSignSelector = ({ closeToken = 0, onPopupOpen }: {closeToken?: 
   const menu = useRef<HTMLDivElement>(null);
   const { translate } = useLocalization();
   const tr = (key: string, fallback: string) => String(translate(key) ?? fallback);
-  const name = (value: string) => String(translate(`Assets.NAME[${value}]`, value) ?? value);
+  const name = (value: string) => {
+    const fallback = value.replace(/[_-]+/g," ").replace(/([a-z])([A-Z])/g,"$1 $2").replace(/([A-Za-z])(\d+)/g,"$1 $2").trim();
+    return String(translate(`Assets.NAME[${value}]`,fallback) ?? fallback);
+  };
   const options = useMemo(() => catalog.split("\n").filter(Boolean).flatMap(line => {
     try {
       const [id, icon] = line.split("|").map(decodeURIComponent);
@@ -75,7 +78,7 @@ export const RoadSignSelector = ({ closeToken = 0, onPopupOpen }: {closeToken?: 
     <span title={text}>{text}</span>
   </span>;
   return <div className={styles.signSelector}>
-    <div className={styles.signTitle}>{tr("RouteFilter.UI.RoadSignStyle", "Road Restriction Sign Prefab")}</div>
+    <div className={styles.signTitle}>{tr("RouteFilter.UI.RoadSignStyle", "Road restriction sign style")}</div>
     <div ref={anchor}>
       <Button variant="flat" className={styles.signToggle} onSelect={toggle} aria-expanded={!!popup} aria-haspopup="listbox">
         {row(selected?.icon ?? automatic?.icon ?? icons.prohibition, selection ? name(selection) : auto)}
@@ -84,7 +87,7 @@ export const RoadSignSelector = ({ closeToken = 0, onPopupOpen }: {closeToken?: 
     </div>
     {popup && <Portal><div ref={menu} className={styles.signDropdownPopup} style={{ left: popup.left, top: popup.top, width: popup.width, height: popup.maxHeight, maxHeight: popup.maxHeight }} role="listbox"
       onMouseEnter={() => trigger(mod.id, "setUiPointerArea", "sign", true)} onMouseLeave={() => trigger(mod.id, "setUiPointerArea", "sign", false)}>
-      {options.length > 12 && <input className={styles.signSearch} value={search} onChange={event => changeSearch(event.target.value)} placeholder={tr("RouteFilter.UI.RoadSignSearch", "Search prefabs…")} />}
+      {options.length > 12 && <input className={styles.signSearch} value={search} onChange={event => changeSearch(event.target.value)} placeholder={tr("RouteFilter.UI.RoadSignSearch", "Search sign assets…")} />}
       <Button variant="flat" className={`${styles.signItem} ${!selection ? styles.signItemSelected : ""}`} onSelect={() => select("")}>{row(icons.prohibition, auto)}</Button>
       <div ref={scroller} className={styles.signScroll} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}>
         <div style={{ position: "relative", height: filtered.length * popup.rowHeight }}>

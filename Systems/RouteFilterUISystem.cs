@@ -33,6 +33,8 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private RestrictionToolSystem m_RestrictionTool = null!;
     private PrefabSystem m_PrefabSystem = null!;
     private EntityQuery m_VehiclePrefabQuery;
+    private Entity[] m_RoadVehicleAssets = Array.Empty<Entity>();
+    internal IEnumerable<Entity> RoadVehicleAssets => m_RoadVehicleAssets;
     private readonly Dictionary<int, Entity> m_AssetsById = new();
     private readonly Dictionary<Entity, int> m_IdsByAsset = new();
     private readonly Dictionary<Entity, int> m_ModeByAsset = new();
@@ -130,6 +132,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     protected override void OnDestroy()
     {
+        StopAdvancedInteraction();
         m_PrefabSystem.onContentAvailabilityChanged -= OnContentAvailabilityChanged;
         var gameManager = GameManager.instance;
         if (gameManager != null) gameManager.onGameLoadingComplete -= HandleGameLoadingComplete;
@@ -242,7 +245,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
     public void ResetRuntimeState()
     {
-        m_MapOpen = false; ClearMap(); m_MapDirty = true;
+        StopAdvancedInteraction(); m_MapDirty = true; PublishAppearance();
         m_Clipboard = Array.Empty<string>(); m_ClipboardReady = false; m_HasClipboard.Update(false);
         m_PresetMissing.Update(0); m_PresetUnsupported.Update(0);
         m_RestrictionTool.SetBrushEnabled(false);
@@ -262,7 +265,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     }
 
     public void NotifyResetCompleted() => m_ResetCompletedBinding.Update(++m_ResetCompleted);
-    public void NotifyPanelClose() { m_MapOpen = false; ClearMap(); m_RestrictionTool.CancelBrush(); m_PanelCloseBinding.Update(++m_PanelClose); }
+    public void NotifyPanelClose() { StopAdvancedInteraction(); m_PanelCloseBinding.Update(++m_PanelClose); }
 
     private void SetTargetMode(int value)
     {
@@ -369,6 +372,8 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         PublishLibrary();
         Mod.SelectedVehicleAssets.RemoveWhere(entity => !EntityManager.Exists(entity));
         m_AssetCatalogBinding.Update(string.Join("\n", lines));
+        m_RoadVehicleAssets = ordered.Where(info => info.Mode == 1).Select(info => info.Entity).ToArray();
+        World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.InvalidateVehicleLabels();
         UpdateSelectedBinding();
 
         // Remember the world state this catalog was built from so later prefab or

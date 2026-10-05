@@ -36,4 +36,13 @@ stroke.Begin(true,assets); Check(stroke.Clear,"RMB clear stroke retains action")
 for (int i = 0; i < 5000; i++) stroke.Add(i);
 Check(stroke.Targets.Count == 4096,"bounded brush stroke");
 stroke.Begin(false,Array.Empty<int>()); Check(!stroke.Clear && stroke.Targets.Count == 0,"new stroke cannot reuse old pending targets");
+var graph = new Dictionary<int,int[]> { [1]=new[] {2,3},[2]=new[] {1,4},[3]=new[] {1,4},[4]=new[] {2,3},[5]=Array.Empty<int>() };
+Check(ConnectedRoadRange.Find(1,4,node => graph[node],100).SequenceEqual(new[] {1,2,4}),"deterministic fork chooses stable neighbour order");
+Check(ConnectedRoadRange.Find(1,1,node => graph[node],100).SequenceEqual(new[] {1}),"same-edge range");
+Check(ConnectedRoadRange.Find(1,5,node => graph[node],100).Count == 0,"disconnected endpoints cannot commit");
+Check(ConnectedRoadRange.Find(1,4,node => graph[node],1).Count == 0,"bounded topology search");
+Check(VehiclePlateLabels.Select(new[] {1,2,3},new[] {1,2,3},id => "Trucks").Length == 0,"all applicable vehicles require no plates");
+Check(VehiclePlateLabels.Select(new[] {1,1,2},new[] {1,2,3},id => "Trucks").SequenceEqual(new[] {"Trucks"}),"visual category duplicates removed");
+Check(VehiclePlateLabels.Select(new[] {1},new[] {1,2},id => "Cars").Length == 1,"direction coverage cannot imply all-vehicle coverage");
+Check(VehiclePlateLabels.Select(new[] {1,2},new[] {1,2,3},id => id == 1 ? "Trucks" : "Motorcycles").Length == 2,"truck and motorcycle categories remain distinct");
 Console.WriteLine($"UX preference / appearance / brush rules: {checks} checks passed.");

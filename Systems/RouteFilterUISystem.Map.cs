@@ -16,9 +16,15 @@ namespace RouteFilter.Systems;
 public sealed partial class RouteFilterUISystem
 {
     private bool m_MapOpen, m_MapDirty = true;
-    private ValueBinding<string> m_MapSnapshot;
+    private ValueBinding<string> m_MapSnapshot, m_MapGeometry;
+    private Game.Input.InputBarrier m_ZoomBarrier;
+    private string m_AppearanceParameter = "";
+    private float m_AppearanceStep = .05f, m_AppearanceSaveAt;
+    private bool m_AppearanceSavePending;
+    internal Entity AppearancePreviewTarget => m_AppearanceSavePending ? m_RestrictionTool.SelectedTarget : Entity.Null;
     private ValueBinding<bool> m_BrushBinding;
     private ValueBinding<int> m_BrushPendingBinding;
+    private ValueBinding<string> m_RangeStatus;
     private EntityQuery m_MapRoads, m_MapTargets, m_MapChanged;
     private int m_MapVisualRevision = -1, m_MapIndexRevision = -1;
     private readonly Dictionary<string, Entity> m_MapSelection = new(StringComparer.Ordinal);
@@ -26,13 +32,16 @@ public sealed partial class RouteFilterUISystem
     private void InitializeMapAndBrush()
     {
         m_MapSnapshot = CreateValue("restrictionMap", string.Empty);
+        m_MapGeometry = CreateValue("restrictionMapRoads",string.Empty);
         m_BrushBinding = CreateValue("segmentBrush", false);
         m_BrushPendingBinding = CreateValue("brushPending", 0);
-        m_MapRoads = GetEntityQuery(new EntityQueryDesc { All = new[] { ComponentType.ReadOnly<Edge>(), ComponentType.ReadOnly<Curve>() },
+        m_RangeStatus = CreateValue("rangeStatus","Start");
+        m_MapRoads = GetEntityQuery(new EntityQueryDesc { All = new[] { ComponentType.ReadOnly<Edge>(), ComponentType.ReadOnly<Curve>(), ComponentType.ReadOnly<Road>() },
             None = new[] { ComponentType.ReadOnly<Deleted>(), ComponentType.ReadOnly<Game.Tools.Temp>() } });
         m_MapTargets = GetEntityQuery(ComponentType.ReadOnly<RestrictedVehicleAssetV1>());
-        m_MapChanged = GetEntityQuery(new EntityQueryDesc { All = new[] { ComponentType.ReadOnly<Edge>() },
-            Any = new[] { ComponentType.ReadOnly<Updated>(), ComponentType.ReadOnly<Deleted>() } });
+        m_MapChanged = GetEntityQuery(new EntityQueryDesc { All = new[] { ComponentType.ReadOnly<Edge>(), ComponentType.ReadOnly<Road>() },
+            Any = new[] { ComponentType.ReadOnly<Updated>(), ComponentType.ReadOnly<Deleted>() },
+            None = new[] { ComponentType.ReadOnly<Game.Tools.Temp>() } });
         AddBinding(new TriggerBinding<bool>(Mod.Id,"setRestrictionMapOpen", open => { m_MapOpen = open; m_MapDirty = true; if (!open) ClearMap(); }));
         AddBinding(new TriggerBinding<string>(Mod.Id,"selectMapTarget", key =>
         {
@@ -42,6 +51,13 @@ public sealed partial class RouteFilterUISystem
             m_RestrictionTool.SelectTarget(target);
         }));
         AddBinding(new TriggerBinding<bool>(Mod.Id,"setSegmentBrush", m_RestrictionTool.SetBrushEnabled));
+        AddBinding(new TriggerBinding<bool>(Mod.Id,"confirmSegmentRange",m_RestrictionTool.CommitRange));
+        AddBinding(new TriggerBinding(Mod.Id,"cancelSegmentRange",m_RestrictionTool.CancelBrush));
+        AddBinding(new TriggerBinding<string,float>(Mod.Id,"setSignAdjustment",(parameter,step) =>
+        {
+            m_AppearanceParameter = parameter == "scale" || parameter == "height" || parameter == "offset" || parameter == "longitudinal" || parameter == "rotation" ? parameter : "";
+            m_AppearanceStep = SignAppearance.Clamp(step,.01f,1f,.05f);
+        }));
         AddBinding(new TriggerBinding<string, float>(Mod.Id,"setSignAppearance", (key,value) =>
         {
             switch (key)
@@ -49,6 +65,8 @@ public sealed partial class RouteFilterUISystem
                 case "scale": Mod.Settings.RoadSignScale = SignAppearance.Clamp(value,.5f,2f,1); break;
                 case "height": Mod.Settings.RoadSignHeight = SignAppearance.Clamp(value,0,5,0); break;
                 case "offset": Mod.Settings.RoadSignLateralOffset = SignAppearance.Clamp(value,-.5f,3,0); break;
+                case "longitudinal": Mod.Settings.RoadSignLongitudinalOffset = SignAppearance.Clamp(value,-10,10,0); break;
+                case "rotation": Mod.Settings.RoadSignRotation = SignAppearance.Clamp(value,-180,180,0); break;
                 case "spacing": Mod.Settings.RoadPlateSpacing = SignAppearance.Clamp(value,.02f,.2f,.04f); break;
                 default: return;
             }
@@ -57,45 +75,45 @@ public sealed partial class RouteFilterUISystem
         m_Appearance = CreateValue("signAppearance",string.Empty); PublishAppearance();
     }
     private ValueBinding<string> m_Appearance;
-    private void PublishAppearance() => m_Appearance.Update(string.Join("|",Format(Mod.Settings.RoadSignScale),Format(Mod.Settings.RoadSignHeight),Format(Mod.Settings.RoadSignLateralOffset),Format(Mod.Settings.RoadPlateSpacing)));
-    private void ClearMap() { m_MapSelection.Clear(); m_MapRoadStamps.Clear(); m_MapSnapshot.Update(string.Empty); }
+    private void PublishAppearance() => m_Appearance.Update(string.Join("|",Format(Mod.Settings.RoadSignScale),Format(Mod.Settings.RoadSignHeight),Format(Mod.Settings.RoadSignLateralOffset),Format(Mod.Settings.RoadSignLongitudinalOffset),Format(Mod.Settings.RoadSignRotation)));
+    private void ClearMap() { m_MapSelection.Clear(); m_MapRoadStamps.Clear(); m_MapSnapshot.Update(string.Empty); m_MapGeometry.Update(string.Empty); }
     private void UpdateMapAndBrush()
     {
+        UpdateAppearanceWheel();
         m_BrushBinding.Update(m_RestrictionTool.BrushEnabled); m_BrushPendingBinding.Update(m_RestrictionTool.PendingBrushCount);
+        m_RangeStatus.Update(m_RestrictionTool.RangeStatus);
         // Closed map does not even query the road collection.
         if (!m_MapOpen) return;
         var index = World.GetOrCreateSystemManaged<RestrictionIndexSystem>();
         var visualRevision = World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.Revision ?? 0;
-        var geometryChanged = false;
-        if (!m_MapChanged.IsEmptyIgnoreFilter)
-        {
-            using var changed = m_MapChanged.ToEntityArray(Allocator.Temp);
-            foreach (var road in changed)
-            {
-                var stamp = VisualGeometryStamp.Read(EntityManager,road);
-                if (!m_MapRoadStamps.TryGetValue(road,out var previous) || previous != stamp) geometryChanged = true;
-                m_MapRoadStamps[road] = stamp;
-            }
-        }
+        var geometryChanged = m_MapRoads.CalculateEntityCount() != m_MapRoadStamps.Count;
+        geometryChanged |= m_MapGeometryChanged;
+        m_MapGeometryChanged = false;
         if (!m_MapDirty && !geometryChanged && m_MapVisualRevision == visualRevision && m_MapIndexRevision == index.Revision) return;
+        var rebuildGeometry = m_MapDirty || geometryChanged;
         m_MapDirty = false; m_MapVisualRevision = visualRevision; m_MapIndexRevision = index.Revision;
-        var snapshot = new StringBuilder(); m_MapSelection.Clear();
-        void Point(float3 point) { snapshot.Append(point.x.ToString("0.##",CultureInfo.InvariantCulture)).Append(',').Append(point.z.ToString("0.##",CultureInfo.InvariantCulture)); }
-        using (var roads = m_MapRoads.ToEntityArray(Allocator.Temp))
+        if (rebuildGeometry)
+        {
+            var geometry = new StringBuilder(); m_MapRoadStamps.Clear();
+            using var roads = m_MapRoads.ToEntityArray(Allocator.Temp);
             foreach (var road in roads)
             {
                 var curve = EntityManager.GetComponentData<Curve>(road).m_Bezier;
                 m_MapRoadStamps[road] = VisualGeometryStamp.Read(EntityManager,road);
-                snapshot.Append("B||");
-                for (int i = 0; i <= 8; i++) { if (i > 0) snapshot.Append(';'); Point(Colossal.Mathematics.MathUtils.Position(curve,i/8f)); }
-                snapshot.Append('\n');
+                geometry.Append("B||");
+                for (int i=0; i<=8; i++) { if (i>0) geometry.Append(';'); AppendMapPoint(geometry,Colossal.Mathematics.MathUtils.Position(curve,i/8f)); }
+                geometry.Append('\n');
             }
+            m_MapGeometry.Update(geometry.ToString());
+        }
+        var snapshot = new StringBuilder(); m_MapSelection.Clear();
+        void Point(float3 point) => AppendMapPoint(snapshot,point);
         using (var targets = m_MapTargets.ToEntityArray(Allocator.Temp))
             foreach (var target in targets)
             {
                 if (EntityManager.HasComponent<Deleted>(target)) continue;
                 var assets = EntityManager.GetBuffer<RestrictedVehicleAssetV1>(target,true);
-                if (assets.Length == 0) continue;
+                if (assets.Length == 0 || (!EntityManager.HasComponent<Road>(target) && !EntityManager.HasComponent<Node>(target))) continue;
                 var key = target.Index + ":" + target.Version; m_MapSelection[key] = target;
                 snapshot.Append("R|").Append(key).Append('|');
                 if (EntityManager.TryGetComponent(target,out Curve curve))
@@ -104,7 +122,61 @@ public sealed partial class RouteFilterUISystem
                 var entries = index.GetAppliedRoadEntries(target); int active = 0;
                 foreach (var entry in entries) if (entry.Enabled) active++;
                 snapshot.Append('|').Append(assets.Length).Append('|').Append(active).Append('/').Append(entries.Count).Append('\n');
+                foreach (var entry in entries)
+                    if (entry.Enabled && entry.CustomSupported && index.TryGetApproachFrame(entry,true,out var center,out var forward,out var low,out var high))
+                    {
+                        snapshot.Append("E|").Append(key).Append('|'); Point(center); snapshot.Append(';'); Point(center + math.normalizesafe(forward)*8f); snapshot.Append('\n');
+                    }
             }
         m_MapSnapshot.Update(snapshot.ToString());
     }
+    private bool m_MapGeometryChanged;
+    internal void CollectMapGeometryChanges()
+    {
+        if (!m_MapOpen) return;
+        if (!m_MapChanged.IsEmptyIgnoreFilter)
+        {
+            using var changed = m_MapChanged.ToEntityArray(Allocator.Temp);
+            foreach (var road in changed)
+            {
+                if (EntityManager.HasComponent<Deleted>(road)) { if (m_MapRoadStamps.Remove(road)) m_MapGeometryChanged = true; continue; }
+                var stamp = VisualGeometryStamp.Read(EntityManager,road);
+                if (!m_MapRoadStamps.TryGetValue(road,out var previous) || previous != stamp) m_MapGeometryChanged = true;
+                m_MapRoadStamps[road] = stamp;
+            }
+        }
+    }
+    private static void AppendMapPoint(StringBuilder builder,float3 point) => builder.Append(point.x.ToString("0.##",CultureInfo.InvariantCulture)).Append(',').Append(point.z.ToString("0.##",CultureInfo.InvariantCulture));
+    private void UpdateAppearanceWheel()
+    {
+        var manipulating = m_ToolSystem.activeTool == m_RestrictionTool && (m_AppearanceParameter.Length > 0 || m_MapOpen);
+        if (manipulating && m_ZoomBarrier == null) m_ZoomBarrier = Game.Input.InputManager.instance.CreateActionBarrier("Camera","Zoom",Mod.Id+".SignAdjustment");
+        if (m_ZoomBarrier != null) m_ZoomBarrier.blocked = manipulating;
+        if (m_AppearanceSavePending && UnityEngine.Time.realtimeSinceStartup >= m_AppearanceSaveAt)
+        { m_AppearanceSavePending = false; Mod.Settings.ApplyAndSave(); World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.InvalidateAppearance(); }
+        if (m_AppearanceParameter.Length == 0 || m_ToolSystem.activeTool != m_RestrictionTool || m_RestrictionTool.PointerOverUi) return;
+        var delta = UnityEngine.InputSystem.Mouse.current?.scroll.ReadValue().y ?? 0;
+        if (delta == 0) return;
+        var keyboard = UnityEngine.InputSystem.Keyboard.current;
+        var fine = keyboard?.leftShiftKey.isPressed == true || keyboard?.rightShiftKey.isPressed == true;
+        var coarse = keyboard?.leftCtrlKey.isPressed == true || keyboard?.rightCtrlKey.isPressed == true;
+        var step = m_AppearanceParameter == "rotation" ? 1f : m_AppearanceStep;
+        step *= (delta > 0 ? 1 : -1) * (fine ? .2f : coarse ? 5f : 1f);
+        switch (m_AppearanceParameter)
+        {
+            case "scale": Mod.Settings.RoadSignScale = SignAppearance.Clamp(Mod.Settings.RoadSignScale+step,.5f,2f,1); break;
+            case "height": Mod.Settings.RoadSignHeight = SignAppearance.Clamp(Mod.Settings.RoadSignHeight+step,0,5,0); break;
+            case "offset": Mod.Settings.RoadSignLateralOffset = SignAppearance.Clamp(Mod.Settings.RoadSignLateralOffset+step,-.5f,3,0); break;
+            case "longitudinal": Mod.Settings.RoadSignLongitudinalOffset = SignAppearance.Clamp(Mod.Settings.RoadSignLongitudinalOffset+step,-10,10,0); break;
+            case "rotation": Mod.Settings.RoadSignRotation = SignAppearance.Clamp(Mod.Settings.RoadSignRotation+step,-180,180,0); break;
+        }
+        PublishAppearance(); m_AppearanceSavePending = true; m_AppearanceSaveAt = UnityEngine.Time.realtimeSinceStartup+.4f;
+    }
+    internal void StopAdvancedInteraction()
+    {
+        m_AppearanceParameter = ""; m_MapOpen = false; m_RestrictionTool.SetBrushEnabled(false); ClearMap();
+        m_ZoomBarrier?.Dispose(); m_ZoomBarrier = null;
+        if (m_AppearanceSavePending) { m_AppearanceSavePending = false; Mod.Settings.ApplyAndSave(); World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.InvalidateAppearance(); }
+    }
+
 }

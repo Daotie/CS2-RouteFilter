@@ -50,7 +50,7 @@ export const RouteFilterShell = () => {
   const { translate } = useLocalization();
   const tr = (key: string, fallback: string) => String(translate(key) ?? fallback);
 
-  const assets = useMemo(() => parseCatalog(catalogRaw), [catalogRaw]);
+  const assets = useMemo(() => parseCatalog(catalogRaw).map(asset => ({...asset,name:String(translate(`Assets.NAME[${asset.name}]`,asset.name) ?? asset.name)})), [catalogRaw,translate]);
   const selected = useMemo(() => new Set(selectedRaw.split(",").filter(Boolean).map(Number).filter(Number.isInteger)), [selectedRaw]);
   const relevant = useMemo(() => assets.filter(asset => targetTransport === 0 || (asset.mode & targetTransport) !== 0), [assets, targetTransport]);
   const childrenByParent = useMemo(() => {

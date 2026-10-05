@@ -174,7 +174,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         if (UnityEngine.Time.frameCount > m_ActivationFrame && Mod.Apply != null &&
             !BrushEnabled && Mod.Apply.WasPressedThisFrame() && TryToggleEntry(hit.m_HitPosition)) return inputDeps;
 
-        var target = EntityManager.TryGetComponent(entity, out RoadRestrictionSignOwner signOwner) ? signOwner.Target : ResolveTarget(entity, hit.m_HitPosition);
+        var target = RouteFilterSignInfoSection.TryResolve(EntityManager,entity,out var signOwner) ? signOwner.Target : ResolveTarget(entity, hit.m_HitPosition);
         if (signOwner.Target != Entity.Null) HoveredSignTarget = signOwner.Target;
         if (HoveredTarget != target) Mod.Log.Debug($"[RouteFilter.Tool] Hover {Mod.SelectedTargetMode}={target}");
         HoveredTarget = target;
@@ -222,7 +222,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
     public void SetPointerOverUi(bool value) { if (!value) m_UiPointerAreas.Clear(); PointerOverUi = value; }
     public void SetUiPointerArea(string area,bool value)
     {
-        if (area != "panel" && area != "utility" && area != "sign" && area != "dialog") return;
+        if (area != "panel" && area != "utility" && area != "sign" && area != "dialog" && area != "appearance") return;
         if (value) m_UiPointerAreas.Add(area); else m_UiPointerAreas.Remove(area);
         PointerOverUi = m_UiPointerAreas.Count != 0;
     }

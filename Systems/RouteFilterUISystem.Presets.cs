@@ -18,6 +18,25 @@ public sealed partial class RouteFilterUISystem
         m_PresetCatalog = CreateValue("userPresets", string.Empty);
         m_PresetMissing = CreateValue("presetMissing", 0);
         m_PresetUnsupported = CreateValue("presetUnsupported", 0);
+        AddBinding(new TriggerBinding<string,string>(Mod.Id,"renameUserPreset",(oldName,newName) =>
+        {
+            newName = newName.Trim();
+            var preset = m_Presets.Find(item => item.Name == oldName);
+            if (preset == null || newName.Length == 0 || newName.Length > 80 || m_Presets.Any(item => item != preset && item.Name == newName)) return;
+            preset.Name = newName; SavePresets();
+        }));
+        AddBinding(new TriggerBinding<string>(Mod.Id,"loadBuiltinPreset",name =>
+        {
+            if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable || (name != "Trucks" && name != "CargoTrucks")) return;
+            Mod.SelectedVehicleAssets.Clear();
+            foreach (var asset in RoadVehicleAssets)
+            {
+                var cargo = EntityManager.HasComponent<Game.Prefabs.DeliveryTruckData>(asset) || EntityManager.HasComponent<Game.Prefabs.CargoTransportVehicleData>(asset);
+                var truck = cargo || EntityManager.HasComponent<Game.Prefabs.GarbageTruckData>(asset) || EntityManager.HasComponent<Game.Prefabs.FireEngineData>(asset);
+                if (name == "CargoTrucks" ? cargo : truck) Mod.SelectedVehicleAssets.Add(asset);
+            }
+            m_PresetMissing.Update(0); m_PresetUnsupported.Update(0); UpdateSelectedBinding(); PublishRestriction();
+        }));
         AddBinding(new TriggerBinding<string>(Mod.Id, "saveUserPreset", name =>
         {
             name = name.Trim();

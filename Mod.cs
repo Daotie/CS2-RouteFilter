@@ -19,7 +19,7 @@ public sealed class Mod : IMod
     public const string Version = "2.1.0-dev";
     // Bump this for every deployable build so the in-game panel and log identify
     // exactly which compiled payload is loaded by the active playset.
-    public const string BuildId = "RF21-20261004-UNIFIED-30";
+    public const string BuildId = "RF21-20261005-UX-31";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";
@@ -115,11 +115,11 @@ public sealed class Mod : IMod
         updateSystem.UpdateBefore<RailEnforcementBackend, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
         updateSystem.UpdateAfter<RouteFilterDiagnosticsSystem, RoadEnforcementCoordinator>(SystemUpdatePhase.GameSimulation);
         updateSystem.UpdateAt<RouteFilterUISystem>(SystemUpdatePhase.UIUpdate);
+        updateSystem.World.GetOrCreateSystemManaged<RouteFilterSignInfoSection>();
         // Register static visuals before Objects.SearchSystem (Modification5).
         // UIUpdate is too late: next-frame cleanup strips Created/Updated first.
         updateSystem.UpdateAt<RoadRestrictionVisualSignsSystem>(SystemUpdatePhase.Modification4);
         updateSystem.UpdateAt<RestrictionGroundIndicatorSystem>(SystemUpdatePhase.Modification4);
-        updateSystem.UpdateAt<RoadRestrictionSignTooltipSystem>(SystemUpdatePhase.UITooltip);
         updateSystem.UpdateBefore<RoadRestrictionSignSaveGuardSystem, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
         updateSystem.UpdateAt<RoadRestrictionSignGeometryChangedSystem>(SystemUpdatePhase.ModificationEnd);
         updateSystem.UpdateAfter<RoadRestrictionSignSaveFinishSystem, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
@@ -180,6 +180,7 @@ public sealed class Mod : IMod
             m_RuntimeWorld.GetExistingSystemManaged<RailEnforcementBackend>()?.ReleaseAll();
             m_RuntimeWorld.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.DisposeRuntimeVisuals();
             m_RuntimeWorld.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.ClearRuntimeVisuals();
+            m_RuntimeWorld.GetExistingSystemManaged<RouteFilterUISystem>()?.StopAdvancedInteraction();
             m_RuntimeWorld.GetExistingSystemManaged<RestrictionToolSystem>()?.CancelBrush();
             m_RuntimeWorld.GetExistingSystemManaged<RestrictionToolSystem>()?.Deactivate();
         }

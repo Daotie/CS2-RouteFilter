@@ -10,9 +10,11 @@ type Props = {
   buildId: string;
   closeLabel: string;
   onClose: () => void;
+  onTools: () => void;
+  toolsLabel: string;
 };
 
-export const PanelHeader = ({ title, version, buildId, closeLabel, onClose }: Props) => (
+export const PanelHeader = ({ title, version, buildId, closeLabel, onClose, onTools, toolsLabel }: Props) => (
   <div className={styles.panelHeader}>
     <span className={styles.brandIcon}><img className={styles.toolGlyph} src={toolbarIcon} alt="" /></span>
     <div className={styles.brandText}>
@@ -20,6 +22,7 @@ export const PanelHeader = ({ title, version, buildId, closeLabel, onClose }: Pr
       <span>{version}</span>
       <span className={styles.buildMarker} title={`RouteFilter build ${buildId}`} aria-hidden="true" />
     </div>
+    <Button variant="flat" className={styles.closeButton} onSelect={onTools} aria-label={toolsLabel}>⋯</Button>
     <Tooltip tooltip={closeLabel} direction="down" alignment="end">
       <Button variant="flat" className={styles.closeButton} onSelect={onClose} aria-label={closeLabel}>
         <img className={styles.closeGlyph} src={icons.close} alt="" />

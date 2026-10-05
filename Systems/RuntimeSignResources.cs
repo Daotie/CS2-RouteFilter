@@ -57,27 +57,25 @@ internal sealed class RuntimeSignResources : IDisposable
         var control = Texture("RF-Plate_ControlMask.png", true);
         if (m_PlateMaterial.HasProperty("_MaskMap")) m_PlateMaterial.SetTexture("_MaskMap", mask);
         if (m_PlateMaterial.HasProperty("_ControlMask")) m_PlateMaterial.SetTexture("_ControlMask", control);
-        m_TextQuad = new Mesh { name = "RF.TextQuad", vertices = new[] { new Vector3(-.36f,-.08f,.012f), new Vector3(.36f,-.08f,.012f), new Vector3(.36f,.08f,.012f), new Vector3(-.36f,.08f,.012f) },
+        // Main signs face local +Z (LookRotation(-travel)). The plate text uses
+        // that same front, clockwise-from-front winding and upright UVs.
+        m_TextQuad = new Mesh { name = "RF.TextQuad", vertices = new[] { new Vector3(.375f,-.102f,.012f), new Vector3(-.375f,-.102f,.012f), new Vector3(-.375f,.102f,.012f), new Vector3(.375f,.102f,.012f) },
             uv = new[] { new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1) }, triangles = new[] { 0,2,1,0,3,2 } };
         m_TextQuad.RecalculateNormals(); m_TextQuad.RecalculateBounds();
     }
     private Material TextMaterial(string text)
     {
         if (m_Text.TryGetValue(text, out var cached)) return cached;
-        using var bitmap = new System.Drawing.Bitmap(768, 170);
-        using (var graphics = System.Drawing.Graphics.FromImage(bitmap))
-        using (var font = new System.Drawing.Font("Microsoft YaHei", Math.Min(70f, 660f / Math.Max(4, text.Length)), System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Pixel))
-        using (var format = new System.Drawing.StringFormat { Alignment = System.Drawing.StringAlignment.Center, LineAlignment = System.Drawing.StringAlignment.Center })
-        {
-            graphics.Clear(System.Drawing.Color.FromArgb(235,235,228));
-            graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-            graphics.DrawString(text, font, System.Drawing.Brushes.Black, new System.Drawing.RectangleF(0,0,768,170), format);
-        }
+        using var bitmap = new System.Drawing.Bitmap(SignTextLayout.Width,SignTextLayout.Height);
+        using (var graphics = System.Drawing.Graphics.FromImage(bitmap)) SignTextLayout.Draw(graphics,text);
         using var output = new MemoryStream(); bitmap.Save(output, ImageFormat.Png);
         var texture = new Texture2D(2,2,TextureFormat.RGBA32,false) { name = "RF.Label:" + text };
         m_Textures.Add(texture); ImageConversion.LoadImage(texture, output.ToArray());
         var material = new Material(SignShader()) { name = "RF.Label:" + text };
-        SetTexture(material, texture); m_Text[text] = material; return material;
+        SetTexture(material, texture);
+        if (material.HasProperty("_CullMode")) material.SetFloat("_CullMode",2);
+        if (material.HasProperty("_CullModeForward")) material.SetFloat("_CullModeForward",2);
+        m_Text[text] = material; return material;
     }
     internal static GameObject MeshObject(string name, Mesh mesh, Material[] materials, Transform parent)
     {

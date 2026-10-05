@@ -3,6 +3,8 @@
   <ItemGroup>
     <Compile Include="../../Components/UserPreferenceData.cs" Link="UserPreferenceData.cs" />
     <Compile Include="../../Components/PendingBrushBatch.cs" Link="PendingBrushBatch.cs" />
+    <Compile Include="../../Components/ConnectedRoadRange.cs" Link="ConnectedRoadRange.cs" />
+    <Compile Include="../../Components/VehiclePlateLabels.cs" Link="VehiclePlateLabels.cs" />
     <Compile Include="../../Systems/SignAppearance.cs" Link="SignAppearance.cs" />
   </ItemGroup>
 </Project>

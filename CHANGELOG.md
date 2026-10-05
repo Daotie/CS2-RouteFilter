@@ -2,6 +2,17 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Semantic Versioning prerelease conventions.
 
+## 2.1.0-dev — 2026-10-05 — UX conformance build
+
+- Restored compact primary editing, search-first library tabs, independent star favorites and a header Tools menu.
+- Corrected front-facing RF-Plate text geometry and adaptive installed-font glyph fitting; full road-vehicle prohibition omits auxiliary plates; tractor/trailer categories deduplicate.
+- Removed persistent red ground stripes. Integrated the native selected-info section registry and sign ownership / road / entry metadata.
+- Added built-in Trucks / Cargo Trucks and preset rename. Sign style retains its cached thumbnail dropdown.
+- Added persistent upper-left wheel adjustment for scale, lateral / longitudinal offset, height and rotation, fine/coarse modifiers, native camera zoom barrier and debounced settings saves. Focused wheel previews rebuild the selected target; other signs refresh once after adjustment settles. Label/category results are cached independently of transforms.
+- Replaced drag brush with deterministic start/end connected-road range, explicit confirmation, topology revalidation and chunked temporary previews.
+- Split map road geometry from restriction overlays; added dedicated window, layers, entry arrows and pan/zoom. Closed map performs no network queries.
+- Build `RF21-20261005-UX-31`; game acceptance remains pending. Stable enforcement and save schema unchanged.
+
 ## 2.1.0-dev — 2026-10-04 — Unified test build
 
 - Road signs: AUTO/CUSTOM prefab dropdown, native thumbnails and names, directional entry placement, hover/click editing, independent main-sign scaling.

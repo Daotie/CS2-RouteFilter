@@ -16,4 +16,8 @@ const bad = parseMap('B||NaN,2;3,4\nR|x|Infinity,0|1|2/4\nR|y|1|1|4/4');
 assert.equal(bad.restrictions.length,0); assert.equal(bad.background,'');
 const backgrounds = parseMap(Array.from({length:1000},(_,i)=>`B||${i},0;${i},1`).join('\n'));
 assert.equal(backgrounds.background.split('M').length-1,1000);
+assert.equal(backgrounds.backgroundPaths.length,2);
+const entries=parseMap('E|12:3|0,0;8,4\nE|bad|0,0\nE|invalid|NaN,0;1,2');
+assert.equal(entries.entries.length,1);assert.equal(entries.entries[0].key,'12:3');
+assert.equal(entries.restrictions.length,0);
 console.log('PASS: empty/invalid map data, finite bounds, geometry, stable selection IDs, directional counts, combined background path.');

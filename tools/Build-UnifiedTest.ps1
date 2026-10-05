@@ -11,6 +11,10 @@ try {
         dotnet run --project "Tests/$test" -c Release
         if ($LASTEXITCODE -ne 0) { throw "$test failed" }
     }
+    dotnet build Tests/SignText -c Release --nologo
+    if ($LASTEXITCODE -ne 0) { throw 'Sign typography build failed' }
+    & './Tests/SignText/bin/Release/net48/SignText.exe' 'tmp/sign-text-qa'
+    if ($LASTEXITCODE -ne 0) { throw 'Sign typography raster verification failed' }
     $previousOutput = $env:ROUTEFILTER_OUTPUT_DIR
     $env:ROUTEFILTER_OUTPUT_DIR = Join-Path $workspace 'UI/build'
     Push-Location UI
