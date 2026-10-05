@@ -99,6 +99,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
     protected override void OnStopRunning()
     {
+        World.GetExistingSystemManaged<RouteFilterUISystem>()?.StopAdvancedInteraction();
         CancelBrush(); BrushEnabled = false; UpdateMouseHints();
         if (m_MouseApplyDisplay != null) m_MouseApplyDisplay.active = false;
         if (m_MouseCancelDisplay != null) m_MouseCancelDisplay.active = false;

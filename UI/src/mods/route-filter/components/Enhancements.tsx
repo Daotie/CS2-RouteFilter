@@ -6,6 +6,7 @@ import mod from "mod.json";
 import { parseMap, path } from "../mapGeometry";
 import { RoadSignSelector } from "./RoadSignSelector";
 import styles from "../route-filter.module.scss";
+const advancedClosed$ = bindValue<number>(mod.id,"advancedClosed",0);
 const presets$ = bindValue<string>(mod.id,"userPresets","");
 const missing$ = bindValue<number>(mod.id,"presetMissing",0);
 const unsupported$ = bindValue<number>(mod.id,"presetUnsupported",0);
@@ -17,6 +18,7 @@ const pending$ = bindValue<number>(mod.id,"brushPending",0);
 const appearance$ = bindValue<string>(mod.id,"signAppearance","1|0|0|0|0");
 type Props = { targetMode: number; editable: boolean; popup: string; onPopup: (value: string) => void; reset: number; targetReady: boolean; hasClipboard: boolean; onReset: () => void; onAppearance: (open: boolean) => void };
 export const Enhancements = ({ targetMode, editable, popup, onPopup, reset, targetReady, hasClipboard, onReset, onAppearance }: Props) => {
+  const advancedClosed=useValue(advancedClosed$);
   const presetsRaw = useValue(presets$), missing = useValue(missing$), unsupported = useValue(unsupported$);
   const range = useValue(range$), pending = useValue(pending$), status = useValue(status$);
   const [name,setName] = useState(""), [renaming,setRenaming] = useState("");
@@ -24,14 +26,19 @@ export const Enhancements = ({ targetMode, editable, popup, onPopup, reset, targ
   const { translate } = useLocalization();
   const tr = (id: string, fallback: string) => String(translate(`RouteFilter.UI.${id}`,fallback) ?? fallback);
   const presets = useMemo(() => presetsRaw.split("\n").filter(Boolean).flatMap(item => { try { return [decodeURIComponent(item)]; } catch { return []; } }),[presetsRaw]);
-  useEffect(() => { trigger(mod.id,"setRestrictionMapOpen",popup === "Map"); trigger(mod.id,"setSegmentBrush",popup === "Range"); return () => { trigger(mod.id,"setRestrictionMapOpen",false); trigger(mod.id,"setUiPointerArea","utility",false); }; },[popup]);
-  useEffect(() => { if (reset) { setName(""); setPalette(false); onAppearance(false); onPopup(""); } },[reset,onPopup,onAppearance]);
   useEffect(() => {
-    if (!popup) return;
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); onPopup(""); } };
+    trigger(mod.id,"setRestrictionMapOpen",popup === "Map");
+    trigger(mod.id,"setSegmentBrush",popup === "Range");
+    return () => { trigger(mod.id,"setRestrictionMapOpen",false); trigger(mod.id,"setSegmentBrush",false); trigger(mod.id,"setUiPointerArea","utility",false); };
+  },[popup]);
+  useEffect(() => () => { trigger(mod.id,"closeAdvancedInteraction"); onAppearance(false); },[]);
+  useEffect(() => { if (advancedClosed || reset) { setName(""); setPalette(false); onAppearance(false); onPopup(""); } },[advancedClosed,reset,onPopup,onAppearance]);
+  useEffect(() => {
+    if (!popup && !palette) return;
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setPalette(false); onAppearance(false); onPopup(""); trigger(mod.id,"closeAdvancedInteraction"); } };
     document.addEventListener("keydown",escape,true);
     return () => document.removeEventListener("keydown",escape,true);
-  },[popup,onPopup]);
+  },[popup,palette,onPopup,onAppearance]);
   return <>
     {popup && <Portal><Panel className={popup === "Map" ? styles.mapPanel : styles.auxPanel} contentClassName={styles.auxContent} onMouseEnter={() => trigger(mod.id,"setUiPointerArea","utility",true)} onMouseLeave={() => trigger(mod.id,"setUiPointerArea","utility",false)}>
       <div className={styles.auxHeader}><strong>{tr(popup,popup)}</strong><Button variant="flat" onSelect={() => onPopup("")} aria-label={tr("Close","Close")}>×</Button></div>

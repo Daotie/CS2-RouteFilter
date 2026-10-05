@@ -123,7 +123,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
 
         AddBinding(new TriggerBinding(Mod.Id, "toggleTool", ToggleTool));
         AddBinding(new TriggerBinding(Mod.Id, "activateTool", () => { Mod.Log.Info("[RouteFilter.Binding] activateTool"); m_RestrictionTool.Activate(); }));
-        AddBinding(new TriggerBinding(Mod.Id, "deactivateTool", m_RestrictionTool.Deactivate));
+        AddBinding(new TriggerBinding(Mod.Id, "deactivateTool", () => { StopAdvancedInteraction(); m_RestrictionTool.SetPointerOverUi(false); m_RestrictionTool.Deactivate(); }));
         AddBinding(new TriggerBinding<int>(Mod.Id, "toggleAsset", ToggleAsset));
         AddBinding(new TriggerBinding<int, bool>(Mod.Id, "toggleAssetGroup", ToggleAssetGroup));
         AddBinding(new TriggerBinding<int>(Mod.Id, "setTargetMode", SetTargetMode));

@@ -76,7 +76,7 @@ export const RouteFilterPanel = (props: Props) => {
     trigger(mod.id, "setFilteredAssetSelection", ids.join(","), forbidden);
   };
   return <Portal>
-    {!appearanceActive && <Panel id="routefilter-panel" data-build-id={props.buildId} className={styles.panel} contentClassName={styles.panelContent} onMouseEnter={props.onPointerEnter} onMouseLeave={props.onPointerLeave}>
+    {<Panel id="routefilter-panel" data-build-id={props.buildId} className={styles.panel} contentClassName={styles.panelContent} onMouseEnter={props.onPointerEnter} onMouseLeave={props.onPointerLeave}>
       <PanelHeader onTools={() => openUtility(utilityPopup === "Tools" ? "" : "Tools")} toolsLabel={tr("RouteFilter.UI.Tools","Tools")} title={props.labels.title} version={mod.version} buildId={props.buildId} closeLabel={props.labels.close} onClose={props.onClose} />
       {!props.configurationEditable && <div className={styles.resetStatus} role="status">{tr("RouteFilter.UI.PersistenceLocked", "Save data is incompatible or damaged. Editing is locked; Reset removes RouteFilter configuration.")}</div>}
       <TargetSelector mode={props.targetMode} nodeLabel={props.labels.node} segmentLabel={props.labels.segment} status={props.labels.targetStatus} targetReady={targetReady} onModeChange={props.onTargetModeChange} />

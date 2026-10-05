@@ -15,6 +15,8 @@ namespace RouteFilter.Systems;
 
 public sealed partial class RouteFilterUISystem
 {
+    private ValueBinding<int> m_AdvancedClosed;
+    private int m_AdvancedCloseRevision;
     private bool m_MapOpen, m_MapDirty = true;
     private ValueBinding<string> m_MapSnapshot, m_MapGeometry;
     private Game.Input.InputBarrier m_ZoomBarrier;
@@ -31,6 +33,8 @@ public sealed partial class RouteFilterUISystem
     private readonly Dictionary<Entity,uint> m_MapRoadStamps = new();
     private void InitializeMapAndBrush()
     {
+        m_AdvancedClosed=CreateValue("advancedClosed",0);
+        AddBinding(new TriggerBinding(Mod.Id,"closeAdvancedInteraction",StopAdvancedInteraction));
         m_MapSnapshot = CreateValue("restrictionMap", string.Empty);
         m_MapGeometry = CreateValue("restrictionMapRoads",string.Empty);
         m_BrushBinding = CreateValue("segmentBrush", false);
@@ -174,6 +178,8 @@ public sealed partial class RouteFilterUISystem
     }
     internal void StopAdvancedInteraction()
     {
+        m_AdvancedClosed?.Update(++m_AdvancedCloseRevision);
+        m_RestrictionTool.SetPointerOverUi(false);
         m_AppearanceParameter = ""; m_MapOpen = false; m_RestrictionTool.SetBrushEnabled(false); ClearMap();
         m_ZoomBarrier?.Dispose(); m_ZoomBarrier = null;
         if (m_AppearanceSavePending) { m_AppearanceSavePending = false; Mod.Settings.ApplyAndSave(); World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.InvalidateAppearance(); }
