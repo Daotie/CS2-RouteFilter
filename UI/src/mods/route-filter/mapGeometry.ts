@@ -13,9 +13,18 @@ export function parseMap(raw: string) {
   }
   const width = Number.isFinite(minX) ? Math.max(100,maxX-minX) : 100;
   const height = Number.isFinite(minY) ? Math.max(100,maxY-minY) : 100;
-  const bounds = { x: Number.isFinite(minX) ? minX-width*.04 : 0, y: Number.isFinite(minY) ? minY-height*.04 : 0, width: width*1.08, height: height*1.08 };
+  const bounds = { x: Number.isFinite(minX) ? (minX+maxX)/2-width*.54 : -54, y: Number.isFinite(minY) ? (minY+maxY)/2-height*.54 : -54, width: width*1.08, height: height*1.08 };
   const backgroundPaths = [] as string[];
   for (let i=0; i<background.length; i+=500) backgroundPaths.push(background.slice(i,i+500).map(row => path(row.points)).join(" "));
-  return { background: backgroundPaths.join(" "), backgroundPaths, restrictions, entries, bounds };
+  return { roadCount: background.length, background: backgroundPaths.join(" "), backgroundPaths, restrictions, entries, bounds };
 }
 export const path = (points: [number, number][]) => points.map(([x,y], i) => `${i === 0 ? "M" : "L"}${x},${y}`).join(" ");
+
+export type MapView = { cx: number; cy: number; scale: number };
+export const fitMap = (bounds: {x:number;y:number;width:number;height:number}, width:number,height:number):MapView => ({cx:bounds.x+bounds.width/2,cy:bounds.y+bounds.height/2,scale:Math.max(.0001,Math.min((width-48)/bounds.width,(height-48)/bounds.height))});
+export const mapMatrix = (view:MapView,width:number,height:number) => `matrix(${view.scale} 0 0 ${-view.scale} ${width/2-view.cx*view.scale} ${height/2+view.cy*view.scale})`;
+export const projectMap = (point:[number,number],view:MapView,width:number,height:number):[number,number] => [width/2+(point[0]-view.cx)*view.scale,height/2-(point[1]-view.cy)*view.scale];
+export function zoomMap(view:MapView,factor:number,x:number,y:number,width:number,height:number):MapView {
+  const scale=Math.max(.0001,Math.min(8,view.scale*factor));
+  return {scale,cx:view.cx+(x-width/2)*(1/view.scale-1/scale),cy:view.cy-(y-height/2)*(1/view.scale-1/scale)};
+}

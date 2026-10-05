@@ -21,3 +21,17 @@ const entries=parseMap('E|12:3|0,0;8,4\nE|bad|0,0\nE|invalid|NaN,0;1,2');
 assert.equal(entries.entries.length,1);assert.equal(entries.entries[0].key,'12:3');
 assert.equal(entries.restrictions.length,0);
 console.log('PASS: empty/invalid map data, finite bounds, geometry, stable selection IDs, directional counts, combined background path.');
+
+const {fitMap,projectMap,zoomMap,mapMatrix}=result.exports;
+for(const data of ['B||-10000,-2000;8000,10000','B||30,40;30,40','B||-1,-1;1,1']) {
+  const parsed=parseMap(data),view=fitMap(parsed.bounds,720,440);
+  assert.equal(parsed.roadCount,1);
+  const endpoints=data.split('|')[2].split(';').map(p=>p.split(',').map(Number));
+  for(const point of endpoints){const [x,y]=projectMap(point,view,720,440);assert.ok(x>=24&&x<=696&&y>=24&&y<=416);}
+  const center=projectMap([view.cx,view.cy],view,720,440);assert.deepEqual(center,[360,220]);
+  const anchor=endpoints[0],before=projectMap(anchor,view,720,440),after=projectMap(anchor,zoomMap(view,1.5,...before,720,440),720,440);
+  assert.ok(Math.abs(before[0]-after[0])<1e-6&&Math.abs(before[1]-after[1])<1e-6);
+  assert.ok(mapMatrix(view,720,440).startsWith('matrix('));
+  assert.ok(projectMap([view.cx,view.cy+10],view,720,440)[1]<220);
+}
+console.log('PASS: production fit, negative/flat/large networks, Z inversion and cursor-anchored zoom.');

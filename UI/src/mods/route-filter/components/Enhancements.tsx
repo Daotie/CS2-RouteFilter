@@ -3,7 +3,7 @@ import { bindValue, trigger, useValue } from "cs2/api";
 import { Button, Panel, Portal } from "cs2/ui";
 import { useLocalization } from "cs2/l10n";
 import mod from "mod.json";
-import { parseMap, path } from "../mapGeometry";
+import { parseMap, path, fitMap, mapMatrix, zoomMap, MapView } from "../mapGeometry";
 import { RoadSignSelector } from "./RoadSignSelector";
 import styles from "../route-filter.module.scss";
 const advancedClosed$ = bindValue<number>(mod.id,"advancedClosed",0);
@@ -114,36 +114,48 @@ const AppearancePalette = ({ onClose }: { onClose: () => void }) => {
   </Panel></Portal>;
 };
 
-const RestrictionMap = () => {
-  const raw = useValue(map$), roads = useValue(roads$);
-  const geometry = useMemo(() => parseMap(roads),[roads]);
-  const overlay = useMemo(() => parseMap(raw),[raw]);
-  const [zoom,setZoom] = useState(1), [pan,setPan] = useState({x:0,y:0});
-  const [layers,setLayers] = useState({roads:true,segments:true,nodes:true,entries:true});
-  const drag = useRef<{x:number;y:number;panX:number;panY:number;scale:number} | null>(null);
-  const { translate } = useLocalization();
-  const tr = (key: string, fallback: string) => String(translate(`RouteFilter.UI.${key}`,fallback) ?? fallback);
-  const bounds = geometry.bounds;
-  const viewBox = `${bounds.x + pan.x + bounds.width*(1-1/zoom)/2} ${bounds.y + pan.y + bounds.height*(1-1/zoom)/2} ${bounds.width/zoom} ${bounds.height/zoom}`;
+export const RestrictionMap = () => {
+  const raw=useValue(map$), roads=useValue(roads$);
+  const geometry=useMemo(()=>parseMap(roads),[roads]), overlay=useMemo(()=>parseMap(raw),[raw]);
+  const host=useRef<HTMLDivElement>(null);
+  const [size,setSize]=useState({width:720,height:440});
+  const [view,setView]=useState<MapView>({cx:0,cy:0,scale:1});
+  const [layers,setLayers]=useState({roads:true,segments:true,nodes:true,entries:true});
+  const drag=useRef<{x:number;y:number;view:MapView}|null>(null);
+  const {translate}=useLocalization();
+  const tr=(key:string,fallback:string)=>String(translate(`RouteFilter.UI.${key}`,fallback)??fallback);
+  useLayoutEffect(()=>{
+    const measure=()=>{const rect=host.current?.getBoundingClientRect();if(rect&&rect.width>0&&rect.height>0)setSize({width:rect.width,height:rect.height});};
+    measure();window.addEventListener("resize",measure);return()=>window.removeEventListener("resize",measure);
+  },[]);
+  useEffect(()=>{setView(fitMap(geometry.bounds,size.width,size.height));},[geometry,size.width,size.height]);
+  useEffect(()=>{console.info("[RouteFilter.Map.UI]",{roads:geometry.roadCount,characters:roads.length,bounds:geometry.bounds,viewport:size});},[geometry,roads,size]);
+  useEffect(()=>{const release=()=>{drag.current=null;};window.addEventListener("mouseup",release);return()=>{window.removeEventListener("mouseup",release);drag.current=null;};},[]);
+  const zoom=(factor:number)=>setView(current=>zoomMap(current,factor,size.width/2,size.height/2,size.width,size.height));
   return <>
-    <div className={styles.libraryToolbar}><Button variant="flat" onSelect={() => setZoom(value => Math.min(32,value*1.5))}>+</Button><Button variant="flat" onSelect={() => setZoom(value => Math.max(1,value/1.5))}>−</Button><Button variant="flat" onSelect={() => { setZoom(1);setPan({x:0,y:0}); }}>{tr("MapFit","Fit city")}</Button><span>{overlay.restrictions.length} {tr("MapTargets","restricted roads")}</span></div>
-    <div className={styles.libraryToolbar}>{(Object.keys(layers) as (keyof typeof layers)[]).map(key => <Button key={key} variant="flat" selected={layers[key]} onSelect={() => setLayers(current => ({...current,[key]:!current[key]}))}>{tr(`MapLayer${key}`,key)}</Button>)}</div>
-    <svg className={styles.restrictionMap} viewBox={viewBox} onWheel={event => { event.preventDefault(); event.stopPropagation(); setZoom(value => Math.max(1,Math.min(32,value*(event.deltaY > 0 ? 1/1.2 : 1.2)))); }} onMouseDown={event => {
-      if (event.button !== 0) return;
-      const rect = event.currentTarget.getBoundingClientRect();
-      drag.current = {x:event.clientX,y:event.clientY,panX:pan.x,panY:pan.y,scale:Math.max(bounds.width/rect.width,bounds.height/rect.height)/zoom};
-    }} onMouseMove={event => { const start = drag.current; if (start && event.buttons === 1) setPan({x:start.panX-(event.clientX-start.x)*start.scale,y:start.panY-(event.clientY-start.y)*start.scale}); }} onMouseUp={() => { drag.current = null; }} onMouseLeave={() => { drag.current = null; }}>
-      {layers.roads && geometry.backgroundPaths.map((d,index) => <path key={index} d={d} fill="none" stroke="#576571" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />)}
-      {overlay.restrictions.filter(row => row.points.length === 1 ? layers.nodes : layers.segments).map(row => <g key={row.key} onMouseDown={event => event.stopPropagation()} onClick={() => trigger(mod.id,"selectMapTarget",row.key)}>
-        <title>{`${row.assets} ${tr("MapAssets","vehicle assets")}, ${row.directions} ${tr("EntryDirections","restricted entries")}`}</title>
-        {row.points.length === 1 ? <circle cx={row.points[0][0]} cy={row.points[0][1]} r={Math.max(bounds.width,bounds.height)/150/zoom} fill="#ff8877" /> : <><path d={path(row.points)} fill="none" stroke="transparent" strokeWidth={12} vectorEffect="non-scaling-stroke"/><path d={path(row.points)} fill="none" stroke="#ff8877" strokeWidth={3} vectorEffect="non-scaling-stroke" /></>}
-      </g>)}
-      {layers.entries && overlay.entries.map((row,index) => {
-        const [a,b] = row.points, dx=b[0]-a[0],dy=b[1]-a[1],size=Math.max(bounds.width,bounds.height)/220/zoom, length=Math.hypot(dx,dy)||1;
-        const ux=dx/length,uy=dy/length;
-        return <path key={index} d={path([[a[0]+ux*size,a[1]+uy*size],[a[0]-ux*size-uy*size*.6,a[1]-uy*size+ux*size*.6],[a[0]-ux*size+uy*size*.6,a[1]-uy*size-ux*size*.6],[a[0]+ux*size,a[1]+uy*size]])} fill="#ffd575" onMouseDown={event => event.stopPropagation()} onClick={() => trigger(mod.id,"selectMapTarget",row.key)} />;
-      })}
-    </svg>
+    <div className={styles.mapToolbar}><button type="button" className={styles.windowControl} onClick={()=>zoom(1.5)} aria-label={tr("MapZoomIn","Zoom in")}>+</button><button type="button" className={styles.windowControl} onClick={()=>zoom(1/1.5)} aria-label={tr("MapZoomOut","Zoom out")}>−</button><button type="button" className={styles.secondaryAction} onClick={()=>setView(fitMap(geometry.bounds,size.width,size.height))}>{tr("MapFit","Fit city")}</button><span>{overlay.restrictions.length} {tr("MapTargets","restricted roads")}</span></div>
+    <div className={styles.mapToolbar}>{(Object.keys(layers) as (keyof typeof layers)[]).map(key=><button type="button" key={key} className={`${styles.mapLayer} ${layers[key]?styles.mapLayerActive:""}`} aria-pressed={layers[key]} onClick={()=>setLayers(current=>({...current,[key]:!current[key]}))}>{tr(`MapLayer${key}`,key)}</button>)}</div>
+    <div ref={host} className={styles.mapViewport}>
+      <svg className={styles.restrictionMap} width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} onWheel={event=>{
+        event.preventDefault();event.stopPropagation();const rect=event.currentTarget.getBoundingClientRect();
+        setView(current=>zoomMap(current,event.deltaY>0?1/1.2:1.2,event.clientX-rect.left,event.clientY-rect.top,size.width,size.height));
+      }} onMouseDown={event=>{if(event.button===0)drag.current={x:event.clientX,y:event.clientY,view};}} onMouseMove={event=>{
+        const start=drag.current;if(start&&event.buttons===1)setView({...start.view,cx:start.view.cx-(event.clientX-start.x)/start.view.scale,cy:start.view.cy+(event.clientY-start.y)/start.view.scale});
+      }} onMouseUp={()=>{drag.current=null;}} onMouseLeave={()=>{drag.current=null;}}>
+        <g transform={mapMatrix(view,size.width,size.height)}>
+          {layers.roads&&geometry.backgroundPaths.map((d,index)=><path key={index} d={d} fill="none" stroke="#576571" strokeWidth={1.5/view.scale}/>)}
+          {overlay.restrictions.filter(row=>row.points.length===1?layers.nodes:layers.segments).map(row=><g key={row.key} onMouseDown={event=>event.stopPropagation()} onClick={()=>trigger(mod.id,"selectMapTarget",row.key)}>
+            <title>{`${row.assets} ${tr("MapAssets","vehicle assets")}, ${row.directions} ${tr("EntryDirections","restricted entries")}`}</title>
+            {row.points.length===1?<><circle cx={row.points[0][0]} cy={row.points[0][1]} r={10/view.scale} fill="transparent"/><circle cx={row.points[0][0]} cy={row.points[0][1]} r={4/view.scale} fill="#ff8877"/></>:<><path d={path(row.points)} fill="none" stroke="transparent" strokeWidth={14/view.scale}/><path d={path(row.points)} fill="none" stroke="#ff8877" strokeWidth={3/view.scale}/></>}
+          </g>)}
+          {layers.entries&&overlay.entries.map((row,index)=>{
+            const [a,b]=row.points,dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy)||1,ux=dx/length,uy=dy/length,size=6/view.scale;
+            return <g key={index} onMouseDown={event=>event.stopPropagation()} onClick={()=>trigger(mod.id,"selectMapTarget",row.key)}><circle cx={a[0]} cy={a[1]} r={10/view.scale} fill="transparent"/><path d={path([[a[0]+ux*size,a[1]+uy*size],[a[0]-ux*size-uy*size*.6,a[1]-uy*size+ux*size*.6],[a[0]-ux*size+uy*size*.6,a[1]-uy*size-ux*size*.6],[a[0]+ux*size,a[1]+uy*size]])} fill="#ffd575"/></g>;
+          })}
+        </g>
+      </svg>
+      {!geometry.roadCount&&<div className={styles.mapEmpty} role="status"><span>{tr("MapEmpty","Road geometry is not available yet.")}</span><button type="button" className={styles.secondaryAction} onClick={()=>trigger(mod.id,"refreshRestrictionMap")}>{tr("MapRefresh","Refresh")}</button></div>}
+    </div>
     <small>{tr("MapHint","Click a restricted road to edit. Drag to pan; scroll to zoom.")}</small>
   </>;
 };

@@ -35,6 +35,7 @@ public sealed partial class RouteFilterUISystem
     {
         m_AdvancedClosed=CreateValue("advancedClosed",0);
         AddBinding(new TriggerBinding(Mod.Id,"closeAdvancedInteraction",StopAdvancedInteraction));
+        AddBinding(new TriggerBinding(Mod.Id,"refreshRestrictionMap",()=>m_MapDirty=true));
         m_MapSnapshot = CreateValue("restrictionMap", string.Empty);
         m_MapGeometry = CreateValue("restrictionMapRoads",string.Empty);
         m_BrushBinding = CreateValue("segmentBrush", false);
@@ -105,16 +106,22 @@ public sealed partial class RouteFilterUISystem
         if (rebuildGeometry)
         {
             var geometry = new StringBuilder(); m_MapRoadStamps.Clear();
+            var minimum = new float2(float.PositiveInfinity); var maximum = new float2(float.NegativeInfinity);
+            int extracted=0, rejected=0;
             using var roads = m_MapRoads.ToEntityArray(Allocator.Temp);
             foreach (var road in roads)
             {
                 var curve = EntityManager.GetComponentData<Curve>(road).m_Bezier;
                 m_MapRoadStamps[road] = VisualGeometryStamp.Read(EntityManager,road);
-                geometry.Append("B||");
+                if (!math.all(math.isfinite(curve.a)) || !math.all(math.isfinite(curve.b)) || !math.all(math.isfinite(curve.c)) || !math.all(math.isfinite(curve.d))) { rejected++; continue; }
+                minimum=math.min(minimum,math.min(math.min(curve.a.xz,curve.b.xz),math.min(curve.c.xz,curve.d.xz)));
+                maximum=math.max(maximum,math.max(math.max(curve.a.xz,curve.b.xz),math.max(curve.c.xz,curve.d.xz)));
+                extracted++; geometry.Append("B||");
                 for (int i=0; i<=8; i++) { if (i>0) geometry.Append(';'); AppendMapPoint(geometry,Colossal.Mathematics.MathUtils.Position(curve,i/8f)); }
                 geometry.Append('\n');
             }
-            m_MapGeometry.Update(geometry.ToString());
+            var payload=geometry.ToString(); m_MapGeometry.Update(payload);
+            Mod.Log.Info($"[RouteFilter.Map.Geometry] queried={roads.Length} extracted={extracted} rejected={rejected} bytes={Encoding.UTF8.GetByteCount(payload)} bounds={minimum}..{maximum}");
         }
         var snapshot = new StringBuilder(); m_MapSelection.Clear();
         void Point(float3 point) => AppendMapPoint(snapshot,point);
@@ -138,7 +145,8 @@ public sealed partial class RouteFilterUISystem
                         snapshot.Append("E|").Append(key).Append('|'); Point(center); snapshot.Append(';'); Point(center + math.normalizesafe(forward)*8f); snapshot.Append('\n');
                     }
             }
-        m_MapSnapshot.Update(snapshot.ToString());
+        var overlayPayload=snapshot.ToString(); m_MapSnapshot.Update(overlayPayload);
+        Mod.Log.Info($"[RouteFilter.Map.Overlay] targets={m_MapSelection.Count} bytes={Encoding.UTF8.GetByteCount(overlayPayload)} indexRevision={index.Revision}");
     }
     private bool m_MapGeometryChanged;
     internal void CollectMapGeometryChanges()
@@ -159,7 +167,7 @@ public sealed partial class RouteFilterUISystem
     private static void AppendMapPoint(StringBuilder builder,float3 point) => builder.Append(point.x.ToString("0.##",CultureInfo.InvariantCulture)).Append(',').Append(point.z.ToString("0.##",CultureInfo.InvariantCulture));
     private void UpdateAppearanceWheel()
     {
-        var manipulating = m_ToolSystem.activeTool == m_RestrictionTool && (m_AppearanceParameter.Length > 0 || m_MapOpen);
+        var manipulating = m_ToolSystem.activeTool == m_RestrictionTool && (m_AppearanceParameter.Length > 0 || m_MapOpen && m_RestrictionTool.PointerOverUi);
         if (manipulating && m_ZoomBarrier == null) m_ZoomBarrier = Game.Input.InputManager.instance.CreateActionBarrier("Camera","Zoom",Mod.Id+".SignAdjustment");
         if (m_ZoomBarrier != null) m_ZoomBarrier.blocked = manipulating;
         if (m_AppearanceSavePending && UnityEngine.Time.realtimeSinceStartup >= m_AppearanceSaveAt)
@@ -192,3 +200,4 @@ public sealed partial class RouteFilterUISystem
     }
 
 }
+
