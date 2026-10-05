@@ -134,8 +134,8 @@ RouteFilter 不会重新绘制固定公共交通线路。可靠确认无合法�
 
 一般问题和非正式反馈可以直接在 Paradox Forum 或 Discord 中交流；对于需要持续跟踪、复现和修复的问题，建议使用 GitHub Issues。</LongDescription>
   <Thumbnail Value="Thumbnail.png" />
-  <Screenshot Value="../assets/showcase/P1.png" />
-  <Screenshot Value="../assets/showcase/P2.png" />
+  <Screenshot Value="../assets/showcase/P1.jpg" />
+  <Screenshot Value="../assets/showcase/P2.jpg" />
   <Tag Value="Code Mod" />
   <Tag Value="UITransportationRoad" />
   <Tag Value="UITransportationTrain" />
