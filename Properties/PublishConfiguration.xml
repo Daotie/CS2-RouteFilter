@@ -40,7 +40,7 @@ Rebuilding a network segment can replace its game entity and remove restrictions
 
 RouteFilter does not redraw fixed public-transport lines. A confirmed no-path result ends the affected vehicle; uncertain technical results are grandfathered.
 
-**Fixed in 2.1.0:** The reported missed-vehicle restriction issue has been resolved and confirmed by player game testing.
+**Fixed in 2.1.0:** The missed-vehicle restriction issue has been resolved through the author’s own investigation, fixes and in-game testing.
 
 ## AI-assisted development
 
@@ -106,7 +106,7 @@ RouteFilter 为《都市天际线 II》玩家提供了精细控制能力，可�
 
 RouteFilter 不会重新绘制固定公共交通线路。可靠确认无合法路线时结束受影响车辆；自身无法可靠执行或确认结果时才放行。
 
-**2.1.0 已修复：** 已解决反馈的禁行漏车问题，并通过玩家游戏测试。
+**2.1.0 已修复：** 已解决禁行漏车问题，并完成作者自行排查、修复与游戏内测试。
 
 ## AI 辅助开发说明
 
@@ -134,8 +134,8 @@ RouteFilter 不会重新绘制固定公共交通线路。可靠确认无合法�
 
 一般问题和非正式反馈可以直接在 Paradox Forum 或 Discord 中交流；对于需要持续跟踪、复现和修复的问题，建议使用 GitHub Issues。</LongDescription>
   <Thumbnail Value="Thumbnail.png" />
-  <Screenshot Value="../assets/showcase/P1.jpg" />
-  <Screenshot Value="../assets/showcase/P2.jpg" />
+  <Screenshot Value="../P1_compressed.png" />
+  <Screenshot Value="../P2_compressed.png" />
   <Tag Value="Code Mod" />
   <Tag Value="UITransportationRoad" />
   <Tag Value="UITransportationTrain" />
@@ -147,7 +147,7 @@ RouteFilter 不会重新绘制固定公共交通线路。可靠确认无合法�
 
 ## English
 
-- Fixed the reported missed-vehicle restriction issue. The final release candidate passed player in-game testing.
+- Fixed the missed-vehicle restriction issue. The author independently found, investigated, fixed and tested it in-game.
 - Expanded the vehicle asset library with category checkboxes, collapsible groups, prefab thumbnails, favorites and recent assets.
 - Added cross-target copy/paste, saved presets and goods-only truck / cargo-truck presets.
 - Added batch application for road and rail segments: left mouse applies restrictions, right mouse clears them.
@@ -158,7 +158,7 @@ RouteFilter 不会重新绘制固定公共交通线路。可靠确认无合法�
 
 ## 简体中文
 
-- 修复反馈的禁行漏车问题，最终发布候选版已通过玩家游戏测试。
+- 修复禁行漏车问题，由作者自行发现、排查、修复并完成游戏内测试。
 - 扩展车辆资产目录：分类复选框、分组展开、预制件图标、收藏与最近使用。
 - 支持跨目标复制粘贴、保存预设，以及仅含货运资产的货车／货运货车预设。
 - 加入道路与轨道路段批量应用：左键应用禁行，右键清除。

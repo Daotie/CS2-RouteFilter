@@ -30,7 +30,7 @@
 
 ---
 
-**2.1.0:** The reported missed-vehicle restriction issue has been resolved and confirmed by player game testing. This release adds the expanded asset library, restriction map, batch application and traffic-sign controls. See the [changelog](CHANGELOG.md).
+**2.1.0:** The missed-vehicle restriction issue has been resolved through the author’s own investigation, fixes and in-game testing. This release adds the expanded asset library, restriction map, batch application and traffic-sign controls. See the [changelog](CHANGELOG.md).
 
 RouteFilter lets you decide which exact vehicle assets may pass through one network node or an entire road, tram, train, or subway segment.
 
@@ -148,7 +148,7 @@ Rebuilding, replacing, or deleting a road or track segment creates new game enti
 - Asset names are technical prefab names supplied by the game or asset author; a localized display name may not exist.
 - Engine/carriage grouping appears only where the game exposes a fixed-trailer or multiple-unit relationship.
 - A fixed public-transport route cannot always be changed into a valid detour. A confirmed no-path result ends the affected vehicle; RouteFilter does not redraw the player's transport line.
-- The previously reported missed-vehicle restriction issue is fixed in 2.1.0; the release candidate passed player game testing.
+- The missed-vehicle restriction issue is fixed in 2.1.0 and verified by the author’s own in-game testing.
 - Compatibility with mods that replace vehicle navigation, pathfinding, or network entities cannot be guaranteed. Report conflicts with a minimal playset and logs.
 
 ## Community
