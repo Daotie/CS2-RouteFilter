@@ -53,6 +53,10 @@ $otherMods = @($active[0].mods | Where-Object { !(Test-RouteFilterEntry $_) })
 $otherModsBefore = ConvertTo-Json -InputObject $otherMods -Depth 100 -Compress
 $active[0].mods = $otherMods +
     @([pscustomobject]@{ source='local'; sourceId='RouteFilter'; isEnabled=$true })
+# The PDX SDK compares this timestamp against playset_sync.json. Without a
+# new timestamp it can consider the edit already synced and overwrite it.
+$active[0].modifiedAt = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+$active[0].modifiedWith = 'RouteFilter local deployment'
 $serializedConfig = ConvertTo-Json -InputObject $config -Depth 100 -Compress
 $verified = $serializedConfig | ConvertFrom-Json
 $verifiedActive = @($verified.playsets | Where-Object id -eq $verified.activePlaysetId)
