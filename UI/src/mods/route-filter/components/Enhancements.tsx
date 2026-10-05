@@ -32,7 +32,7 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
   const tr=(id:string,fallback:string)=>String(translate(`RouteFilter.UI.${id}`,fallback)??fallback);
   useEffect(()=>{trigger(mod.id,"setSecondaryInteraction",Boolean(popup));return()=>trigger(mod.id,"setSecondaryInteraction",false);},[popup]);
   useEffect(()=>{
-    trigger(mod.id,"setRestrictionMapOpen",popup==="Map"); trigger(mod.id,"setSegmentBrush",popup==="Range");
+    trigger(mod.id,"setRestrictionMapOpen",popup==="Map");
     return ()=>{trigger(mod.id,"setRestrictionMapOpen",false);trigger(mod.id,"setSegmentBrush",false);trigger(mod.id,"setUiPointerArea","utility",false);};
   },[popup]);
   useEffect(()=>()=>{trigger(mod.id,"closeAdvancedInteraction");onAppearance(false);},[]);
@@ -65,17 +65,10 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
         <MenuItem submenu onSelect={()=>onPopup("Presets")}>{tr("Presets","Presets")}</MenuItem>
         <div className={styles.menuSeparator}/>
         <MenuItem onSelect={()=>onPopup("Map")}>{tr("Map","Restriction map")}</MenuItem>
-        <MenuItem disabled={targetMode!==1||!editable} onSelect={()=>onPopup("Range")}>{tr("Brush","Batch segment restrictions")}</MenuItem>
         {feedbackFallback[feedbackKind]&&<div className={styles.workflowStatus} role="status">{tr(`Feedback.${feedbackKind}`,feedbackFallback[feedbackKind]).replace("{count}",feedbackCount??"0")}</div>}
       </div>}
       {popup==="Presets" && <PresetMenu editable={editable} onLoaded={()=>onPopup("")} />}
-      {popup==="Range" && <div className={styles.toolInstructions}>
-        <p>{tr("BrushHint","Select start and end segments, review the connected chain, then confirm.")}</p>
-        <div role="status">{tr(`Range${status}`,status)} · {pending} {tr("RangeSegments","segments in preview")}</div>
-        <MenuItem disabled={!range||status!=="Ready"||!pending||!editable} onSelect={()=>trigger(mod.id,"confirmSegmentRange",false)}>{tr("RangeApply","Apply to range")}</MenuItem>
-        <MenuItem disabled={!range||status!=="Ready"||!pending||!editable} onSelect={()=>trigger(mod.id,"confirmSegmentRange",true)}>{tr("RangeClear","Clear range restrictions")}</MenuItem>
-        <MenuItem onSelect={()=>{trigger(mod.id,"cancelSegmentRange");onPopup("");}}>{tr("Cancel","Cancel")}</MenuItem>
-      </div>}
+
     </div></Portal>}
     {popup==="Map" && <Portal><Panel className={styles.mapPanel} contentClassName={styles.auxContent} onMouseEnter={()=>trigger(mod.id,"setUiPointerArea","utility",true)} onMouseLeave={()=>trigger(mod.id,"setUiPointerArea","utility",false)}><div className={styles.auxHeader}><strong>{tr("Map","Restriction map")}</strong><button type="button" className={styles.windowControl} onClick={()=>onPopup("")} aria-label={tr("Close","Close")}>×</button></div><div className={styles.mapBody}><RestrictionMap/></div></Panel></Portal>}
     <AppearancePalette reset={advancedClosed+reset} onAppearance={onAppearance}/>

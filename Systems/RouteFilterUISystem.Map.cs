@@ -25,7 +25,7 @@ public sealed partial class RouteFilterUISystem
     private float m_AppearanceStep = .05f, m_AppearanceSaveAt;
     private bool m_AppearanceSavePending;
     internal Entity AppearancePreviewTarget => m_AppearanceSavePending ? m_RestrictionTool.SelectedTarget : Entity.Null;
-    private ValueBinding<bool> m_BrushBinding;
+    private ValueBinding<bool> m_BrushBinding, m_BrushClearBinding;
     private ValueBinding<int> m_BrushPendingBinding;
     private ValueBinding<string> m_RangeStatus;
     private EntityQuery m_MapRoads, m_MapTargets, m_MapChanged;
@@ -42,6 +42,8 @@ public sealed partial class RouteFilterUISystem
         m_MapGeometry = CreateValue("restrictionMapRoads",string.Empty);
         m_MapTerrain = CreateValue("restrictionMapTerrain",string.Empty);
         m_BrushBinding = CreateValue("segmentBrush", false);
+        m_BrushClearBinding = CreateValue("segmentBrushClear",false);
+        AddBinding(new TriggerBinding<bool>(Mod.Id,"setSegmentBrushOperation",m_RestrictionTool.SetBrushOperation));
         m_BrushPendingBinding = CreateValue("brushPending", 0);
         m_RangeStatus = CreateValue("rangeStatus","Start");
         m_MapRoads = GetEntityQuery(new EntityQueryDesc { All = new[] { ComponentType.ReadOnly<Edge>(), ComponentType.ReadOnly<Curve>(), ComponentType.ReadOnly<Road>() },
@@ -94,7 +96,7 @@ public sealed partial class RouteFilterUISystem
     private void UpdateMapAndBrush()
     {
         UpdateAppearanceWheel();
-        m_BrushBinding.Update(m_RestrictionTool.BrushEnabled); m_BrushPendingBinding.Update(m_RestrictionTool.PendingBrushCount);
+        m_BrushBinding.Update(m_RestrictionTool.BrushEnabled);m_BrushClearBinding.Update(m_RestrictionTool.BrushClear); m_BrushPendingBinding.Update(m_RestrictionTool.PendingBrushCount);
         m_RangeStatus.Update(m_RestrictionTool.RangeStatus);
         // Closed map does not even query the road collection.
         if (!m_MapOpen) return;

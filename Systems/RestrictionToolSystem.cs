@@ -158,6 +158,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
         if (PointerOverUi)
         {
+            if (BrushEnabled && Mod.Apply?.WasReleasedThisFrame() == true) CancelBrush();
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
             m_ToolSystem.selected = P0Diagnostics.Highlight ? SelectedTarget : Entity.Null;
@@ -166,6 +167,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
         if (!GetRaycastResult(out Entity entity, out RaycastHit hit))
         {
+            if (BrushEnabled) { m_Range.Clear(); World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.ClearBrushPreview(); if(Mod.Apply?.WasReleasedThisFrame()==true) CancelBrush(); }
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
             m_ToolSystem.selected = P0Diagnostics.Highlight ? SelectedTarget : Entity.Null;
@@ -180,7 +182,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
         if (HoveredTarget != target) Mod.Log.Debug($"[RouteFilter.Tool] Hover {Mod.SelectedTargetMode}={target}");
         HoveredTarget = target;
         HoveredTransportMode = GetTransportMode(target);
-        if (BrushEnabled) { CollectBrushTarget(target); return inputDeps; }
+        if (BrushEnabled) { CollectBrushTarget(target, hit.m_HitPosition); return inputDeps; }
         m_ToolSystem.selected = P0Diagnostics.Highlight ? (SelectedTarget != Entity.Null ? SelectedTarget : target) : Entity.Null;
         if (target != Entity.Null && UnityEngine.Time.frameCount > m_ActivationFrame &&
             Mod.Apply != null && Mod.Apply.WasPressedThisFrame()) SelectTarget(target);

@@ -1,10 +1,15 @@
 import React from "react";
 import classNames from "classnames";
+import { bindValue, trigger, useValue } from "cs2/api";
+import { useLocalization } from "cs2/l10n";
+import mod from "mod.json";
 import { Button } from "cs2/ui";
 import styles from "../route-filter.module.scss";
 import { icons } from "../assets";
 
 type Props = {
+  targetMode: number;
+  editable: boolean;
   copyLabel: string;
   pasteLabel: string;
   copyReady: boolean;
@@ -24,13 +29,14 @@ type Props = {
   onRefresh: () => void;
 };
 
-export const ActionBar = ({ copyLabel, pasteLabel, copyReady, pasteReady, onCopy, onPaste, allowAllLabel, forbidAllLabel, applyLabel, clearLabel, refreshLabel, targetReady, onAllowAll, onForbidAll, onApply, onClear, onRefresh }: Props) => (
+export const ActionBar = ({ targetMode, editable, copyLabel, pasteLabel, copyReady, pasteReady, onCopy, onPaste, allowAllLabel, forbidAllLabel, applyLabel, clearLabel, refreshLabel, targetReady, onAllowAll, onForbidAll, onApply, onClear, onRefresh }: Props) => (
   <footer className={styles.actionBar}>
     <div className={styles.bulkActions}>
       <Button variant="flat" className={styles.secondaryAction} onSelect={onAllowAll}>{allowAllLabel}</Button>
       <Button variant="flat" className={styles.secondaryAction} onSelect={onForbidAll}>{forbidAllLabel}</Button>
       <Button variant="flat" className={styles.secondaryAction} onSelect={onRefresh} aria-label={refreshLabel}>{refreshLabel}</Button>
     </div>
+    {targetMode===1 && <BatchControls editable={editable}/>}
     <div className={styles.commitActions}>
       <Button variant="flat" className={styles.secondaryAction} disabled={!copyReady} onSelect={onCopy}>{copyLabel}</Button>
       <Button variant="flat" className={styles.secondaryAction} disabled={!pasteReady} onSelect={onPaste}>{pasteLabel}</Button>
@@ -39,3 +45,11 @@ export const ActionBar = ({ copyLabel, pasteLabel, copyReady, pasteReady, onCopy
     </div>
   </footer>
 );
+
+const brush$=bindValue<boolean>(mod.id,"segmentBrush",false),clear$=bindValue<boolean>(mod.id,"segmentBrushClear",false),pending$=bindValue<number>(mod.id,"brushPending",0);
+const BatchControls=({editable}:{editable:boolean})=>{
+  const active=useValue(brush$),clear=useValue(clear$),pending=useValue(pending$);
+  const {translate}=useLocalization();const tr=(key:string,fallback:string)=>String(translate(`RouteFilter.UI.${key}`,fallback)??fallback);
+  const select=(operation:boolean)=>{trigger(mod.id,"setSegmentBrushOperation",operation);trigger(mod.id,"setSegmentBrush",!(active&&clear===operation));};
+  return <div className={styles.batchActions}><button type="button" className={`${styles.secondaryAction} ${active&&!clear?styles.segmentButtonActive:""}`} aria-pressed={active&&!clear} disabled={!editable} onClick={()=>select(false)}>{tr("BatchApply","Batch apply")}</button><button type="button" className={`${styles.secondaryAction} ${active&&clear?styles.segmentButtonActive:""}`} aria-pressed={active&&clear} disabled={!editable} onClick={()=>select(true)}>{tr("BatchClear","Batch clear")}</button>{active&&<span role="status">{pending>0?`${pending} ${tr("RangeSegments","segments")}`:tr("BatchDrag","Drag road segments")}</span>}</div>;
+};

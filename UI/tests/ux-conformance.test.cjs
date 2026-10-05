@@ -45,12 +45,12 @@ const props={targetMode:1,editable:true,popup:'',onPopup:()=>{},reset:0,targetRe
 const persistent=renderToStaticMarkup(React.createElement(Enhancements,props));assert.match(persistent,/Traffic sign/);assert.match(persistent,/Signage profile/);assert.equal((persistent.match(/inputMode="decimal"/g)||[]).length,5);assert.doesNotMatch(persistent,/type="range"/);
 const tools=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Tools'}));
 assert.doesNotMatch(tools,/Copy vehicle restrictions|Paste vehicle restrictions|Sign position adjustment/);
-assert.match(tools,/Batch segment restrictions/);
+assert.doesNotMatch(tools,/Batch segment restrictions/);
 const presets=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Presets'}));
 assert.match(presets,/Cargo trucks/);assert.match(presets,/Save current selection/);assert.doesNotMatch(presets,/Preset name/);assert.match(presets,/Built-in presets/);assert.match(presets,/My presets/);
 bindings.set('rangeStatus','End');bindings.set('segmentBrush',true);bindings.set('brushPending',1);
 const range=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Range'}));
-assert.match(range,/disabled=""[^>]*><span>Apply to range/);
+assert.doesNotMatch(range,/Apply to range/);
 const {SignInfoSection}=load(path.join(base,'components/SignInfoSection.tsx'));
 const info=renderToStaticMarkup(React.createElement(SignInfoSection,{targetKind:'Segment',targetName:'Oak Street',categories:'Trucks',assets:2,entries:1,entryOrdinal:1}));
 assert.match(info,/Oak Street/);assert.match(info,/Vehicle categories/);assert.match(info,/Edit in RouteFilter/);
@@ -82,3 +82,8 @@ const {ActionBar}=load(path.join(base,'components/ActionBar.tsx'));
 const footer=renderToStaticMarkup(React.createElement(ActionBar,{copyLabel:'复制',pasteLabel:'粘贴',copyReady:true,pasteReady:false,targetReady:true,applyLabel:'应用',clearLabel:'清除'}));
 assert.match(footer,/commitActions[^]*复制[^]*粘贴[^]*应用/);assert.match(footer,/disabled=""[^>]*>粘贴/);
 console.log('PASS: persistent merged sign tool, five numeric fields, no sliders, SVG favorites and footer clipboard gating.');
+
+const segmentFooter=renderToStaticMarkup(React.createElement(ActionBar,{targetMode:1,editable:true}));
+const nodeFooter=renderToStaticMarkup(React.createElement(ActionBar,{targetMode:0,editable:true}));
+assert.match(segmentFooter,/Batch apply/);assert.match(segmentFooter,/Batch clear/);assert.doesNotMatch(nodeFooter,/Batch apply|Batch clear/);
+console.log('PASS: segment-only batch controls in lower functional row, absent from tools menu and Node mode.');

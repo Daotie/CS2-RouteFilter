@@ -3,6 +3,10 @@ using System.Linq;
 using Colossal.Entities;
 using Game.Common;
 using Game.Net;
+using Game.Prefabs;
+using Game.Tools;
+using Unity.Collections;
+using Unity.Mathematics;
 using Unity.Entities;
 
 namespace RouteFilter.Systems;
@@ -11,9 +15,14 @@ public sealed partial class RestrictionToolSystem
 {
     public bool BrushEnabled { get; private set; }
     private Entity m_RangeStart, m_RangeEnd;
+    private ControlPoint m_RangeStartPoint, m_RangeEndPoint;
+    private bool m_RangeDragging, m_RangeClear;
+    private Entity[] m_RangeAssets = System.Array.Empty<Entity>();
+    public bool BrushClear => m_RangeClear;
+    public void SetBrushOperation(bool clear) { CancelBrush(); m_RangeClear = clear; }
     private readonly List<Entity> m_Range = new();
     public int PendingBrushCount => m_Range.Count;
-    public string RangeStatus => m_RangeStart == Entity.Null ? "Start" : m_RangeEnd == Entity.Null ? "End" : m_Range.Count == 0 ? "Disconnected" : "Ready";
+    public string RangeStatus => m_RangeDragging ? m_Range.Count == 0 ? "Disconnected" : "Dragging" : "Start";
     private bool m_BatchWrite;
     public void SetBrushEnabled(bool enabled)
     {
@@ -21,7 +30,7 @@ public sealed partial class RestrictionToolSystem
         BrushEnabled = enabled && Mod.SelectedTargetMode == RouteFilter.Components.RestrictionTargetMode.Segment;
         UpdateMouseHints();
     }
-    public void CancelBrush() { m_RangeStart = m_RangeEnd = Entity.Null; m_Range.Clear(); World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.ClearBrushPreview(); }
+    public void CancelBrush() { m_RangeDragging = false; m_RangeAssets = System.Array.Empty<Entity>(); m_RangeStart = m_RangeEnd = Entity.Null; m_Range.Clear(); World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.ClearBrushPreview(); }
     private void UpdateMouseHints()
     {
         m_MouseApplyDisplay?.Dispose(); m_MouseCancelDisplay?.Dispose();
@@ -42,42 +51,105 @@ public sealed partial class RestrictionToolSystem
     private bool ValidRangeEdge(Entity target) => target != Entity.Null && EntityManager.Exists(target) &&
         EntityManager.HasComponent<Edge>(target) && EntityManager.HasComponent<Road>(target) &&
         !EntityManager.HasComponent<Deleted>(target) && !EntityManager.HasComponent<Game.Tools.Temp>(target);
-    private IEnumerable<Entity> RangeNeighbours(Entity edge)
+    private ControlPoint RangePoint(Entity target, float3 hit)
     {
-        if (!ValidRangeEdge(edge)) return System.Array.Empty<Entity>();
-        var data = EntityManager.GetComponentData<Edge>(edge);
-        var result = new HashSet<Entity>();
-        foreach (var node in new[] { data.m_Start,data.m_End })
-            if (EntityManager.TryGetBuffer(node,true,out DynamicBuffer<ConnectedEdge> connected))
-                foreach (var item in connected) if (item.m_Edge != edge && ValidRangeEdge(item.m_Edge)) result.Add(item.m_Edge);
-        return result.OrderBy(item => item.Index).ThenBy(item => item.Version);
+        var point = new ControlPoint { m_OriginalEntity = target, m_Position = hit, m_HitPosition = hit };
+        if (EntityManager.TryGetComponent(target,out Curve curve))
+        {
+            float best=float.MaxValue;
+            for(int i=0;i<=32;i++)
+            {
+                float t=i/32f;var position=Colossal.Mathematics.MathUtils.Position(curve.m_Bezier,t);
+                float distance=math.distancesq(position,hit);
+                if(distance<best){best=distance;point.m_CurvePosition=t;point.m_Position=position;}
+            }
+        }
+        return point;
     }
-    private void CollectBrushTarget(Entity target)
+    private List<Entity> NativeRange(ControlPoint start, ControlPoint end)
     {
-        if (PointerOverUi || UnityEngine.Time.frameCount <= m_ActivationFrame || Mod.Apply?.WasPressedThisFrame() != true || !ValidRangeEdge(target)) return;
-        if (m_RangeStart == Entity.Null || m_RangeEnd != Entity.Null) { CancelBrush(); m_RangeStart = target; }
-        else m_RangeEnd = target;
-        m_Range.Clear();
-        if (m_RangeEnd == Entity.Null) m_Range.Add(m_RangeStart);
-        else m_Range.AddRange(RouteFilter.Persistence.ConnectedRoadRange.Find(m_RangeStart,m_RangeEnd,RangeNeighbours,16384));
-        var preview = World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>();
-        preview?.PreviewRange(m_Range);
+        var result=new List<Entity>();
+        if(!ValidRangeEdge(start.m_OriginalEntity)||!ValidRangeEdge(end.m_OriginalEntity)) return result;
+        if(!EntityManager.TryGetComponent(start.m_OriginalEntity,out PrefabRef reference) ||
+            !EntityManager.TryGetComponent(reference.m_Prefab,out NetData net) ||
+            !EntityManager.TryGetComponent(reference.m_Prefab,out PlaceableNetData placeable)) return result;
+        // Public vanilla helper reads topology/prefab compatibility and writes only
+        // this disposable path. Never activate NetToolSystem or invoke Apply/Replace.
+        CompleteDependency();
+        var edges=GetComponentLookup<Edge>(true);var nodes=GetComponentLookup<Game.Net.Node>(true);
+        var curves=GetComponentLookup<Curve>(true);var prefabs=GetComponentLookup<PrefabRef>(true);
+        var nets=GetComponentLookup<NetData>(true);var connected=GetBufferLookup<ConnectedEdge>(true);
+        using var path=new NativeList<NetToolSystem.PathEdge>(Allocator.Temp);
+        try
+        {
+            NetToolSystem.CreatePath(start,end,path,net,placeable,ref edges,ref nodes,ref curves,ref prefabs,ref nets,ref connected);
+            if(path.Length>4096)return result;
+            for(int i=0;i<path.Length;i++)
+            {
+                var entity=path[i].m_Entity;
+                if(!ValidRangeEdge(entity))return new List<Entity>();
+                if(!result.Contains(entity))result.Add(entity);
+            }
+            if(!result.Contains(start.m_OriginalEntity)||!result.Contains(end.m_OriginalEntity))result.Clear();
+        }
+        catch(System.Exception error){Mod.Log.Warn("[RouteFilter.Batch] native selection unavailable: "+error.Message);result.Clear();}
+        return result;
+    }
+    private void CollectBrushTarget(Entity target, float3 hit)
+    {
+        if(PointerOverUi || UnityEngine.Time.frameCount<=m_ActivationFrame)return;
+        bool pressed=Mod.Apply?.WasPressedThisFrame()==true;
+        bool released=Mod.Apply?.WasReleasedThisFrame()==true;
+        if(pressed)
+        {
+            CancelBrush();
+            if(!ValidRangeEdge(target))return;
+            m_RangeDragging=true;m_RangeStart=target;m_RangeAssets=Mod.SelectedVehicleAssets.ToArray();
+            m_RangeStartPoint=RangePoint(target,hit);
+        }
+        if(!m_RangeDragging)return;
+        if(!ValidRangeEdge(target)){m_Range.Clear();World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.ClearBrushPreview();if(released)CancelBrush();return;}
+        var candidate=RangePoint(target,hit);
+        if(target!=m_RangeEnd || pressed || math.abs(candidate.m_CurvePosition-m_RangeEndPoint.m_CurvePosition)>.03f)
+        {
+            m_RangeEnd=target;m_RangeEndPoint=candidate;
+            m_Range.Clear();m_Range.AddRange(NativeRange(m_RangeStartPoint,m_RangeEndPoint));
+            World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.PreviewRange(m_Range);
+        }
+        if(released)CommitRange(m_RangeClear);
     }
     public void CommitRange(bool clear)
     {
         if (!BrushEnabled || m_RangeEnd == Entity.Null || m_Range.Count == 0 ||
-            !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) return;
-        var current = RouteFilter.Persistence.ConnectedRoadRange.Find(m_RangeStart,m_RangeEnd,RangeNeighbours,16384);
-        if (!current.SequenceEqual(m_Range) || m_Range.Any(edge => !ValidRangeEdge(edge))) { CancelBrush(); return; }
-        var assets = Mod.SelectedVehicleAssets.ToArray();
+            !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable) { CancelBrush(); return; }
+        var current = NativeRange(m_RangeStartPoint,m_RangeEndPoint);
+        if (!current.SequenceEqual(m_Range) || m_Range.Any(edge => !ValidRangeEdge(edge) || (GetTransportMode(edge) & 1) == 0)) { CancelBrush(); return; }
+        var assets = m_RangeAssets;
+        if(!clear && assets.Any(asset=>!EntityManager.Exists(asset)||!EntityManager.HasComponent<CarData>(asset))){CancelBrush();return;}
+        var persistence=World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>();
+        var directions=m_Range.ToDictionary(target=>target,target=>persistence.GetDirectionIntent(target));
+        var previous = new Dictionary<Entity, Entity[]>();
+        foreach (var target in m_Range)
+            previous[target] = EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RouteFilter.Components.RestrictedVehicleAssetV1> saved)
+                ? RouteFilter.Persistence.AssetLibrarySnapshot.Read(saved.Length, i => saved[i].m_Prefab) : null;
+        bool committed = false;
         World.GetOrCreateSystemManaged<RoadEnforcementCoordinator>().ReleaseAll();
         World.GetOrCreateSystemManaged<RailEnforcementBackend>().ReleaseAll();
         m_BatchWrite = true;
         try
         {
-            foreach (var target in m_Range) if (clear) ClearRestriction(target); else SetRestriction(target,assets);
-            if (!clear) World.GetExistingSystemManaged<RouteFilterUISystem>()?.RecordRecentAssets(assets);
+            foreach (var target in m_Range) if (clear) ClearRestriction(target); else SetRestriction(target,assets,directions[target]);
+            Mod.Log.Info($"[RouteFilter.Batch] release committed targets={m_Range.Count} clear={clear} nativePath=true perTargetDirections=true");
+            committed = true;
+        }
+        catch (System.Exception error)
+        {
+            foreach(var target in m_Range)
+                if(previous[target] == null) ClearRestriction(target);
+                else RestoreRestriction(target,false,previous[target],directions[target]);
+            Mod.Log.Warn("[RouteFilter.Batch] transaction rolled back: " + error.Message);
         }
         finally { m_BatchWrite = false; CancelBrush(); }
+        if(committed && !clear) World.GetExistingSystemManaged<RouteFilterUISystem>()?.RecordRecentAssets(assets);
     }
 }
