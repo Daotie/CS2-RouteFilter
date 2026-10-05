@@ -53,8 +53,13 @@ No full GB, TSRGD or MUTCD compliance is claimed. Current authoritative referenc
 
 ## Required player acceptance
 
-GAME VERIFIED, PERFORMANCE VERIFIED, SAVELOAD VERIFIED and MIGRATION VERIFIED: **NOT TESTED for SIGN-32**. Build checks cannot establish native world visibility, mirrored/missing rendered glyphs, native click selection, UI behavior or full-playset performance.
+GAME VERIFIED, PERFORMANCE VERIFIED, SAVELOAD VERIFIED and MIGRATION VERIFIED: **NOT TESTED for UX-33**. Build checks cannot establish native world visibility, mirrored/missing rendered glyphs, native click selection, UI behavior or full-playset performance.
 
 For each exposed profile test: all applicable vehicles (no redundant plate); complete goods (dedicated primary if independently supported, otherwise one legend); large-only and selected large assets; maintenance; mixed subsets (no tower); both faces on wide roads; curved/ramp/one-way/asymmetric/junction entries; EU/US mixed road themes; every AUTO locale matrix case; manual US/CN with English/Chinese locale changes; missing RF-Plate/font/localization/custom/NA assets; save/load and city switch. Confirm exact selected assets and direction masks remain authoritative in UI. CN/UK tests must acknowledge explicit fallback, not national asset coverage.
 
-Retest existing stars/search/filtered bulk/copy/paste/presets, upper-right wheel palette and camera barrier, start/end range and topology change before confirm, map layers/pan/zoom/Fit/click-to-edit, close/reset/unload cleanup. Use the complete playset: 370 mods, 345 enabled. No playset edits are part of this deployment.
+Retest existing stars/search/filtered bulk/copy/paste/presets, upper-right wheel palette and camera barrier, start/end range and topology change before confirm, map layers/pan/zoom/Fit/click-to-edit, close/reset/unload cleanup. Use the existing complete playset. UX-33 pre/post-deployment launcher counts were identical: 369 entries, 344 enabled. The playset configuration SHA-256 stayed a39bd0fa21afa48650842d95b48e19122615e9559f742877e893f89e3050b36a. No playset edits are part of this deployment.
+
+
+## Final local deployment
+
+All unified checks passed after the P5 commit, with zero backend build warnings/errors. The 28 payload files were copied to the existing local RouteFilter mod folder and verified against the test payload. Installed DLL contains RF21-20261005-UX-33. Source code is committed and pushed. Existing mod files were backed up before replacement at deployment-backups/RouteFilter-UX33-20261005-145822/RouteFilter. Deployment did not edit the launcher database or playset config. Game was not launched as part of this verification; A–M native game acceptance remains pending.
