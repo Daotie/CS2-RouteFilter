@@ -3,6 +3,7 @@ import classNames from "classnames";
 import { Button, Tooltip } from "cs2/ui";
 import { VehicleAsset } from "../model";
 import styles from "../route-filter.module.scss";
+import { FavoriteIcon } from "./FavoriteIcon";
 import { icons } from "../assets";
 
 type Props = {
@@ -36,7 +37,7 @@ export const AssetRow = ({ favorite, onFavorite, favoriteLabel, asset, child = f
     [styles.assetRowPartial]: partial,
     [styles.assetRowDisabled]: disabled,
   })}>
-    <button type="button" className={favorite ? styles.favoriteActive : styles.favoriteButton} onClick={event => { event.stopPropagation(); onFavorite(); }} aria-label={favoriteLabel} aria-pressed={favorite}>{favorite ? "★" : "☆"}</button>
+    <button type="button" className={favorite ? styles.favoriteActive : styles.favoriteButton} onClick={event => { event.stopPropagation(); onFavorite(); }} aria-label={favoriteLabel} aria-pressed={favorite}><FavoriteIcon filled={favorite}/></button>
     {childCount > 0
       ? <Button variant="flat" className={styles.expandButton} onSelect={onExpand} aria-label={expanded ? collapseLabel : expandLabel}><img className={classNames(styles.chevron, { [styles.chevronExpanded]: expanded })} src={icons.chevron} alt="" /></Button>
       : <span className={styles.expandSpacer} />}

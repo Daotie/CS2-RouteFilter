@@ -287,11 +287,18 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
 
     private void Rebuild(Entity target)
     {
-        RemoveTarget(target);
-        if (!EntityManager.Exists(target) || EntityManager.HasComponent<Deleted>(target)) return;
+        if (!EntityManager.Exists(target) || EntityManager.HasComponent<Deleted>(target) ||
+            !EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> saved) || saved.Length == 0)
+        { RemoveTarget(target); return; }
         var meanings = Meanings(target);
         m_TargetProfiles.Remove(target); m_TargetFallback.Remove(target);
         var entries = m_Index.GetAppliedRoadEntries(target);
+        // Selection/Updated may precede native lane readiness. Keep the last good
+        // physical assembly until the replacement has a usable geometry source.
+        if (m_Markers.ContainsKey(target) && (entries.Count == 0 || entries.Any(entry => entry.Enabled &&
+            !m_Index.TryGetApproachFrame(entry, true, out _, out _, out _, out _))))
+        { Mod.Log.Info($"[RouteFilter.RoadSigns] retained previous assembly; target={target} entries={entries.Count} geometry pending"); return; }
+        RemoveTarget(target);
         var restricted = 0; var pairs = 0; var skipped = 0;
         var reasons = new Dictionary<string, int>(StringComparer.Ordinal);
         var markers = new List<Entity>();

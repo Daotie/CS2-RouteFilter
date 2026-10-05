@@ -204,7 +204,7 @@ $rfDanger: #e07b73;
 .assetRow .favoriteButton:hover, .assetRow .favoriteActive:hover { background: transparent; border: 0; color: #ffd257; }
 .assetRow .favoriteButton:focus-visible, .assetRow .favoriteActive:focus-visible { outline: 1rem solid $rfAccent; }
 
-.secondaryMenu { position: fixed; z-index: 1050; width: 300rem; max-width: 90vw; max-height: 72vh; overflow-y: auto; padding: 4rem 0; border: 1rem solid $rfBorder; border-radius: 6rem; background: $rfSurface; color: $rfText; font-family: var(--fontFamily); font-size: 12rem; pointer-events: auto; }
+.secondaryMenu { position: fixed; z-index: 1050; width: 300rem; max-width: 90vw; max-height: 72vh; overflow-y: auto; padding: 4rem 0; border: 1rem solid $rfBorder; border-radius: 6rem; background: rgba(24, 31, 39, .98); color: #f3f5f7; font-family: var(--fontFamily); font-size: 12rem; pointer-events: auto; }
 .secondaryMenu .menuItem { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 36rem; padding: 0 14rem; border: 0; border-radius: 0; background: transparent; color: $rfText; font: inherit; text-align: left; cursor: pointer; }
 .secondaryMenu .menuItem:hover:not(:disabled) { background: $rfSurfaceHover; }
 .secondaryMenu .menuItem:disabled { opacity: .38; cursor: default; }
@@ -259,3 +259,11 @@ $rfDanger: #e07b73;
 .mapPanel .auxHeader { padding:10rem 14rem; margin:0; border-bottom:1rem solid $rfBorder; background:$rfSurfaceRaised; }
 .mapBody { padding:12rem; }
 .mapToolbar .secondaryAction { flex:0 0 auto; padding:0 12rem; }
+
+.appearancePalette .parameterRow > span:first-child { flex: 1 1 auto; min-width: 0; white-space: nowrap; }
+.appearancePalette .parameterRow input { flex: 0 0 64rem; width: 64rem; min-width: 0; height: 26rem; margin: 0 6rem; padding: 0 6rem; color: #f3f5f7; background: rgba(0,0,0,.28); border: 1rem solid rgba(255,255,255,.22); border-radius: 3rem; text-align: right; font: inherit; }
+.appearancePalette .parameterUnit { flex: 0 0 16rem; text-align: left; }
+.appearancePalette .signSelector { padding: 10rem 14rem; }
+.appearancePalette { background-color: rgba(24,31,39,.98); }
+.segmentButton svg { flex: 0 0 16rem; margin-right: 4rem; }
+.commitActions .secondaryAction { flex: 0 0 auto; padding: 0 10rem; }

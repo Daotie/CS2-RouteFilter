@@ -4,6 +4,7 @@ import { bindValue, trigger, useValue } from "cs2/api";
 import { useLocalization } from "cs2/l10n";
 import mod from "mod.json";
 import { VehicleAsset, filteredAssetIds } from "../model";
+import { FavoriteIcon } from "./FavoriteIcon";
 import { ActionBar } from "./ActionBar";
 import { AssetList } from "./AssetList";
 import { AssetSearch } from "./AssetSearch";
@@ -106,10 +107,10 @@ export const RouteFilterPanel = (props: Props) => {
       </div>
       <AssetSearch value={props.search} placeholder={props.labels.search} onChange={props.onSearchChange} />
       <div className={styles.libraryFilter}>
-        <SegmentedSelector value={view} label={tr("RouteFilter.UI.LibraryAll","Library")} options={[{id:"all",label:tr("RouteFilter.UI.LibraryAll","All")},{id:"favorites",label:`★ ${tr("RouteFilter.UI.LibraryFavorites","Favorites")}`},{id:"recent",label:tr("RouteFilter.UI.LibraryRecent","Recent")}]} onChange={setView} />
+        <SegmentedSelector value={view} label={tr("RouteFilter.UI.LibraryAll","Library")} options={[{id:"all",label:tr("RouteFilter.UI.LibraryAll","All")},{id:"favorites",label:<><FavoriteIcon filled/> {tr("RouteFilter.UI.LibraryFavorites","Favorites")}</>},{id:"recent",label:tr("RouteFilter.UI.LibraryRecent","Recent")}]} onChange={setView} />
       </div>
       <AssetList favorites={favorites} onFavorite={id => trigger(mod.id, "toggleFavoriteAsset", id)} favoriteLabel={tr("RouteFilter.UI.LibraryFavoriteToggle", "Toggle favorite")} roots={visible.roots} childrenByParent={visible.children} selected={props.selected} expanded={props.expanded} searchTerm={props.search.trim().toLocaleLowerCase()} emptyLabel={props.labels.empty} trailerLabel={props.labels.trailer} expandLabel={props.labels.expand} collapseLabel={props.labels.collapse} roadGroupLabel={props.labels.roadGroup} railGroupLabel={props.labels.railGroup} onToggle={props.onToggleAsset} onExpand={props.onExpandAsset} />
-      <ActionBar allowAllLabel={props.labels.allowAll} forbidAllLabel={props.labels.forbidAll} applyLabel={props.labels.apply} clearLabel={props.labels.clear} refreshLabel={props.labels.refresh} targetReady={targetReady && props.configurationEditable} onAllowAll={() => bulk(false)} onForbidAll={() => bulk(true)} onApply={props.onApply} onClear={props.onClear} onRefresh={props.onRefresh} />
+      <ActionBar copyLabel={tr("RouteFilter.UI.Copy","Copy")} pasteLabel={tr("RouteFilter.UI.Paste","Paste")} copyReady={targetReady} pasteReady={targetReady && hasClipboard && props.configurationEditable} onCopy={()=>trigger(mod.id,"copyAssetRestriction")} onPaste={()=>trigger(mod.id,"pasteAssetRestriction")} allowAllLabel={props.labels.allowAll} forbidAllLabel={props.labels.forbidAll} applyLabel={props.labels.apply} clearLabel={props.labels.clear} refreshLabel={props.labels.refresh} targetReady={targetReady && props.configurationEditable} onAllowAll={() => bulk(false)} onForbidAll={() => bulk(true)} onApply={props.onApply} onClear={props.onClear} onRefresh={props.onRefresh} />
 
       <div className={styles.utilityFooter}>
         <Tooltip tooltip={props.buildId}><span className={styles.buildLabel}>{props.buildId.split("-").slice(-4).join("-")}</span></Tooltip>

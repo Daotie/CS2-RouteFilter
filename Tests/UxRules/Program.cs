@@ -94,4 +94,29 @@ Check(RecentAssetHistory.AfterSuccessfulApply(history,new[]{"Bus","Truck","Bus"}
 Check(RecentAssetHistory.AfterSuccessfulApply(history,Array.Empty<string>()).SequenceEqual(history),"allow-all Apply does not invent Recent assets");
 Check(RecentAssetHistory.AfterSuccessfulApply(Enumerable.Range(0,70).Select(i=>"Asset"+i),new[]{"New"}).Length==64,"Recent history bounded");
 Check(RecentAssetHistory.AfterSuccessfulApply(history,new[]{"中文|Stable%Id"})[0]=="中文|Stable%Id","Recent stores stable identities, independent of catalog numbers and locale");
+// Reproduce the native collection failure without requiring a running ECS world.
+var nativeLike = new IndexedOnlyAssets(new[] { "Truck", "Bus", "Truck" });
+bool genericFailed = false;
+try { nativeLike.Distinct().ToArray(); } catch (NotImplementedException) { genericFailed = true; }
+Check(genericFailed, "regression fixture rejects generic enumeration like game DynamicBuffer");
+var snapshot = AssetLibrarySnapshot.Read(nativeLike.Count, i => nativeLike[i]);
+Check(snapshot.Distinct().SequenceEqual(new[] { "Truck", "Bus" }), "indexed snapshot supports Copy deduplication without native enumeration");
+Check(RecentAssetHistory.AfterSuccessfulApply(history, snapshot).Take(2).SequenceEqual(new[] { "Bus", "Truck" }), "indexed committed buffer populates Recent");
+var library = new[] { (Id: 11, Name: "Truck", Mode: 1), (Id: 22, Name: "Bus", Mode: 1), (Id: 33, Name: "Train", Mode: 2) };
+// Actual paste resolver receives no source/target entity: all four road target combinations share it.
+foreach (var source in new[] { "Node", "Segment" })
+foreach (var destination in new[] { "Node", "Segment" })
+    Check(AssetLibrarySnapshot.Compatible(library, snapshot, 1, a => a.Name, a => a.Mode).Select(a => a.Id).SequenceEqual(new[] { 11, 22 }), $"{source} to {destination}: stable identities survive different target/catalog IDs");
+Check(AssetLibrarySnapshot.Compatible(library, snapshot, 2, a => a.Name, a => a.Mode).Length == 0, "incompatible road clipboard does not replace rail pending selection");
+Check(AssetLibrarySnapshot.Compatible(library, new[] { "Missing", "Bus" }, 1, a => a.Name, a => a.Mode).Single().Id == 22, "missing prefab does not discard compatible clipboard assets");
 Console.WriteLine($"UX / traffic semantics / profiles: {checks} checks passed.");
+
+sealed class IndexedOnlyAssets : System.Collections.Generic.IEnumerable<string>
+{
+    private readonly string[] values;
+    public IndexedOnlyAssets(string[] values) { this.values = values; }
+    public int Count => values.Length;
+    public string this[int index] => values[index];
+    public System.Collections.Generic.IEnumerator<string> GetEnumerator() => throw new NotImplementedException();
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => throw new NotImplementedException();
+}

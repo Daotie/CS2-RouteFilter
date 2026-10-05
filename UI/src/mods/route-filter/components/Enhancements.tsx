@@ -24,23 +24,23 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
   const [feedbackKind,feedbackCount]=feedback.split("|");
   const feedbackFallback:Record<string,string>={Copied:"Copied {count} vehicle restrictions.",Pasted:"Loaded {count} vehicle restrictions. Press Apply; entry directions stay unchanged.",Incompatible:"No clipboard vehicles match this target."};
   const advancedClosed=useValue(advancedClosed$),range=useValue(range$),pending=useValue(pending$),status=useValue(status$);
-  const [palette,setPalette]=useState(false);
+
   const menu=useRef<HTMLDivElement>(null);
   const [position,setPosition]=useState({left:18,top:126});
   const {translate}=useLocalization();
   const tr=(id:string,fallback:string)=>String(translate(`RouteFilter.UI.${id}`,fallback)??fallback);
-  useEffect(()=>{trigger(mod.id,"setSecondaryInteraction",Boolean(popup||palette));return()=>trigger(mod.id,"setSecondaryInteraction",false);},[popup,palette]);
+  useEffect(()=>{trigger(mod.id,"setSecondaryInteraction",Boolean(popup));return()=>trigger(mod.id,"setSecondaryInteraction",false);},[popup]);
   useEffect(()=>{
     trigger(mod.id,"setRestrictionMapOpen",popup==="Map"); trigger(mod.id,"setSegmentBrush",popup==="Range");
     return ()=>{trigger(mod.id,"setRestrictionMapOpen",false);trigger(mod.id,"setSegmentBrush",false);trigger(mod.id,"setUiPointerArea","utility",false);};
   },[popup]);
   useEffect(()=>()=>{trigger(mod.id,"closeAdvancedInteraction");onAppearance(false);},[]);
-  useEffect(()=>{if(advancedClosed||reset){setPalette(false);onAppearance(false);onPopup("");}},[advancedClosed,reset,onPopup,onAppearance]);
+  useEffect(()=>{if(advancedClosed||reset){onAppearance(false);onPopup("");}},[advancedClosed,reset,onPopup,onAppearance]);
   useEffect(()=>{
-    if(!popup&&!palette)return;
-    const escape=(event:KeyboardEvent)=>{if(event.key==="Escape"){event.preventDefault();event.stopPropagation();setPalette(false);onAppearance(false);onPopup("");trigger(mod.id,"closeAdvancedInteraction");}};
+    if(!popup)return;
+    const escape=(event:KeyboardEvent)=>{if(event.key==="Escape"){event.preventDefault();event.stopPropagation();onAppearance(false);onPopup("");trigger(mod.id,"closeAdvancedInteraction");}};
     document.addEventListener("keydown",escape,true);return()=>document.removeEventListener("keydown",escape,true);
-  },[popup,palette,onPopup,onAppearance]);
+  },[popup,onPopup,onAppearance]);
   useLayoutEffect(()=>{
     if(!popup||popup==="Map")return;
     const positionMenu=()=>{
@@ -56,24 +56,18 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
     const outside=(event:MouseEvent)=>{if(!menu.current?.contains(event.target as Node)&&!document.getElementById("routefilter-tools")?.contains(event.target as Node))onPopup("");};
     document.addEventListener("mousedown",outside);return()=>document.removeEventListener("mousedown",outside);
   },[popup,onPopup]);
-  const finish=()=>{setPalette(false);onAppearance(false);trigger(mod.id,"setSignAdjustment","",.05);};
+
   return <>
     {popup && popup!=="Map" && <Portal><div ref={menu} className={styles.secondaryMenu} style={{left:position.left,top:position.top}} onMouseEnter={()=>trigger(mod.id,"setUiPointerArea","utility",true)} onMouseLeave={()=>trigger(mod.id,"setUiPointerArea","utility",false)}>
       {popup!=="Tools" && <div className={styles.menuHeading}><button type="button" className={styles.windowControl} onClick={()=>onPopup("Tools")} aria-label={tr("Back","Back")}>‹</button><strong>{tr(popup,popup)}</strong><button type="button" className={styles.windowControl} onClick={()=>onPopup("")} aria-label={tr("Close","Close")}>×</button></div>}
       {popup==="Tools" && <div role="menu" aria-label={tr("Tools","Tools")}>
-        <MenuItem disabled={!targetReady} onSelect={()=>trigger(mod.id,"copyAssetRestriction")}>{tr("LibraryCopy","Copy vehicle restrictions")}</MenuItem>
-        <MenuItem disabled={!targetReady||!hasClipboard||!editable} onSelect={()=>trigger(mod.id,"pasteAssetRestriction")}>{tr("LibraryPaste","Paste vehicle restrictions")}</MenuItem>
-        <div className={styles.menuSeparator}/>
         <MenuItem submenu onSelect={()=>onPopup("Presets")}>{tr("Presets","Presets")}</MenuItem>
-        <MenuItem submenu onSelect={()=>onPopup("SignStyle")}>{tr("SignStyle","Road restriction sign style")}</MenuItem>
-        <MenuItem onSelect={()=>{setPalette(true);onAppearance(true);onPopup("");}}>{tr("Appearance","Sign position adjustment")}</MenuItem>
         <div className={styles.menuSeparator}/>
         <MenuItem onSelect={()=>onPopup("Map")}>{tr("Map","Restriction map")}</MenuItem>
         <MenuItem disabled={targetMode!==1||!editable} onSelect={()=>onPopup("Range")}>{tr("Brush","Batch segment restrictions")}</MenuItem>
         {feedbackFallback[feedbackKind]&&<div className={styles.workflowStatus} role="status">{tr(`Feedback.${feedbackKind}`,feedbackFallback[feedbackKind]).replace("{count}",feedbackCount??"0")}</div>}
       </div>}
       {popup==="Presets" && <PresetMenu editable={editable} onLoaded={()=>onPopup("")} />}
-      {popup==="SignStyle" && <RoadSignSelector closeToken={0} onPopupOpen={()=>{}}/>}
       {popup==="Range" && <div className={styles.toolInstructions}>
         <p>{tr("BrushHint","Select start and end segments, review the connected chain, then confirm.")}</p>
         <div role="status">{tr(`Range${status}`,status)} · {pending} {tr("RangeSegments","segments in preview")}</div>
@@ -83,7 +77,7 @@ export const Enhancements = ({targetMode,editable,popup,onPopup,reset,targetRead
       </div>}
     </div></Portal>}
     {popup==="Map" && <Portal><Panel className={styles.mapPanel} contentClassName={styles.auxContent} onMouseEnter={()=>trigger(mod.id,"setUiPointerArea","utility",true)} onMouseLeave={()=>trigger(mod.id,"setUiPointerArea","utility",false)}><div className={styles.auxHeader}><strong>{tr("Map","Restriction map")}</strong><button type="button" className={styles.windowControl} onClick={()=>onPopup("")} aria-label={tr("Close","Close")}>×</button></div><div className={styles.mapBody}><RestrictionMap/></div></Panel></Portal>}
-    {palette && <AppearancePalette onClose={finish}/>}
+    <AppearancePalette reset={advancedClosed+reset} onAppearance={onAppearance}/>
   </>;
 };
 const PresetMenu=({editable,onLoaded}:{editable:boolean;onLoaded:()=>void})=>{
@@ -105,18 +99,27 @@ const PresetMenu=({editable,onLoaded}:{editable:boolean;onLoaded:()=>void})=>{
 };
 
 const parameters = [["scale","Scale",0,"×"],["offset","Lateral offset",2,"m"],["longitudinal","Longitudinal offset",3,"m"],["height","Height",1,"m"],["rotation","Rotation",4,"°"]] as const;
-const AppearancePalette = ({ onClose }: { onClose: () => void }) => {
+const ParameterInput = ({id,label,value,unit,active,onActivate}: {id:string;label:string;value:number;unit:string;active:boolean;onActivate:()=>void}) => {
+  const [draft,setDraft]=useState(value.toFixed(2));
+  const editing=useRef(false),cancelled=useRef(false);
+  useEffect(()=>{if(!editing.current)setDraft(value.toFixed(2));},[value]);
+  const commit=()=>{editing.current=false;if(cancelled.current){cancelled.current=false;setDraft(value.toFixed(2));return;}const number=Number(draft);if(draft.trim() && Number.isFinite(number))trigger(mod.id,"setSignAppearance",id,number);else setDraft(value.toFixed(2));};
+  return <label className={`${styles.parameterRow} ${active?styles.parameterActive:""}`}><span>{label}</span><input aria-label={label} type="text" inputMode="decimal" value={draft} onFocus={()=>{editing.current=true;cancelled.current=false;onActivate();}} onChange={event=>setDraft(event.target.value)} onBlur={commit} onKeyDown={event=>{if(event.key==="Enter")event.currentTarget.blur();if(event.key==="Escape"){cancelled.current=true;setDraft(value.toFixed(2));editing.current=false;event.currentTarget.blur();}}}/><span className={styles.parameterUnit}>{unit}</span></label>;
+};
+const AppearancePalette = ({ reset,onAppearance }: { reset:number;onAppearance:(active:boolean)=>void }) => {
   const raw = useValue(appearance$), values = useMemo(() => raw.split("|").map(Number),[raw]);
-  const [parameter,setParameter] = useState("offset"), [step,setStep] = useState(.05);
+  const [parameter,setParameter] = useState(""), [step,setStep] = useState(.05);
   const { translate } = useLocalization();
   const tr = (key: string,fallback: string) => String(translate(`RouteFilter.UI.${key}`,fallback) ?? fallback);
-  useEffect(() => { trigger(mod.id,"setSignAdjustment",parameter,step); return () => trigger(mod.id,"setSignAdjustment","",step); },[parameter,step]);
+  useEffect(() => { trigger(mod.id,"setSignAdjustment",parameter,step);onAppearance(Boolean(parameter));return () => trigger(mod.id,"setSignAdjustment","",step); },[parameter,step,onAppearance]);
+  useEffect(()=>{setParameter("");},[reset]);
   useEffect(() => () => trigger(mod.id,"setUiPointerArea","appearance",false),[]);
   return <Portal><Panel className={styles.appearancePalette} contentClassName={styles.auxContent} onMouseEnter={() => trigger(mod.id,"setUiPointerArea","appearance",true)} onMouseLeave={() => trigger(mod.id,"setUiPointerArea","appearance",false)}>
-    <div className={styles.auxHeader}><strong>{tr("Appearance","Sign position adjustment")}</strong><button type="button" className={styles.windowControl} onClick={onClose} aria-label={tr("Close","Close")}>×</button></div>
-    <div className={styles.parameterList}>{parameters.map(([id,label,index,unit]) => <button type="button" key={id} className={`${styles.parameterRow} ${parameter===id?styles.parameterActive:""}`} aria-pressed={parameter===id} onClick={()=>setParameter(id)}><span>{tr(`Appearance${id}`,label)}</span><strong>{(values[index]??0).toFixed(2)} {unit}</strong></button>)}</div>
+    <div className={styles.auxHeader}><strong>{tr("SignTool","Traffic sign")}</strong></div>
+    <RoadSignSelector closeToken={reset}/>
+    <div className={styles.parameterList}>{parameters.map(([id,label,index,unit]) => <ParameterInput key={id} id={id} label={tr(`Appearance${id}`,label)} value={values[index]??0} unit={unit} active={parameter===id} onActivate={()=>setParameter(id)}/>)}</div>
     <div className={styles.wheelStep}><span>{tr("WheelStep","Wheel step")}</span><div className={styles.segmentedControl}>{[.01,.05,.1,.5].map(value=><button type="button" key={value} className={`${styles.segmentButton} ${step===value?styles.segmentButtonActive:""}`} aria-pressed={step===value} onClick={()=>setStep(value)}>{parameter==="rotation"?`${value*20}°`:parameter==="scale"?`${value}×`:`${value}m`}</button>)}</div></div>
-    <div className={styles.paletteActions}><button type="button" className={styles.utilityAction} onClick={()=>trigger(mod.id,"resetSignAppearance")}>{tr("AppearanceReset","Reset position")}</button><button type="button" className={styles.utilityAction} onClick={onClose}>{tr("Finish","Finish")}</button></div>
+    <div className={styles.paletteActions}><button type="button" className={styles.utilityAction} onClick={()=>trigger(mod.id,"resetSignAppearance")}>{tr("AppearanceReset","Reset position")}</button><button type="button" className={styles.utilityAction} disabled={!parameter} onClick={()=>setParameter("")}>{tr("Finish","Finish")}</button></div>
     <small>{tr("WheelHint","Scroll over the world to adjust. Shift: fine · Ctrl: coarse.")}</small>
   </Panel></Portal>;
 };
@@ -145,7 +148,7 @@ export const RestrictionMap = () => {
     <div ref={host} className={styles.mapViewport}>
       <svg className={styles.restrictionMap} width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} onWheel={event=>{
         event.preventDefault();event.stopPropagation();const rect=event.currentTarget.getBoundingClientRect();
-        setView(current=>zoomMap(current,event.deltaY>0?1/1.2:1.2,event.clientX-rect.left,event.clientY-rect.top,size.width,size.height));
+        setView(current=>zoomMap(current,event.deltaY>0?1/1.2:1.2,(event.clientX-rect.left)*size.width/rect.width,(event.clientY-rect.top)*size.height/rect.height,size.width,size.height));
       }} onMouseDown={event=>{if(event.button===0)drag.current={x:event.clientX,y:event.clientY,view};}} onMouseMove={event=>{
         const start=drag.current;if(start&&event.buttons===1)setView({...start.view,cx:start.view.cx-(event.clientX-start.x)/start.view.scale,cy:start.view.cy+(event.clientY-start.y)/start.view.scale});
       }} onMouseUp={()=>{drag.current=null;}} onMouseLeave={()=>{drag.current=null;}}>
@@ -163,6 +166,5 @@ export const RestrictionMap = () => {
       </svg>
       {!geometry.roadCount&&<div className={styles.mapEmpty} role="status"><span>{tr("MapEmpty","Road geometry is not available yet.")}</span><button type="button" className={styles.secondaryAction} onClick={()=>trigger(mod.id,"refreshRestrictionMap")}>{tr("MapRefresh","Refresh")}</button></div>}
     </div>
-    <small>{tr("MapHint","Click a restricted road to edit. Drag to pan; scroll to zoom.")}</small>
   </>;
 };

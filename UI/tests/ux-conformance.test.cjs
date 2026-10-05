@@ -35,19 +35,19 @@ const {AssetRow}=load(path.join(base,'components/AssetRow.tsx'));
 let favorite=0,toggled=0,stopped=0;
 const row=AssetRow({favorite:false,onFavorite:()=>favorite++,favoriteLabel:'Favorite',asset:{name:'Truck',mode:1,maxSpeed:80},selected:false,partial:false,childCount:0,expanded:false,onToggle:()=>toggled++,onExpand:()=>{},trailerLabel:'Trailer'});
 const children=React.Children.toArray(row.props.children);
-assert.equal(children[0].props.children,'☆');
+assert.match(renderToStaticMarkup(children[0]), /<svg/);assert.doesNotMatch(renderToStaticMarkup(children[0]), /★|☆/);
 children[0].props.onClick({stopPropagation:()=>stopped++});
 assert.equal(favorite,1);assert.equal(toggled,0);assert.equal(stopped,1);
 assert.equal(children.at(-1).props.className,'selectionGlyph');
 children.at(-1).props.onSelect();assert.equal(toggled,1);
 const {Enhancements}=load(path.join(base,'components/Enhancements.tsx'));
 const props={targetMode:1,editable:true,popup:'',onPopup:()=>{},reset:0,targetReady:true,hasClipboard:false,onReset:()=>{},onAppearance:()=>{}};
-assert.equal(renderToStaticMarkup(React.createElement(Enhancements,props)),'');
+const persistent=renderToStaticMarkup(React.createElement(Enhancements,props));assert.match(persistent,/Traffic sign/);assert.match(persistent,/Signage profile/);assert.equal((persistent.match(/inputMode="decimal"/g)||[]).length,5);assert.doesNotMatch(persistent,/type="range"/);
 const tools=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Tools'}));
-assert.match(tools,/Copy vehicle restrictions/);assert.match(tools,/disabled=""[^>]*><span>Paste vehicle restrictions/);
+assert.doesNotMatch(tools,/Copy vehicle restrictions|Paste vehicle restrictions|Sign position adjustment/);
 assert.match(tools,/Batch segment restrictions/);
 const presets=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Presets'}));
-assert.match(presets,/Cargo trucks/);assert.match(presets,/Save current selection/);assert.doesNotMatch(presets,/<input/);assert.match(presets,/Built-in presets/);assert.match(presets,/My presets/);
+assert.match(presets,/Cargo trucks/);assert.match(presets,/Save current selection/);assert.doesNotMatch(presets,/Preset name/);assert.match(presets,/Built-in presets/);assert.match(presets,/My presets/);
 bindings.set('rangeStatus','End');bindings.set('segmentBrush',true);bindings.set('brushPending',1);
 const range=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Range'}));
 assert.match(range,/disabled=""[^>]*><span>Apply to range/);
@@ -74,6 +74,11 @@ console.log('PASS: shared single-active segmented selector; real menu rows; prog
 
 bindings.set('libraryFeedback','Copied|2|1');
 const copiedTools=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Tools',hasClipboard:true}));
-assert.match(copiedTools,/Copied 2 vehicle restrictions/);
+assert.doesNotMatch(copiedTools,/Copy vehicle restrictions/);
 assert.doesNotMatch(copiedTools,/disabled=""[^>]*><span>Paste vehicle restrictions/);
 console.log('PASS: Copy result remains visible inside the open menu with Paste available.');
+
+const {ActionBar}=load(path.join(base,'components/ActionBar.tsx'));
+const footer=renderToStaticMarkup(React.createElement(ActionBar,{copyLabel:'复制',pasteLabel:'粘贴',copyReady:true,pasteReady:false,targetReady:true,applyLabel:'应用',clearLabel:'清除'}));
+assert.match(footer,/commitActions[^]*复制[^]*粘贴[^]*应用/);assert.match(footer,/disabled=""[^>]*>粘贴/);
+console.log('PASS: persistent merged sign tool, five numeric fields, no sliders, SVG favorites and footer clipboard gating.');

@@ -19,6 +19,9 @@ public sealed partial class RestrictionToolSystem
     private HashSet<RestrictionEntryIdentity> m_PendingEntries;
     private int m_EntryRevision = -1;
     private bool m_SelectedWasUpdated;
+    private uint m_EditorGeometryStamp;
+    private float m_NextEditorGeometryCheck;
+    private string m_LastEditorDiagnostic = "";
     internal IReadOnlyList<ApproachBar> EntryBars => m_EntryBars;
     public bool EntryDirectionsSupported { get; private set; }
     public int EntryDirectionCount => m_EntryBars.Count;
@@ -27,7 +30,7 @@ public sealed partial class RestrictionToolSystem
     private void ClearEntryEditor()
     {
         m_EntryBars.Clear(); m_PendingEntries = null; m_EntryRevision = -1;
-        EntryDirectionsSupported = false; EnabledEntryDirectionCount = 0; m_SelectedWasUpdated = false;
+        EntryDirectionsSupported = false; EnabledEntryDirectionCount = 0; m_SelectedWasUpdated = false; m_NextEditorGeometryCheck = 0; m_LastEditorDiagnostic = "";
     }
 
     private void LoadEntryEditor()
@@ -38,13 +41,23 @@ public sealed partial class RestrictionToolSystem
         RebuildEntryEditor(true);
     }
 
-    // Constant cost while selected: one revision and one target tag. Geometry/topology
-    // is derived only on selection or a dirty transition, never on cursor movement.
+    // Selected target and its immediate approaches only, at most twice a second.
+    // Lane readiness can change without a rising Updated tag on the parent edge.
     private void RefreshEntryEditor()
     {
-        if (SelectedTarget == Entity.Null || (SelectedTransportMode & 1) == 0) return;
+        if (SelectedTarget == Entity.Null || !EntityManager.Exists(SelectedTarget)) return;
+        bool geometryDirty = false;
+        if (UnityEngine.Time.unscaledTime >= m_NextEditorGeometryCheck)
+        {
+            m_NextEditorGeometryCheck = UnityEngine.Time.unscaledTime + .5f;
+            var stamp = VisualGeometryStamp.ReadEditor(EntityManager, SelectedTarget);
+            geometryDirty = stamp != m_EditorGeometryStamp;
+            m_EditorGeometryStamp = stamp;
+            if (geometryDirty || SelectedTransportMode == 0) SelectedTransportMode = GetTransportMode(SelectedTarget);
+        }
+        if ((SelectedTransportMode & 1) == 0) return;
         var updated = EntityManager.HasComponent<Updated>(SelectedTarget);
-        var dirty = updated && !m_SelectedWasUpdated;
+        var dirty = geometryDirty || updated && !m_SelectedWasUpdated;
         m_SelectedWasUpdated = updated;
         if (dirty || m_EntryRevision != World.GetOrCreateSystemManaged<RestrictionIndexSystem>().Revision)
             RebuildEntryEditor(dirty);
@@ -69,6 +82,8 @@ public sealed partial class RestrictionToolSystem
                 Enabled = m_PendingEntries == null || m_PendingEntries.Contains(group.Identity) });
         }
         EntryDirectionsSupported = valid;
+        var diagnostic = $"target={SelectedTarget} groups={groups.Count} bars={m_EntryBars.Count} supported={valid} revision={index.Revision} geometry={m_EditorGeometryStamp} force={force}";
+        if (diagnostic != m_LastEditorDiagnostic) { m_LastEditorDiagnostic = diagnostic; Mod.Log.Info("[RouteFilter.EntryEditor] " + diagnostic); }
         UpdateEntryBarStates();
     }
 

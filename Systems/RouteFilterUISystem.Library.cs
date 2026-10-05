@@ -52,18 +52,22 @@ public sealed partial class RouteFilterUISystem
         }));
         AddBinding(new TriggerBinding(Mod.Id, "copyAssetRestriction", () =>
         {
+            SynchronizeLibraryTarget();
             var target = m_RestrictionTool.SelectedTarget;
             if (target == Entity.Null || !EntityManager.Exists(target)) return;
             m_Clipboard = EntityManager.TryGetBuffer(target, true, out DynamicBuffer<RestrictedVehicleAssetV1> assets)
-                ? assets.Where(asset => m_IdsByAsset.ContainsKey(asset.m_Prefab)).Select(asset => m_PrefabSystem.GetPrefabName(asset.m_Prefab)).Distinct(StringComparer.Ordinal).ToArray() : Array.Empty<string>();
+                ? RouteFilter.Persistence.AssetLibrarySnapshot.Read(assets.Length, i => assets[i].m_Prefab)
+                    .Where(m_IdsByAsset.ContainsKey).Select(m_PrefabSystem.GetPrefabName).Distinct(StringComparer.Ordinal).ToArray() : Array.Empty<string>();
             m_ClipboardReady = m_Clipboard.Length>0; m_HasClipboard.Update(m_ClipboardReady); LibraryFeedback("Copied",m_Clipboard.Length);
         }));
         AddBinding(new TriggerBinding(Mod.Id, "pasteAssetRestriction", () =>
         {
+            SynchronizeLibraryTarget();
             // Only the pending forbidden set changes. Directions, target and visuals stay intact.
             if (!m_ClipboardReady || !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable || m_RestrictionTool.SelectedTarget == Entity.Null) return;
-            var names = new HashSet<string>(m_Clipboard, StringComparer.Ordinal);
-            var compatible=m_AssetsById.Values.Where(asset=>m_ModeByAsset.TryGetValue(asset,out var mode) && (mode & m_RestrictionTool.SelectedTransportMode)!=0 && names.Contains(m_PrefabSystem.GetPrefabName(asset))).ToArray();
+            var compatible=RouteFilter.Persistence.AssetLibrarySnapshot.Compatible(m_AssetsById.Values,
+                m_Clipboard, m_RestrictionTool.SelectedTransportMode, m_PrefabSystem.GetPrefabName,
+                asset => m_ModeByAsset.TryGetValue(asset, out var mode) ? mode : 0);
             if(compatible.Length==0) { LibraryFeedback("Incompatible",0); return; }
             Mod.SelectedVehicleAssets.Clear();
             foreach(var asset in compatible) Mod.SelectedVehicleAssets.Add(asset);
@@ -76,7 +80,15 @@ public sealed partial class RouteFilterUISystem
         var target = m_RestrictionTool.SelectedTarget;
         if (target == Entity.Null || !EntityManager.Exists(target) || EntityManager.HasComponent<Game.Common.Deleted>(target) || !World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable ) return;
         if (!EntityManager.TryGetBuffer(target,true,out DynamicBuffer<RestrictedVehicleAssetV1> assets) || assets.Length==0) { LibraryFeedback("AllowAll",0); return; }
-        RecordRecentAssets(assets.Select(asset => asset.m_Prefab));
+        RecordRecentAssets(RouteFilter.Persistence.AssetLibrarySnapshot.Read(assets.Length, i => assets[i].m_Prefab));
+    }
+    private void SynchronizeLibraryTarget()
+    {
+        var target = m_RestrictionTool.SelectedTarget;
+        if (m_LastSelectedTarget == target) return;
+        m_LastSelectedTarget = target;
+        m_SelectedTargetBinding.Update(target == Entity.Null ? string.Empty : $"{target.Index}:{target.Version}");
+        LoadSelectedTargetAssets(target);
     }
     internal void RecordRecentAssets(IEnumerable<Entity> assets)
     {
