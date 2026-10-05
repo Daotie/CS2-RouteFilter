@@ -42,19 +42,33 @@ if (!$resolvedImages.StartsWith($resolvedDestination + [System.IO.Path]::Directo
 if (Test-Path -LiteralPath $resolvedImages) { Remove-Item -LiteralPath $resolvedImages -Recurse -Force }
 New-Item -ItemType Directory -Path $imageDestination -Force | Out-Null
 Copy-Item -Path (Join-Path $imageSource '*') -Destination $imageDestination -Recurse -Force
-# Remove the published 1.x package and stale local aliases from every playset so
-# the launcher cannot select another RouteFilter build later.
-foreach ($playset in $config.playsets) {
-    $playset.mods = @($playset.mods | Where-Object {
-        !(($_.source -eq 'local' -and $_.sourceId -in @('.RouteFilter','RouteFilter')) -or
-          ($_.source -eq 'pdx_mods' -and $_.sourceId -eq '155839'))
-    })
+# Only update RouteFilter in the active playset. Preserve every other mod,
+# including its order and enabled state, and leave other playsets untouched.
+function Test-RouteFilterEntry($mod) {
+    return (($mod.source -eq 'local' -and $mod.sourceId -in @('.RouteFilter','RouteFilter')) -or
+            ($mod.source -eq 'pdx_mods' -and $mod.sourceId -eq '155839'))
 }
-$active[0].mods = @($active[0].mods) +
+$otherPlaysetsBefore = ConvertTo-Json -InputObject @($config.playsets | Where-Object id -ne $config.activePlaysetId) -Depth 100 -Compress
+$otherMods = @($active[0].mods | Where-Object { !(Test-RouteFilterEntry $_) })
+$otherModsBefore = ConvertTo-Json -InputObject $otherMods -Depth 100 -Compress
+$active[0].mods = $otherMods +
     @([pscustomobject]@{ source='local'; sourceId='RouteFilter'; isEnabled=$true })
-$config | ConvertTo-Json -Depth 100 -Compress | Set-Content -LiteralPath $configPath -Encoding utf8
-$verified = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-$verified.playsets | Where-Object id -eq $verified.activePlaysetId | ForEach-Object {
-    $_.mods | Where-Object { $_.source -eq 'local' -and $_.sourceId -eq 'RouteFilter' }
+$serializedConfig = ConvertTo-Json -InputObject $config -Depth 100 -Compress
+$verified = $serializedConfig | ConvertFrom-Json
+$verifiedActive = @($verified.playsets | Where-Object id -eq $verified.activePlaysetId)
+$otherModsAfter = ConvertTo-Json -InputObject @($verifiedActive[0].mods | Where-Object { !(Test-RouteFilterEntry $_) }) -Depth 100 -Compress
+$otherPlaysetsAfter = ConvertTo-Json -InputObject @($verified.playsets | Where-Object id -ne $verified.activePlaysetId) -Depth 100 -Compress
+if ($verifiedActive.Count -ne 1 -or $otherModsBefore -cne $otherModsAfter -or $otherPlaysetsBefore -cne $otherPlaysetsAfter -or
+    @($verifiedActive[0].mods).Count -ne ($otherMods.Count + 1)) {
+    throw 'Playset preservation check failed; original configuration has not been overwritten.'
 }
+$localEntry = @($verifiedActive[0].mods | Where-Object { $_.source -eq 'local' -and $_.sourceId -eq 'RouteFilter' -and $_.isEnabled })
+if ($localEntry.Count -ne 1) { throw 'Expected exactly one enabled local RouteFilter entry.' }
+# Do not overwrite a configuration changed by the launcher during deployment.
+if ((Get-FileHash -LiteralPath $configPath).Hash -ne (Get-FileHash -LiteralPath (Join-Path $backup 'playset_config.json')).Hash) {
+    throw 'Playset configuration changed during deployment; retry after closing the game and mod manager.'
+}
+[System.IO.File]::WriteAllText($configPath, $serializedConfig, [System.Text.UTF8Encoding]::new($false))
+if ([System.IO.File]::ReadAllText($configPath) -cne $serializedConfig) { throw 'Playset write verification failed.' }
+$localEntry
 "Deployed $Configuration to $destination; all file hashes match. Backup: $backup"
