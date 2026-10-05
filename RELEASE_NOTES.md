@@ -2,7 +2,7 @@
 
 ## English
 
-- Fixed the missed-vehicle restriction issue. The author independently found, investigated, fixed and tested it in-game.
+- Fixed the missed-vehicle restriction issue.
 - Expanded the vehicle asset library with category checkboxes, collapsible groups, prefab thumbnails, favorites and recent assets.
 - Added cross-target copy/paste, saved presets and goods-only truck / cargo-truck presets.
 - Added batch application for road and rail segments: left mouse applies restrictions, right mouse clears them.
@@ -13,7 +13,7 @@
 
 ## 简体中文
 
-- 修复禁行漏车问题，由作者自行发现、排查、修复并完成游戏内测试。
+- 修复禁行漏车问题。
 - 扩展车辆资产目录：分类复选框、分组展开、预制件图标、收藏与最近使用。
 - 支持跨目标复制粘贴、保存预设，以及仅含货运资产的货车／货运货车预设。
 - 加入道路与轨道路段批量应用：左键应用禁行，右键清除。
