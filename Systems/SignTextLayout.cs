@@ -16,9 +16,9 @@ internal static class SignTextLayout
         if(locale.StartsWith("zh",StringComparison.OrdinalIgnoreCase) || locale.StartsWith("ja",StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("No suitable installed CJK sign font; supplementary plate skipped");
         return new FontFamily(FontFamily.GenericSansSerif.Name);
     }
-    internal static void Draw(Graphics graphics,string text,string locale="zh-CN")
+    internal static void Draw(Graphics graphics,string text,string locale="zh-CN",bool transparent=false)
     {
-        graphics.Clear(Color.FromArgb(235,235,228));
+        graphics.Clear(transparent ? Color.Transparent : Color.FromArgb(235,235,228));
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         using var family = Family(locale);
         using var format = new StringFormat { Alignment = StringAlignment.Center,LineAlignment = StringAlignment.Center,FormatFlags = StringFormatFlags.NoWrap };

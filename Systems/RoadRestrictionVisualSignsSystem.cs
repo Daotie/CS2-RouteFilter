@@ -194,7 +194,7 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
             var automatic = ResolveProfilePrefab(ResolvedProfile,m_Theme,out var fallback); ProfileFallback=fallback;
             ResolvedName = automatic?.Name ?? string.Empty;
             CustomUnavailable = custom.Length > 0 && !m_Prefabs.ContainsKey(custom);
-            ClearOwned();
+            if (!enabled) ClearOwned();
             if (enabled)
             {
                 using var targets = m_RestrictionQuery.ToEntityArray(Allocator.Temp);

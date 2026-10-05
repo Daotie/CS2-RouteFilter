@@ -40,6 +40,7 @@ public sealed partial class RouteFilterUISystem
         AddBinding(new TriggerBinding(Mod.Id,"refreshRestrictionMap",()=>m_MapDirty=true));
         m_MapSnapshot = CreateValue("restrictionMap", string.Empty);
         m_MapGeometry = CreateValue("restrictionMapRoads",string.Empty);
+        m_MapTerrain = CreateValue("restrictionMapTerrain",string.Empty);
         m_BrushBinding = CreateValue("segmentBrush", false);
         m_BrushPendingBinding = CreateValue("brushPending", 0);
         m_RangeStatus = CreateValue("rangeStatus","Start");
@@ -97,6 +98,7 @@ public sealed partial class RouteFilterUISystem
         m_RangeStatus.Update(m_RestrictionTool.RangeStatus);
         // Closed map does not even query the road collection.
         if (!m_MapOpen) return;
+        UpdateMapTerrain();
         var index = World.GetOrCreateSystemManaged<RestrictionIndexSystem>();
         var visualRevision = World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.Revision ?? 0;
         var geometryChanged = m_MapRoads.CalculateEntityCount() != m_MapRoadStamps.Count;

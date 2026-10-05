@@ -35,3 +35,8 @@ for(const data of ['B||-10000,-2000;8000,10000','B||30,40;30,40','B||-1,-1;1,1']
   assert.ok(projectMap([view.cx,view.cy+10],view,720,440)[1]<220);
 }
 console.log('PASS: production fit, negative/flat/large networks, Z inversion and cursor-anchored zoom.');
+
+const terrain=parseMap('W||-7000,-7000;7000,-7000;7000,7000;-7000,7000;-7000,-7000\nL||-100,-100;100,-100;100,100;-100,100;-100,-100\nB||0,0;200,200');
+assert.ok(terrain.landPath.endsWith(' Z'));assert.ok(terrain.waterPath.endsWith(' Z'));assert.equal(terrain.roadCount,1);assert.equal(terrain.restrictions.length,0);
+const terrainFit=fitMap(terrain.bounds,720,440);const shore=projectMap([7000,7000],terrainFit,720,440);assert.ok(shore[0]<=696 && shore[1]>=24);
+console.log('PASS: cached land/water layers share road coordinates and combined terrain/network fit.');

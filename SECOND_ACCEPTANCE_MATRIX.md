@@ -21,12 +21,12 @@ Authority: latest direct message and second attached directive override conflict
 | Numeric + wheel only | INTERACTION REPLACEMENT | Value buttons | Direct input, selected wheel parameter, no sliders | UI / settings | IMPLEMENTED / native retest pending | BUILD VERIFIED; prior game failure not yet retested |
 | Wheel step / input ownership | EXISTING FEATURE MODIFICATION | Partial | Effective step, fine/coarse, release camera input on exit | Input | IMPLEMENTED / native retest pending | BUILD VERIFIED; prior game failure not yet retested |
 | Geometry placement | VISUAL CORRECTION | Physically odd | Native entering-lane geometry, bounds and clearances | Signs | PENDING | FAILED / NOT TESTED |
-| RF plate native material | VISUAL CORRECTION | Unlit uniform appearance / ignored masks | Lit material like original; front/back/edge distinction | Rendering | PENDING | FAILED / NOT TESTED |
-| RF plate border | VISUAL CORRECTION | Not visible | UV-aware surviving front border | Textures / rendering | PENDING | FAILED / NOT TESTED |
-| Front-only text | BUG FIX | Possible duplicated/bleeding layers | Single front, correct culling/clearance | Mesh / material | PENDING | FAILED / NOT TESTED |
+| RF plate native material | VISUAL CORRECTION | Unlit uniform appearance / ignored masks | Lit material like original; front/back/edge distinction | Rendering | IMPLEMENTED | BUILD VERIFIED; game retest pending |
+| RF plate border | VISUAL CORRECTION | Not visible | UV-aware surviving front border | Textures / rendering | IMPLEMENTED | BUILD VERIFIED; game retest pending |
+| Front-only text | BUG FIX | Possible duplicated/bleeding layers | Single front, correct culling/clearance | Mesh / material | IMPLEMENTED | BUILD VERIFIED; game retest pending |
 | AUTO theme / locale | EXISTING FEATURE MODIFICATION | Locale can drive primary profile | Physical US/EU theme first; supplementary UI language | Semantic resolver | PENDING | FAILED / NOT TESTED |
 | Semantic compression / direction separation | EXISTING FEATURE MODIFICATION | Protected prior feature | Reuse classification; all directions independent from vehicle coverage | Semantics | PENDING | FAILED / NOT TESTED |
-| Map land | NEW FEATURE | Road network only (basic GAME VERIFIED) | Cached coarse land/water through terrain API | Map backend / UI | PENDING | FAILED / NOT TESTED |
+| Map land | NEW FEATURE | Road network only (basic GAME VERIFIED) | Cached coarse land/water through terrain API | Map backend / UI | IMPLEMENTED | BUILD VERIFIED; game retest pending |
 | Map instruction removal | VISUAL CORRECTION | Permanent paragraph | Remove | UI | IMPLEMENTED / native retest pending | BUILD VERIFIED; prior game failure not yet retested |
 | Map cursor zoom / fit | EXISTING FEATURE MODIFICATION | Pixel math implemented, game acceptance failed | Cursor anchor using actual viewport; combined land/network fit | UI geometry | IMPLEMENTED / native retest pending | BUILD VERIFIED; prior game failure not yet retested |
 | Map pan / input / selection | BUG FIX | Partial | Isolated camera/drag/wheel, shared layer transform | Input / UI | PENDING | FAILED / NOT TESTED |

@@ -12,6 +12,7 @@ const presets$ = bindValue<string>(mod.id,"userPresets","");
 const missing$ = bindValue<number>(mod.id,"presetMissing",0);
 const unsupported$ = bindValue<number>(mod.id,"presetUnsupported",0);
 const map$ = bindValue<string>(mod.id,"restrictionMap","");
+const terrain$ = bindValue<string>(mod.id,"restrictionMapTerrain","");
 const roads$ = bindValue<string>(mod.id,"restrictionMapRoads","");
 const range$ = bindValue<boolean>(mod.id,"segmentBrush",false);
 const status$ = bindValue<string>(mod.id,"rangeStatus","Start");
@@ -125,8 +126,8 @@ const AppearancePalette = ({ reset,onAppearance }: { reset:number;onAppearance:(
 };
 
 export const RestrictionMap = () => {
-  const raw=useValue(map$), roads=useValue(roads$);
-  const geometry=useMemo(()=>parseMap(roads),[roads]), overlay=useMemo(()=>parseMap(raw),[raw]);
+  const raw=useValue(map$), roads=useValue(roads$), terrain=useValue(terrain$);
+  const geometry=useMemo(()=>parseMap(roads+"\n"+terrain),[roads,terrain]), overlay=useMemo(()=>parseMap(raw),[raw]);
   const host=useRef<HTMLDivElement>(null);
   const [size,setSize]=useState({width:720,height:440});
   const [view,setView]=useState<MapView>({cx:0,cy:0,scale:1});
@@ -153,6 +154,8 @@ export const RestrictionMap = () => {
         const start=drag.current;if(start&&event.buttons===1)setView({...start.view,cx:start.view.cx-(event.clientX-start.x)/start.view.scale,cy:start.view.cy+(event.clientY-start.y)/start.view.scale});
       }} onMouseUp={()=>{drag.current=null;}} onMouseLeave={()=>{drag.current=null;}}>
         <g transform={mapMatrix(view,size.width,size.height)}>
+          <path d={geometry.waterPath} fill="#233849"/>
+          <path d={geometry.landPath} fill="#46514c" stroke="#46514c" strokeWidth={.5/view.scale}/>
           {layers.roads&&geometry.backgroundPaths.map((d,index)=><path key={index} d={d} fill="none" stroke="#576571" strokeWidth={1.5/view.scale}/>)}
           {overlay.restrictions.filter(row=>row.points.length===1?layers.nodes:layers.segments).map(row=><g key={row.key} onMouseDown={event=>event.stopPropagation()} onClick={()=>trigger(mod.id,"selectMapTarget",row.key)}>
             <title>{`${row.assets} ${tr("MapAssets","vehicle assets")}, ${row.directions} ${tr("EntryDirections","restricted entries")}`}</title>

@@ -8,6 +8,15 @@ internal static class Program
     private static void Main(string[] args)
     {
         var output = args.Length == 0 ? Path.GetTempPath() : args[0]; Directory.CreateDirectory(output);
+        using(var transparent=new Bitmap(SignTextLayout.Width,SignTextLayout.Height))
+        {
+            using(var graphics=Graphics.FromImage(transparent)) SignTextLayout.Draw(graphics,"TRUCKS","en-US",true);
+            if(transparent.GetPixel(0,0).A!=0 || transparent.GetPixel(50,50).A!=0) throw new Exception("Text overlay hides plate border");
+            int ink=0;for(int x=0;x<transparent.Width;x++)for(int y=0;y<transparent.Height;y++)if(transparent.GetPixel(x,y).A>200)ink++;
+            if(ink<100)throw new Exception("Transparent sign glyphs missing");
+            transparent.Save(Path.Combine(output,"transparent-front-text.png"),ImageFormat.Png);
+            Console.WriteLine("PASS transparent front glyphs: plate border/background remain visible");
+        }
         foreach (var locale in new[] { "zh-CN","en-GB","en-US" })
         foreach (var text in new[] { "载货汽车","大型载货汽车","道路养护车辆","指定大型载货汽车","指定道路养护车辆","ROAD MAINTENANCE","SELECTED LARGE GOODS VEHICLES","SELECTED EMERGENCY VEHICLES","MOTORCYCLES","GOODS VEHICLES","TRUCKS" })
         {

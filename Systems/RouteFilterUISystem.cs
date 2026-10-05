@@ -268,6 +268,7 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         Mod.SelectedVehicleAssets.Clear();
         Mod.SelectedTargetMode = Components.RestrictionTargetMode.Node;
         m_LastSelectedTarget = Entity.Null;
+        m_MapTerrain.Update(string.Empty); m_NextTerrainSample = 0;
         m_SelectedTargetBinding.Update(string.Empty);
         PublishRestriction();
         m_TargetModeBinding.Update((int)Mod.SelectedTargetMode);

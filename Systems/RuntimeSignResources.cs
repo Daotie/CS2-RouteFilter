@@ -21,24 +21,25 @@ internal sealed class RuntimeSignResources : IDisposable
     private readonly HashSet<string> m_FailedMain = new(StringComparer.Ordinal);
     private static Stream Resource(string name) => Assembly.GetExecutingAssembly().GetManifestResourceStream("RouteFilter." + name)
         ?? throw new FileNotFoundException("Missing embedded sign resource: " + name);
-    private static Shader SignShader() => Shader.Find("HDRP/Unlit") ?? Shader.Find("Unlit/Texture")
+    private static Shader SignShader() => Shader.Find("HDRP/Lit") ?? Shader.Find("Standard")
         ?? throw new InvalidOperationException("No supported sign shader");
     private Texture2D Texture(string name, bool linear = false)
     {
         using var input = Resource(name); using var bytes = new MemoryStream(); input.CopyTo(bytes);
-        var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false, linear) { name = "RF:" + name };
+        var texture = new Texture2D(2, 2, TextureFormat.RGBA32, true, linear) { name = "RF:" + name, wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear, anisoLevel = 4 };
         m_Textures.Add(texture);
         if (!ImageConversion.LoadImage(texture, bytes.ToArray())) throw new InvalidDataException(name);
         return texture;
     }
     private static void SetTexture(Material material, Texture texture)
     {
-        if (material.HasProperty("_UnlitColorMap")) { material.SetTexture("_UnlitColorMap", texture); material.EnableKeyword("_UNLIT_COLOR_MAP"); }
         if (material.HasProperty("_BaseColorMap")) material.SetTexture("_BaseColorMap", texture);
         if (material.HasProperty("_MainTex")) material.SetTexture("_MainTex", texture);
-        if (material.HasProperty("_UnlitColor")) material.SetColor("_UnlitColor", Color.white);
-        if (material.HasProperty("_CullMode")) material.SetFloat("_CullMode", 0);
-        if (material.HasProperty("_CullModeForward")) material.SetFloat("_CullModeForward", 0);
+        if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", Color.white);
+        if (material.HasProperty("_Color")) material.SetColor("_Color", Color.white);
+        if (material.HasProperty("_EmissiveColor")) material.SetColor("_EmissiveColor", Color.black);
+        if (material.HasProperty("_CullMode")) material.SetFloat("_CullMode", 2);
+        if (material.HasProperty("_CullModeForward")) material.SetFloat("_CullModeForward", 2);
     }
     private void EnsurePlate()
     {
@@ -55,7 +56,9 @@ internal sealed class RuntimeSignResources : IDisposable
         SetTexture(m_PlateMaterial, Texture("RF-Plate_BaseColor.png"));
         var mask = Texture("RF-Plate_MaskMap.png", true);
         var control = Texture("RF-Plate_ControlMask.png", true);
-        if (m_PlateMaterial.HasProperty("_MaskMap")) m_PlateMaterial.SetTexture("_MaskMap", mask);
+        if (m_PlateMaterial.HasProperty("_MaskMap")) { m_PlateMaterial.SetTexture("_MaskMap", mask); m_PlateMaterial.EnableKeyword("_MASKMAP"); }
+        if (m_PlateMaterial.HasProperty("_MetallicGlossMap")) { m_PlateMaterial.SetTexture("_MetallicGlossMap", mask); m_PlateMaterial.EnableKeyword("_METALLICGLOSSMAP"); }
+        Mod.Log.Info($"[RouteFilter.RoadSigns] plate shader={m_PlateMaterial.shader.name} lit=true authoredUV=true front=light rear=aluminum mask={m_PlateMaterial.HasProperty("_MaskMap")} text=transparent-front-only");
         if (m_PlateMaterial.HasProperty("_ControlMask")) m_PlateMaterial.SetTexture("_ControlMask", control);
         // Main signs face local +Z (LookRotation(-travel)). The plate text uses
         // that same front, clockwise-from-front winding and upright UVs.
@@ -71,7 +74,7 @@ internal sealed class RuntimeSignResources : IDisposable
         var key=language+"|"+legend.Key+"|"+profile+"|"+SignTextLayout.FontStyleKey(language)+"|"+SignTextLayout.Tier(text)+"|"+text;
         if (m_Text.TryGetValue(key, out var cached)) return cached;
         using var bitmap = new System.Drawing.Bitmap(SignTextLayout.Width,SignTextLayout.Height);
-        using (var graphics = System.Drawing.Graphics.FromImage(bitmap)) SignTextLayout.Draw(graphics,text,language);
+        using (var graphics = System.Drawing.Graphics.FromImage(bitmap)) SignTextLayout.Draw(graphics,text,language,true);
         using var output = new MemoryStream(); bitmap.Save(output, ImageFormat.Png);
         var texture = new Texture2D(2,2,TextureFormat.RGBA32,false) { name = "RF.Label:" + text };
         m_Textures.Add(texture); ImageConversion.LoadImage(texture, output.ToArray());
@@ -79,6 +82,22 @@ internal sealed class RuntimeSignResources : IDisposable
         SetTexture(material, texture);
         if (material.HasProperty("_CullMode")) material.SetFloat("_CullMode",2);
         if (material.HasProperty("_CullModeForward")) material.SetFloat("_CullModeForward",2);
+        // Transparent glyphs leave the authored face, black border and lighting
+        // visible; the former opaque text rectangle covered the border UV band.
+        if (material.HasProperty("_SurfaceType")) material.SetFloat("_SurfaceType",1);
+        if (material.HasProperty("_Mode")) material.SetFloat("_Mode",3);
+        if (material.HasProperty("_BlendMode")) material.SetFloat("_BlendMode",0);
+        if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend",5);
+        if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend",10);
+        if (material.HasProperty("_AlphaSrcBlend")) material.SetFloat("_AlphaSrcBlend",1);
+        if (material.HasProperty("_AlphaDstBlend")) material.SetFloat("_AlphaDstBlend",10);
+        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite",0);
+        material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.DisableKeyword("_ALPHATEST_ON");
+        material.renderQueue=3000;
+        material.SetShaderPassEnabled("TransparentDepthPrepass",false);
+        material.SetShaderPassEnabled("TransparentDepthPostpass",false);
         m_Text[key] = material; return material;
     }
     internal static GameObject MeshObject(string name, Mesh mesh, Material[] materials, Transform parent)
