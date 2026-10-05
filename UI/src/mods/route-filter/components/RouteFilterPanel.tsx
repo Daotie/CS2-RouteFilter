@@ -9,6 +9,8 @@ import { AssetList } from "./AssetList";
 import { AssetSearch } from "./AssetSearch";
 import { PanelHeader } from "./PanelHeader";
 import { TargetSelector } from "./TargetSelector";
+import { icons } from "../assets";
+import { SegmentedSelector } from "./SegmentedSelector";
 import { Enhancements } from "./Enhancements";
 import styles from "../route-filter.module.scss";
 
@@ -93,12 +95,16 @@ export const RouteFilterPanel = (props: Props) => {
         <small>{props.selectedCount} / {props.assetCount}</small>
       </div>
       <AssetSearch value={props.search} placeholder={props.labels.search} onChange={props.onSearchChange} />
-      <div className={`${styles.libraryToolbar} ${styles.libraryTabs}`} role="group" aria-label={tr("RouteFilter.UI.LibraryAll","Library")}>
-        {[["all",tr("RouteFilter.UI.LibraryAll","All")],["favorites",tr("RouteFilter.UI.LibraryFavorites","Favorites")],["recent",tr("RouteFilter.UI.LibraryRecent","Recent")]].map(([id,label]) => <Button key={id} variant="flat" selected={view === id} onSelect={() => setView(id)}>{label}</Button>)}
+      <div className={styles.libraryFilter}>
+        <SegmentedSelector value={view} label={tr("RouteFilter.UI.LibraryAll","Library")} options={[{id:"all",label:tr("RouteFilter.UI.LibraryAll","All")},{id:"favorites",label:`★ ${tr("RouteFilter.UI.LibraryFavorites","Favorites")}`},{id:"recent",label:tr("RouteFilter.UI.LibraryRecent","Recent")}]} onChange={setView} />
       </div>
       <AssetList favorites={favorites} onFavorite={id => trigger(mod.id, "toggleFavoriteAsset", id)} favoriteLabel={tr("RouteFilter.UI.LibraryFavoriteToggle", "Toggle favorite")} roots={visible.roots} childrenByParent={visible.children} selected={props.selected} expanded={props.expanded} searchTerm={props.search.trim().toLocaleLowerCase()} emptyLabel={props.labels.empty} trailerLabel={props.labels.trailer} expandLabel={props.labels.expand} collapseLabel={props.labels.collapse} roadGroupLabel={props.labels.roadGroup} railGroupLabel={props.labels.railGroup} onToggle={props.onToggleAsset} onExpand={props.onExpandAsset} />
       <ActionBar allowAllLabel={props.labels.allowAll} forbidAllLabel={props.labels.forbidAll} applyLabel={props.labels.apply} clearLabel={props.labels.clear} refreshLabel={props.labels.refresh} targetReady={targetReady && props.configurationEditable} onAllowAll={() => bulk(false)} onForbidAll={() => bulk(true)} onApply={props.onApply} onClear={props.onClear} onRefresh={props.onRefresh} />
 
+      <div className={styles.utilityFooter}>
+        <Tooltip tooltip={props.buildId}><span className={styles.buildLabel}>{props.buildId.split("-").slice(-4).join("-")}</span></Tooltip>
+        <Button variant="flat" className={styles.utilityAction} onSelect={()=>setConfirmReset(true)}><img className={styles.utilityIcon} src={icons.reset} alt="" />{tr("RouteFilter.UI.Reset","Reset RouteFilter")}</Button>
+      </div>
       {props.resetCompleted > 0 && <div className={styles.resetStatus} role="status">{tr("RouteFilter.UI.ResetCompleted", "Reset completed. Unknown lane and path state was left unchanged.")}</div>}
     </Panel>}
     <Enhancements onAppearance={setAppearanceActive} targetMode={props.targetMode} editable={props.configurationEditable} popup={utilityPopup} onPopup={openUtility} reset={props.resetCompleted} targetReady={targetReady} hasClipboard={hasClipboard} onReset={() => { openUtility(""); setConfirmReset(true); }} />

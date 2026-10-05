@@ -1,6 +1,6 @@
 import React from "react";
 import classNames from "classnames";
-import { Button } from "cs2/ui";
+import { SegmentedSelector } from "./SegmentedSelector";
 import styles from "../route-filter.module.scss";
 import { icons } from "../assets";
 
@@ -15,10 +15,7 @@ type Props = {
 
 export const TargetSelector = ({ mode, nodeLabel, segmentLabel, status, targetReady, onModeChange }: Props) => (
   <section className={styles.targetSection}>
-    <div className={styles.segmentedControl}>
-      <Button variant="flat" selected={mode === 0} className={classNames(styles.segmentButton, { [styles.segmentButtonActive]: mode === 0 })} onSelect={() => onModeChange(0)}>{nodeLabel}</Button>
-      <Button variant="flat" selected={mode === 1} className={classNames(styles.segmentButton, { [styles.segmentButtonActive]: mode === 1 })} onSelect={() => onModeChange(1)}>{segmentLabel}</Button>
-    </div>
+    <SegmentedSelector value={String(mode)} label={`${nodeLabel} / ${segmentLabel}`} options={[{id:"0",label:nodeLabel},{id:"1",label:segmentLabel}]} onChange={id=>onModeChange(Number(id))} />
     <div className={classNames(styles.targetStatus, { [styles.targetStatusReady]: targetReady })}>
       <img className={styles.targetInfo} src={icons.info} alt="" />
       <div>
