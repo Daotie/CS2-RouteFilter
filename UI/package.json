@@ -1,7 +1,7 @@
 {
   "name": "cs2-routefilter-ui",
   "private": true,
-  "version": "2.1.0-dev",
+  "version": "2.1.0",
   "scripts": {
     "build": "webpack",
     "typecheck": "tsc --noEmit",

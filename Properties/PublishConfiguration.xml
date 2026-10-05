@@ -9,6 +9,10 @@
 
 RouteFilter gives Cities: Skylines II players precise control over which vehicle assets may use a selected road or rail node or an entire network segment.
 
+## New in 2.1.0
+
+Categories, favorites/recent assets, cross-target copy/paste, presets, road/rail batch application, restriction map and persistent EU/US traffic-sign controls.
+
 ## Main features
 
 *   Restrict exact road, tram, train, subway, carriage, trailer, and outside-traffic assets.
@@ -36,7 +40,7 @@ Rebuilding a network segment can replace its game entity and remove restrictions
 
 RouteFilter does not redraw fixed public-transport lines. A confirmed no-path result ends the affected vehicle; uncertain technical results are grandfathered.
 
-**Known issue in 2.0.0:** Restriction detection may miss some vehicles, allowing them to pass through a restricted target. We will investigate and attempt to fix this in a future update.
+**Fixed in 2.1.0:** The reported missed-vehicle restriction issue has been resolved and confirmed by player game testing.
 
 ## AI-assisted development
 
@@ -71,6 +75,10 @@ General questions and informal feedback are welcome on the Paradox Forum or Disc
 
 RouteFilter 为《都市天际线 II》玩家提供了精细控制能力，可指定哪些车辆资产允许使用选定的道路或铁路节点，或者整个路段。
 
+## 2.1.0 新增
+
+分类与收藏／最近资产、跨目标复制粘贴、预设、道路／轨道批量应用、限行地图和 EU／US 常驻交通标志调整。
+
 ## 主要功能
 
 *   精确限制特定的道路、有轨电车、火车、地铁、客运车厢、拖车以及外部交通资产。
@@ -98,7 +106,7 @@ RouteFilter 为《都市天际线 II》玩家提供了精细控制能力，可�
 
 RouteFilter 不会重新绘制固定公共交通线路。可靠确认无合法路线时结束受影响车辆；自身无法可靠执行或确认结果时才放行。
 
-**2.0.0 已知问题：** 禁行检测可能漏掉部分车辆，使其仍能通过受限目标。后续会调查并尝试修复。
+**2.1.0 已修复：** 已解决反馈的禁行漏车问题，并通过玩家游戏测试。
 
 ## AI 辅助开发说明
 
@@ -133,35 +141,31 @@ RouteFilter 不会重新绘制固定公共交通线路。可靠确认无合法�
   <Tag Value="UITransportationTrain" />
   <Tag Value="UIRoads" />
   <Tag Value="UITransportation" />
-  <ModVersion Value="2.1.0-dev" />
+  <ModVersion Value="2.1.0" />
   <GameVersion Value="1.6.*" />
-  <ChangeLog># RouteFilter 2.0.0
+  <ChangeLog># RouteFilter 2.1.0
 
 ## English
 
-- Rebuilt road and rail asset restrictions around directed entry detection and request-local native pathfinding exclusion.
-- Matching vehicles reroute when a legal alternative exists. A reliably confirmed no-path result ends the vehicle through a vanilla-compatible termination/deletion lifecycle; it does not enter a parking or retry loop.
-- Restriction detection follows watched entry lanes and relevant lane objects instead of scanning every vehicle in the city. Fixed the severe FPS drop while selecting a target with simulation paused.
-- Refreshed the panel and asset catalog, restored native mod settings, and added confirmed Reset RouteFilter recovery. Bulk Allow All / Forbid All now affects only the filtered asset list.
-- English and Simplified Chinese are supported. Restrictions remain city-save configuration; enforcement runtime state is rebuilt after loading.
-- Road rerouting and road/rail no-alternative termination passed player game testing of the release candidate. This does not imply every asset, network layout or mod combination has been tested.
-
-### Known issue
-
-**Some vehicles may be missed by restriction detection and pass through a restricted target. This is a known limitation in 2.0.0; we will investigate and attempt to fix it in a future update.**
+- Fixed the reported missed-vehicle restriction issue. The final release candidate passed player in-game testing.
+- Expanded the vehicle asset library with category checkboxes, collapsible groups, prefab thumbnails, favorites and recent assets.
+- Added cross-target copy/paste, saved presets and goods-only truck / cargo-truck presets.
+- Added batch application for road and rail segments: left mouse applies restrictions, right mouse clears them.
+- Added a restriction map with land/water background, road and track geometry, restricted nodes/segments and cursor-centered zoom. Entry navigation markers scale with the network.
+- Added persistent traffic-sign controls, EU/US styles and real-time position/rotation editing; mouse wheel adjusts only the hovered input using the selected step.
+- Corrected supplementary plate rendering and localized text. Restricted/Except semantics choose a concise equivalent description on one plate, with at most two lines; full Other-category allowance reads 其它车辆除外 in Simplified Chinese.
+- Existing city-save restriction data remains compatible. No new save schema or migration is introduced by this release.
 
 ## 简体中文
 
-- 重构道路与轨道逐资产禁行，基于有向入口检测和单次请求的原生寻路排除执行限制。
-- 有合法替代路线时车辆绕行；可靠确认无合法路线后，通过兼容原版的任务终止／删除流程结束车辆，不进入停车等待或反复重试。
-- 检测工作量随受监视入口车道和相关车道对象增长，不再扫描全城车辆；修复暂停状态选择目标时的严重掉帧问题。
-- 更新面板和资产目录，恢复游戏原生模组设置，加入需确认的“重置 RouteFilter”恢复功能；“全部允许／全部禁止”只作用于筛选后的资产列表。
-- 支持英文和简体中文；存档保存玩家禁行配置，执行过程的运行时状态在加载后重建。
-- 发布候选版的道路绕行及道路／轨道无替代路线终止已通过玩家游戏测试；不代表所有资产、路网和模组组合都已验证。
-
-### 已知问题
-
-**禁行检测可能漏掉部分车辆，使其仍能通过受限目标。这是 2.0.0 的已知限制，后续更新将调查并尝试修复。**
+- 修复反馈的禁行漏车问题，最终发布候选版已通过玩家游戏测试。
+- 扩展车辆资产目录：分类复选框、分组展开、预制件图标、收藏与最近使用。
+- 支持跨目标复制粘贴、保存预设，以及仅含货运资产的货车／货运货车预设。
+- 加入道路与轨道路段批量应用：左键应用禁行，右键清除。
+- 加入限行地图，显示陆地／水域、道路／轨道、受限节点与路段，并支持朝光标缩放；入口导航箭头随路网缩放。
+- 加入常驻交通标志面板、EU／US 样式和实时位置／旋转调整；滚轮仅修改悬浮输入框，并使用选定步长。
+- 修正辅助牌材质与本地化文字，比较禁止对象和除外对象，合并为一块辅助牌、最多两行；整类其它车辆允许时正确显示“其它车辆除外”。
+- 沿用既有城市存档禁行数据，正式版不引入新的存档格式或迁移。
 </ChangeLog>
   <ExternalLink Type="github" Url="https://github.com/Daotie/CS2-RouteFilter" />
   <ExternalLink Type="discord" Url="https://discord.gg/Y9UXFCkqmD" />

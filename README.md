@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.1.0--dev-2d8b70" alt="Version 2.1.0-dev">
+  <img src="https://img.shields.io/badge/version-2.1.0-2d8b70" alt="Version 2.1.0">
   <img src="https://img.shields.io/badge/status-stable-1976d2" alt="Status">
   <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="License">
 </p>
@@ -30,7 +30,7 @@
 
 ---
 
-**2.0.0:** Road rerouting and road/rail no-path termination passed player game testing. Some vehicles may still be missed by restriction detection; we will investigate and attempt to fix this in a future update. See the [changelog](CHANGELOG.md).
+**2.1.0:** The reported missed-vehicle restriction issue has been resolved and confirmed by player game testing. This release adds the expanded asset library, restriction map, batch application and traffic-sign controls. See the [changelog](CHANGELOG.md).
 
 RouteFilter lets you decide which exact vehicle assets may pass through one network node or an entire road, tram, train, or subway segment.
 
@@ -137,7 +137,7 @@ The shortcut is remappable in the game's settings. Closing the panel also closes
 
 ## Save data and upgrades
 
-RouteFilter `2.0.0` stores each restricted target's forbidden asset list in the save's versioned payload using stable prefab names and re-applies it after loading.
+RouteFilter `2.1.0` stores each restricted target's forbidden asset list in the save's versioned payload using stable prefab names and re-applies it after loading.
 
 Saves from `1.0.1` and earlier remain readable; their per-entity restriction data is preserved.
 
@@ -148,7 +148,7 @@ Rebuilding, replacing, or deleting a road or track segment creates new game enti
 - Asset names are technical prefab names supplied by the game or asset author; a localized display name may not exist.
 - Engine/carriage grouping appears only where the game exposes a fixed-trailer or multiple-unit relationship.
 - A fixed public-transport route cannot always be changed into a valid detour. A confirmed no-path result ends the affected vehicle; RouteFilter does not redraw the player's transport line.
-- Some vehicles may be missed by restriction detection and pass through the target. This known limitation will be investigated for a future fix.
+- The previously reported missed-vehicle restriction issue is fixed in 2.1.0; the release candidate passed player game testing.
 - Compatibility with mods that replace vehicle navigation, pathfinding, or network entities cannot be guaranteed. Report conflicts with a minimal playset and logs.
 
 ## Community

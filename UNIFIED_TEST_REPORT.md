@@ -1,17 +1,8 @@
-# RouteFilter 2.1.0-dev — UX-39
+# RouteFilter 2.1.0 release verification
 
-Fix map entry arrow physical size: independent of city/terrain extent, following map zoom. Fix complete Other-category exemption: 其它车辆除外, preserving the allowed set and keeping unknown/missing assets separate.
+Release date: 2026-10-06 (Asia/Shanghai).
+User reported the final UX-39 in-game test passed and confirmed the missed-vehicle problem was resolved, then explicitly requested publication of 2.1.0. This is player-reported acceptance; it does not mean all possible assets/network/mod combinations were tested.
 
-Build/test verification passed. Native visual acceptance of UX-39 remains pending. See UX39_CORRECTION_REPORT.md for reproduced scenarios and validation.
+The stable payload retains UX-39 behavior and existing save schema. Only version/build identifiers and release documentation/metadata change during promotion. UX-39 automated verification: Debug/Release zero warnings/errors, 16 coverage, 65536 lease, 23 safety, 261 save, 93 sign geometry and 2143 UX/semantic checks; typography/opaque atlas/mask, UI typecheck/tests/build, arrow absolute-size/zoom regressions and mesh UV checks passed. Stable-version Debug/Release builds, all listed rule/font/mesh tests, UI typecheck/tests/build and clean dependency install passed. npm audit --omit=dev reports zero runtime vulnerabilities. Version consistency and whitespace checks passed.
 
-# UX-39 — focused correction
-
-User UX-38 game screenshots show oversized map arrows overlapping in a starburst and the 46/98 selected restriction (Other 0/52, all five other categories selected) printing 车辆限行 instead of 其它车辆除外.
-
-Arrow cause: UX-38 converted a screen-space marker size into world geometry using whole-map fit scale, so large terrain bounds produced a huge physical marker. Correction: remove fit-scale input; arrow tip-to-back length is 6 world metres, independent of map extent. Its shape is transformed with the same map matrix as the roads and scales proportionally with zoom. Transparent click target remains usable.
-
-Legend cause: valid road assets in the UI Other category shared the unknown/missing semantic, making the resolver reject the allowed set. Correction: append OtherRoadVehicles as the exact remainder of the existing road category partition. Existing road CarData assets without a named category have this semantic; missing and non-road assets keep SpecifiedVehicles/Notice. Complete Other allowance prints 其它车辆除外, the corresponding restriction prints 其它车辆, and partial Other allowance cannot falsely exempt the whole category. No asset names or legacy UI translation fallback added.
-
-Verification: Debug/Release zero warnings/errors; existing 16 coverage, 65536 lease, 23 safety, 261 save and 93 sign geometry checks; resolver 2143 checks, including actual screenshot 46/98 and 0/52 counts and exact coverage across all nonempty seven-asset partitions. New marker regression checks absolute physical size and 200m/2km/14km map extents, in addition to proportional zoom tests. Sign font/opaque atlas/mask tests include 其它车辆除外; UI typecheck/tests/build and authored mesh checks pass.
-
-Scope: only these two reported defects. No palette/layout/batch operation changes. Deploy UX-39 to existing Mods/RouteFilter, preserve current playset configuration and other entries byte-for-byte. Native UX-39 visual acceptance remains pending restart; user screenshots establish UX-38 failure, not UX-39 success.
+Release package includes compiled DLL/dependencies, UI bundle, icons, bilingual notes, source commit identity and SHA-256 sums. Publish to existing Paradox ModId 155839 using NewVersion and GitHub tag v2.1.0. Preserve the current local playset during stable payload deployment.
