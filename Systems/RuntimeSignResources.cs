@@ -63,11 +63,15 @@ internal sealed class RuntimeSignResources : IDisposable
             uv = new[] { new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1) }, triangles = new[] { 0,2,1,0,3,2 } };
         m_TextQuad.RecalculateNormals(); m_TextQuad.RecalculateBounds();
     }
-    private Material TextMaterial(string text)
+    private Material TextMaterial(RouteFilter.Persistence.TrafficLegend legend,string locale,string profile)
     {
-        if (m_Text.TryGetValue(text, out var cached)) return cached;
+        var language=RouteFilter.Persistence.TrafficSignLocalization.Language(locale);
+        var dictionary=Game.SceneFlow.GameManager.instance.localizationManager.activeDictionary;
+        var text=RouteFilter.Persistence.TrafficSignLocalization.ResolveText(legend,locale,key=>dictionary.TryGetValue(key,out var value)?value:null);
+        var key=language+"|"+legend.Key+"|"+profile+"|"+SignTextLayout.FontStyleKey(language)+"|"+SignTextLayout.Tier(text)+"|"+text;
+        if (m_Text.TryGetValue(key, out var cached)) return cached;
         using var bitmap = new System.Drawing.Bitmap(SignTextLayout.Width,SignTextLayout.Height);
-        using (var graphics = System.Drawing.Graphics.FromImage(bitmap)) SignTextLayout.Draw(graphics,text);
+        using (var graphics = System.Drawing.Graphics.FromImage(bitmap)) SignTextLayout.Draw(graphics,text,language);
         using var output = new MemoryStream(); bitmap.Save(output, ImageFormat.Png);
         var texture = new Texture2D(2,2,TextureFormat.RGBA32,false) { name = "RF.Label:" + text };
         m_Textures.Add(texture); ImageConversion.LoadImage(texture, output.ToArray());
@@ -75,7 +79,7 @@ internal sealed class RuntimeSignResources : IDisposable
         SetTexture(material, texture);
         if (material.HasProperty("_CullMode")) material.SetFloat("_CullMode",2);
         if (material.HasProperty("_CullModeForward")) material.SetFloat("_CullModeForward",2);
-        m_Text[text] = material; return material;
+        m_Text[key] = material; return material;
     }
     internal static GameObject MeshObject(string name, Mesh mesh, Material[] materials, Transform parent)
     {
@@ -85,13 +89,13 @@ internal sealed class RuntimeSignResources : IDisposable
         obj.AddComponent<MeshRenderer>().sharedMaterials = materials;
         return obj;
     }
-    internal void Plate(Transform parent, float height, string label)
+    internal void Plate(Transform parent, float height, RouteFilter.Persistence.TrafficLegend legend,string locale,string profile)
     {
         EnsurePlate();
         if (m_PlateMaterial == null || m_TextQuad == null) throw new InvalidOperationException("RF-Plate resources unavailable");
         var plate = MeshObject("RF-Plate", m_Plate, new[] { m_PlateMaterial }, parent);
         plate.transform.localPosition = new Vector3(0,height,0);
-        MeshObject("RF-Plate.Text", m_TextQuad, new[] { TextMaterial(label) }, plate.transform);
+        MeshObject("RF-Plate.Text", m_TextQuad, new[] { TextMaterial(legend,locale,profile) }, plate.transform);
     }
     internal void ScaledMain(Transform parent, StaticObjectPrefab prefab, float scale, Game.Objects.ObjectState state)
     {

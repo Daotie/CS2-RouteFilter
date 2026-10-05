@@ -17,3 +17,7 @@
 | Terminology | Formal bilingual transport language | Prototype terms | Inconsistent user language | Localize tool, sign, preset and map labels |
 
 Implementation proceeds in P0–P4 order. Stable enforcement and save format remain the backend baseline. In-game acceptance is required after the unified build; compilation alone is not visual acceptance.
+
+## SIGN-32 semantic addendum
+
+The original table records the pre-UX-31 baseline. SIGN-32 replaces direct category plates with stable visual semantics, coverage-qualified consolidated legends and independent profile/language/asset state. Profile limitations and current automated versus game verification are documented in UNIFIED_TEST_REPORT.md. The original UX tool/map/editing contract remains; no gameplay red line, icons on RF-Plate, new enforcement behavior or save-schema changes.

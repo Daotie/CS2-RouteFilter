@@ -1,62 +1,54 @@
-# RouteFilter 2.1 UX conformance build
+# RouteFilter 2.1.0-dev — unified SIGN-32 test build
 
-Build: `RF21-20261005-UX-31`. This supersedes the UNIFIED-30 prototype UI.
+Build: `RF21-20261005-SIGN-32`. Player game acceptance is pending.
 
-## Implemented behavior
+## Implemented presentation changes
 
-- The main panel keeps the original compact editing sequence. Search precedes All / Favorites / Recent. Favorites are independent far-left outline / yellow stars; restriction checkboxes are on the right.
-- The header Tools menu owns copy / paste, presets, map, appearance, sign style, range and reset. Paste is disabled for an empty clipboard. Reset retains its existing confirmation.
-- Presets contain Trucks and Cargo Trucks plus user save, load, rename and delete. Loading changes the pending vehicle selection; Apply remains explicit.
-- The existing thumbnail dropdown retains AUTO and custom assets together, scrolling, localized display names and cached catalog thumbnails. No per-item 3D render targets are created.
-- Appearance enters a compact persistent upper-left palette in place of the primary RouteFilter panel. Choose Scale, Lateral, Longitudinal, Height or Rotation, then scroll over the world. Translation/scale steps: .01 / .05 / .1 / .5; rotation: 1 degree. Shift multiplies by .2; Ctrl by 5. A native camera Zoom action barrier prevents simultaneous camera zoom. Close restores the primary panel. Settings saves are debounced after wheel input. While a target is selected, wheel input previews that target; the remaining signs refresh once after input settles. Vehicle/category label caches survive transform changes.
-- Text geometry now faces local +Z with front-view upright UVs, matching both roadside sign frames. The text face covers 750 × 204 mm of the 800 × 250 mm plate. Adaptive glyph-bound fitting uses the installed Windows Microsoft YaHei bold sans-serif family; long labels use at most two centered lines. No font files are bundled or redistributed. This is a system CJK signage-oriented font choice, not a claim of exact compliance with a specific highway typography standard.
-- Category labels deduplicate tractor/trailer variants and identify trucks, motorcycles and services. If every applicable road vehicle asset is selected, there are no auxiliary plates. Direction coverage is not used for this decision.
-- Persistent red ground meshes have been removed, including the old enabled-by-default setting. Only a temporary blue range preview exists while editing.
-- Native `InfoSectionBase` / `SelectedInfoUISystem.AddMiddleSection` and the game's `selectedInfoSectionComponents` registry host sign information. Ownership resolves through bounded native Owner chains; both markers and assembly roots carry the owning target, connection and entry ordinal. Native roots provide PrefabRef and Transform for selection promotion. The section shows vehicle categories, road name, restrictions and Edit in RouteFilter.
-- Start/end Segment Range replaces drag brush input. It uses a deterministic minimum-segment-count chain over connected native Road edges, independent of vehicle routing. A bounded search (16,384 visited edges) fails closed. Confirmation revalidates topology, snapshots the current vehicle selection, releases enforcement once and marks the batch dirty for one normal rebuild. Blue preview meshes are grouped into chunks instead of one object per segment.
-- Restriction Map is a dedicated RouteFilter window. World-coordinate road geometry and restriction overlays have separate bindings and memoized parsing. Geometry rebuilds on network change/open, not restriction-only revision. Modification-end change collection observes Updated/Deleted roads; closed maps perform no road/restriction queries. SVG paths are chunked. Roads, restricted segments, nodes and reliable entry arrows have separate layer controls. Drag pans, wheel/buttons zoom, Fit resets the view, and clicking a restricted target loads the primary editor.
-- Native camera barriers, pointer regions, map bindings, preview meshes and cached runtime materials are released on close/reset/load/disposal. Road/rail enforcement algorithms and city save schema are unchanged.
+Restrictions now pass through stable visual semantic IDs, coverage-aware consolidation, profile/primary selection and localized text. The rejected prefab-category-to-plate generator is removed. Complete road-vehicle scope uses the verified native no-entry primary alone. Complete goods subclasses collapse to one category; large-goods-only retains its narrower meaning; selected subsets keep a qualifier. Road maintenance is derived from native maintenance metadata. Unknown/missing classification uses selected vehicles rather than guessed names. Complex mixes consolidate before rendering, with at most two text-only supplementary plates.
 
-## Architecture reference inspected
+`Signage Profile` is separate from AUTO/CUSTOM asset mode and active locale. AUTO reads each entry road's ThemeObject / ThemePrefab.assetPrefix metadata: NA keeps US under all languages; EU + Simplified Chinese resolves CN, EU + en-GB resolves UK, other/unfinished refinements use Generic Europe. Manual choice survives language changes. CN/UK have no independently verified national primary assets and explicitly display a compatible no-entry fallback. US uses a native NA-family no-entry asset when available. Dedicated goods/bus prohibition capabilities are absent from native metadata; no graphics are invented to pretend they exist. HK/JP stay hidden.
 
-[TransitPlanner, Public branch](https://github.com/bruceyboy24804/TransitPlanner/tree/Public/TransitPlanner): `network-panel.tsx`, `network.module.scss`, `network-extras.tsx`, `TP_PlannerUISystem.Network.cs`, `.Roads.cs`, `.Ground.cs`, `.Terrain.cs`.
+Supplementary semantic dictionaries have independent zh-CN/zh-HANS, en-US and en-GB terms. Unsupported locales explicitly fall back to English. Installed CJK and Latin font metrics are separate, with measured SHORT/MEDIUM/LONG/VERY_LONG fitting, safe margins and at most two lines. Text materials are shared by locale, semantic ID/qualifier, profile/style, tier and resolved text. Category results survive locale/profile/transform changes; vehicle metadata classification is cached until catalog change. Textures are neither rendered per frame nor allocated per sign. Original RF-Plate mesh and positive +Z front/UV model remain.
 
-Useful patterns: an independent SVG viewport in world coordinates; cached/versioned background layers; chunked path strings; overlay/background separation; explicit layer toggles. RouteFilter implements road restriction data and editing semantics itself. Transit routing, terrain sampling and building layers were not copied.
+Ordinary approaches get traffic-hand roadside placement; approaches >=7m wide may repeat on the other side for gameplay visibility. This is a game approximation, not a national placement rule. Permanent red ground lines remain removed. Native information shows semantic scope independently of whether a supplementary plate is needed.
+
+The prior compact main panel, independent stars, All/Favorites/Recent library, Tools, copy/paste, presets, thumbnail asset selector, five-parameter wheel palette, explicit start/end connected range, native selected-info integration and cached restriction map remain. Enforcement, directed topology, exact prefab matching, admission, reroute/no-path outcomes and city-save schema are unchanged.
 
 ## Automated validation
 
-| Check | Result |
+| Check | Status |
 |---|---|
-| C# Debug / Release | PASS — 0 errors, 0 warnings |
-| RoadCoverage | PASS — 16 production matcher/receipt checks plus policy fixtures |
-| LeaseRules | PASS — 65,536 ownership pairs plus native receipt/policy fixtures |
-| SafetyRules | PASS — 23 admission checks |
-| SaveFormatTests | PASS — 261 codec/schema/direction checks |
-| RoadSigns | PASS — 42 placement/divider geometry checks |
-| UxRules | PASS — 881 checks, including deterministic range and category/full-prohibition cases |
-| Actual installed-font rasterization | PASS — 7 Chinese/English labels, unclipped glyph bounds and large short-label fitting |
-| UI typecheck / tests / production build | PASS — filtered bulk, map geometry/chunks/entry validation, star hit target, secondary hierarchy, empty clipboard, presets, range gating and native section data props |
-| Authored mesh / text front / UV / safe area | PASS |
-| Whitespace | PASS |
-| Stable enforcement/schema comparison | No changes in RoadEnforcementCoordinator, RailEnforcementBackend, RestrictionPathfindHook or city save schema |
-| Local game payload | 28 packaged files copied and SHA-256 matched; previous RouteFilter payload backed up; playset configuration hash unchanged |
+| C# Debug / Release | BUILD VERIFIED — zero errors/warnings |
+| RoadCoverage | BUILD VERIFIED — 16 production matcher/receipt checks plus fixtures |
+| LeaseRules | BUILD VERIFIED — 65,536 ownership pairs plus native fixtures |
+| SafetyRules | BUILD VERIFIED — 23 checks |
+| SaveFormatTests | BUILD VERIFIED — 261 codec/schema/direction checks |
+| RoadSigns | BUILD VERIFIED — 43 placement/divider/visibility checks |
+| UxRules / actual visual semantics | BUILD VERIFIED — 2,086 checks, including all 511 nonempty fleet selection combinations, narrow coverage, consolidation, missing assets, profile matrix, manual overrides, locale fallback and stable-key handling |
+| Installed-font rasterization | BUILD VERIFIED — 17 locale/label combinations, actual ink bounds, unclipped margins and large short CN labels |
+| UI typecheck / tests / production build | BUILD VERIFIED — previous UX checks plus exposed/hidden profiles, fallback notice, locale policy and conservative native-info empty state |
+| Authored plate / positive facing / UV / whitespace | STATICALLY VERIFIED / BUILD VERIFIED |
+| Stable backend/schema | STATICALLY VERIFIED — no edits to enforcement, RestrictionIndex/topology, exact matcher, pathfind, leases, admission or city persistence |
 
-Validated package: `dist/ux31-final/RouteFilter-2.1.0-dev-RF21-20261005-UX-31.zip`.
+Test package: `dist/sign32-final/RouteFilter-2.1.0-dev-RF21-20261005-SIGN-32.zip`.
 
+## Exposed profiles and language coverage
 
-## Required player game acceptance
+| Profile | Implemented behavior | Primary limitation | Game status |
+|---|---|---|---|
+| AUTO | Per-entry theme + locale heuristic | Depends on reliable native EU/NA metadata and available native assets | NOT TESTED |
+| Generic Europe | CS2 EU family baseline, native no-entry fallback | No unified European legal-standard claim | NOT TESTED |
+| CN | Manual/AUTO preference and formal Simplified Chinese semantics independent of plate-language choice | Explicit generic/native primary fallback; national asset coverage unavailable | NOT TESTED |
+| UK | Manual/AUTO preference and independent British terminology / condensed font candidates | Explicit generic/native primary fallback; national asset coverage unavailable | NOT TESTED |
+| US | NA native primary family and separate American terminology | Missing NA assets use explicit native fallback; dedicated category signs unavailable | NOT TESTED |
+| HK / JP | Architectural reservation only, hidden | Regional assets and independent locale review incomplete; English supplementary fallback | NOT TESTED |
 
-Compilation and API inspection do not prove physical visibility, hit selection, Gameface layout or compatibility with the complete playset. The following require the player's in-game test on this build:
+No full GB, TSRGD or MUTCD compliance is claimed. Current authoritative reference details are kept in the ignored local `internal-notes/TRAFFIC_SIGN_LOCALIZATION_REFERENCES.md`. No standard graphics or proprietary fonts are distributed.
 
-| Area | Check |
-|---|---|
-| Signs | Both roadside faces readable; short/long CJK and English labels; full prohibition has no plates; tractor/trailer deduplication; native and custom main signs |
-| Native info | Click physical signs outside the RouteFilter tool, also after Scale adjustment; native section shows correct road/entry; Edit opens the matching restriction |
-| Primary panel | Independent stars, right checkboxes, search-first tabs, filtered bulk selection, Tools menu, empty clipboard, copy/paste, built-in and user preset operations |
-| Appearance | Palette remains upper-left while adjusting; five parameters preview immediately; wheel, step, Shift/Ctrl; camera does not zoom; close restores editor |
-| Segment Range | Start/end/same-edge/disconnected/fork cases; explicit apply/clear/cancel; road changes between preview and confirmation; no writes on mouse release |
-| Map | Actual road snapshot, each layer, reliable direction arrows, pan/zoom/Fit, click-to-edit, close/reopen; changing only restrictions keeps geometry cached |
-| Persistence | Save/load, city changes and Reset retain the existing ownership/safety boundaries; no ghost signs or preview resources |
-| Compatibility/performance | Complete playset, pause/resume, large city, idle closed map, large range, repeated open/close and locale changes; no persistent red ground lines |
+## Required player acceptance
 
-No in-game result is claimed for UX-31 until those tests are performed.
+GAME VERIFIED, PERFORMANCE VERIFIED, SAVELOAD VERIFIED and MIGRATION VERIFIED: **NOT TESTED for SIGN-32**. Build checks cannot establish native world visibility, mirrored/missing rendered glyphs, native click selection, UI behavior or full-playset performance.
+
+For each exposed profile test: all applicable vehicles (no redundant plate); complete goods (dedicated primary if independently supported, otherwise one legend); large-only and selected large assets; maintenance; mixed subsets (no tower); both faces on wide roads; curved/ramp/one-way/asymmetric/junction entries; EU/US mixed road themes; every AUTO locale matrix case; manual US/CN with English/Chinese locale changes; missing RF-Plate/font/localization/custom/NA assets; save/load and city switch. Confirm exact selected assets and direction masks remain authoritative in UI. CN/UK tests must acknowledge explicit fallback, not national asset coverage.
+
+Retest existing stars/search/filtered bulk/copy/paste/presets, upper-left wheel palette and camera barrier, start/end range and topology change before confirm, map layers/pan/zoom/Fit/click-to-edit, close/reset/unload cleanup. Use the complete playset: 370 mods, 345 enabled. No playset edits are part of this deployment.

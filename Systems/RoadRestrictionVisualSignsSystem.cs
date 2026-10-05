@@ -66,12 +66,36 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
     private bool m_SaveExcluded;
     private string m_Custom = null;
     private Entity m_Theme;
+    private string m_Profile;
+    private readonly Dictionary<Entity,string> m_ThemePrefixes = new();
+    private readonly Dictionary<Entity,string> m_TargetProfiles = new();
+    private readonly Dictionary<Entity,bool> m_TargetFallback = new();
+    public string ResolvedProfile { get; private set; } = "GENERIC_EUROPE";
+    public bool ProfileFallback { get; private set; }
+    internal string ProfileFor(Entity target) => m_TargetProfiles.TryGetValue(target,out var value) ? value : ResolvedProfile;
+    internal bool ProfileFallbackFor(Entity target) => m_TargetFallback.TryGetValue(target,out var value) ? value : ProfileFallback;
+    private string ThemePrefix(Entity theme)
+    {
+        if(m_ThemePrefixes.TryGetValue(theme,out var prefix)) return prefix;
+        prefix = theme!=Entity.Null && m_PrefabSystem.TryGetPrefab<ThemePrefab>(theme,out var prefab) ? prefab.assetPrefix ?? "" : "";
+        m_ThemePrefixes[theme]=prefix; return prefix;
+    }
+    private string ResolveProfile(Entity theme) => SignageProfiles.Resolve(Mod.Settings.SignageProfile,ThemePrefix(theme),ActiveSignLocale);
+    private SignPrefab ResolveProfilePrefab(string profile,Entity roadTheme,out bool fallback)
+    {
+        var family=profile=="US"?"NA":"EU";
+        // CN/UK have no independently verified national primary capability in the native catalog.
+        var compatible=m_Prefabs.Values.Where(p=>p.IsNoEntry && ThemePrefix(p.Theme)==family).OrderBy(p=>p.Name,StringComparer.Ordinal).FirstOrDefault();
+        fallback=profile=="CN" || profile=="UK" || compatible==null;
+        return compatible ?? ResolveAuto(roadTheme);
+    }
+
     public string Catalog { get; private set; } = string.Empty;
     public string ResolvedName { get; private set; } = string.Empty;
     public bool CustomUnavailable { get; private set; }
     public int MarkerCount { get; private set; }
     public bool ContainsPrefab(string name) => m_Prefabs.ContainsKey(name);
-    internal void InvalidateVehicleLabels() { m_VehicleCatalogRevision++; m_LoadDirty = true; }
+    internal void InvalidateVehicleLabels() { m_VehicleCatalogRevision++; m_VehicleSemantics.Clear(); m_LoadDirty = true; }
     internal void InvalidateAppearance() => m_LoadDirty = true;
 
     protected override void OnCreate()
@@ -103,7 +127,7 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
     }
 
     private void ContentChanged() => m_CatalogDirty = true;
-    private void Loaded(Purpose purpose, GameMode mode) { m_LoadDirty = true; m_CatalogDirty = true; }
+    private void Loaded(Purpose purpose, GameMode mode) { m_LoadDirty = true; m_CatalogDirty = true; m_TargetProfiles.Clear(); m_TargetFallback.Clear(); }
     public void MarkDirty(Entity target) { if (target != Entity.Null) m_Dirty.Add(target); }
 
     internal void CollectGeometryChanges()
@@ -127,7 +151,7 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
     public void ResetRuntimeState()
     {
         // Reset is requested from UIUpdate; native visual mutations run in Modification4.
-        m_ClearRequested = true; m_Dirty.Clear(); m_Warnings.Clear(); m_RenderChecks.Clear();
+        m_ClearRequested = true; m_Dirty.Clear(); m_Warnings.Clear(); m_RenderChecks.Clear(); m_LabelCache.Clear(); m_TargetProfiles.Clear(); m_TargetFallback.Clear();
     }
 
     protected override void OnUpdate()
@@ -139,7 +163,7 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
         var enabled = Mod.Settings.ShowRoadRestrictionSigns;
         var custom = Mod.Settings.RoadSignPrefabMode == "CUSTOM" ? Mod.Settings.CustomRoadSignPrefab ?? string.Empty : string.Empty;
         var appearanceChanged = RefreshAppearance();
-        var settingChanged = enabled != m_Enabled || custom != m_Custom;
+        var settingChanged = enabled != m_Enabled || custom != m_Custom || m_Profile != Mod.Settings.SignageProfile;
         if (appearanceChanged)
         {
             var previewTarget = World.GetExistingSystemManaged<RouteFilterUISystem>()?.AppearancePreviewTarget ?? Entity.Null;
@@ -163,10 +187,11 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
         if (m_LoadDirty || settingChanged)
         {
             m_LoadDirty = false;
-            m_Enabled = enabled; m_Custom = custom;
+            m_Enabled = enabled; m_Custom = custom; m_Profile=Mod.Settings.SignageProfile;
             Mod.Log.Info($"[RouteFilter.RoadSigns] visualConfig enabled={enabled} mode={(custom.Length == 0 ? "AUTO" : "CUSTOM")} custom={custom} phase=Modification4");
             m_Theme = World.GetOrCreateSystemManaged<CityConfigurationSystem>().defaultTheme;
-            var automatic = ResolveAuto(m_Theme);
+            ResolvedProfile=ResolveProfile(m_Theme);
+            var automatic = ResolveProfilePrefab(ResolvedProfile,m_Theme,out var fallback); ProfileFallback=fallback;
             ResolvedName = automatic?.Name ?? string.Empty;
             CustomUnavailable = custom.Length > 0 && !m_Prefabs.ContainsKey(custom);
             ClearOwned();
@@ -181,7 +206,8 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
         if (theme != m_Theme)
         {
             m_Theme = theme;
-            ResolvedName = ResolveAuto(theme)?.Name ?? string.Empty;
+            ResolvedProfile=ResolveProfile(theme);
+            ResolvedName = ResolveProfilePrefab(ResolvedProfile,theme,out var fallback)?.Name ?? string.Empty; ProfileFallback=fallback;
             foreach (var target in m_Markers.Keys) MarkDirty(target);
         }
         if (m_Dirty.Count == 0) return;
@@ -196,12 +222,13 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
     private void BuildCatalog()
     {
         ClearOwned(); m_Resources.Dispose(); m_Resources = new();
-        m_Prefabs.Clear();
+        m_Prefabs.Clear(); m_ThemePrefixes.Clear();
         using var entities = m_PrefabQuery.ToEntityArray(Allocator.Temp);
         var mask = TrafficSignData.GetTypeMask(TrafficSignType.DoNotEnter);
         foreach (var entity in entities)
         {
-            var isNoEntry = EntityManager.TryGetComponent(entity, out TrafficSignData sign) && (sign.m_TypeMask & mask) != 0;
+            if (!EntityManager.TryGetComponent(entity,out TrafficSignData sign) || sign.m_TypeMask==0) continue;
+            var isNoEntry = (sign.m_TypeMask & mask) != 0;
             if (!m_PrefabSystem.TryGetPrefab<StaticObjectPrefab>(entity, out var prefab) ||
                 !EntityManager.TryGetComponent(entity, out ObjectGeometryData geometry) || prefab.m_Meshes == null || prefab.m_Meshes.Length == 0 ||
                 EntityManager.HasComponent<BuildingData>(entity) || EntityManager.HasComponent<VehicleData>(entity) || EntityManager.HasComponent<TreeData>(entity) ||
@@ -245,22 +272,25 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
         ?? m_Prefabs.Values.Where(p => p.IsNoEntry && p.Theme == Entity.Null).OrderBy(p => p.Name, StringComparer.Ordinal).FirstOrDefault()
         ?? m_Prefabs.Values.Where(p => p.IsNoEntry).OrderBy(p => p.Name,StringComparer.Ordinal).FirstOrDefault();
 
-    private SignPrefab ResolveEntryPrefab(LogicalEntryGroup entry)
+    private SignPrefab ResolveEntryPrefab(LogicalEntryGroup entry,out string profile,out bool fallback)
     {
-        if (m_Custom != null && m_Prefabs.TryGetValue(m_Custom,out var custom)) return custom;
         var theme = m_Theme;
         if (EntityManager.TryGetComponent(entry.Connection,out PrefabRef reference) &&
             m_PrefabSystem.TryGetPrefab<PrefabBase>(reference.m_Prefab,out var road) &&
             road.TryGet<ThemeObject>(out var themed) && themed.m_Theme != null)
             m_PrefabSystem.TryGetEntity(themed.m_Theme,out theme);
-        return ResolveAuto(theme);
+        profile=ResolveProfile(theme);
+        var automatic=ResolveProfilePrefab(profile,theme,out fallback);
+        if (m_Custom != null && m_Prefabs.TryGetValue(m_Custom,out var custom)) return custom;
+        return automatic;
     }
 
     private void Rebuild(Entity target)
     {
         RemoveTarget(target);
         if (!EntityManager.Exists(target) || EntityManager.HasComponent<Deleted>(target)) return;
-        var labels = Labels(target);
+        var meanings = Meanings(target);
+        m_TargetProfiles.Remove(target); m_TargetFallback.Remove(target);
         var entries = m_Index.GetAppliedRoadEntries(target);
         var restricted = 0; var pairs = 0; var skipped = 0;
         var reasons = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -280,7 +310,14 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
             Watch(target, entry.Connection);
             foreach (var gate in entry.Gates) { Watch(target, gate.m_EntryLane); Watch(target, gate.m_NextLane); }
             if (!entry.Enabled) continue;
-            prefab = ResolveEntryPrefab(entry);
+            prefab = ResolveEntryPrefab(entry,out var profile,out var profileFallback);
+            if (m_TargetProfiles.TryGetValue(target,out var previousProfile) && previousProfile!=profile) m_TargetProfiles[target]="MIXED";
+            else m_TargetProfiles[target]=profile;
+            m_TargetFallback[target]=profileFallback || (m_TargetFallback.TryGetValue(target,out var previousFallback) && previousFallback);
+            // The native no-entry capability is verified. No inferred category pictograms.
+            var primary= prefab!=null && prefab.IsNoEntry ? TrafficVehicleSemantic.AllRoadMotorVehicles : (TrafficVehicleSemantic?)null;
+            var customActive=m_Custom!=null && m_Prefabs.ContainsKey(m_Custom);
+            var legends=TrafficSignSemantics.PrimaryFullyExpresses(meanings,primary,customActive && !prefab.IsNoEntry)?Array.Empty<TrafficLegend>():meanings;
             restricted++;
             if (prefab == null) { Skip("NO_PREFAB", $"theme={m_Theme}"); continue; }
             if (!EntityManager.Exists(prefab.Entity) || !EntityManager.HasComponent<ObjectGeometryData>(prefab.Entity))
@@ -299,7 +336,7 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
             // A prohibition face is approximately as tall as it is wide; exclude its pole.
             var faceWidth = math.max(geometry.m_Bounds.max.x-geometry.m_Bounds.min.x,geometry.m_Bounds.max.z-geometry.m_Bounds.min.z);
             var mainBottom = math.max(.4f,(geometry.m_Bounds.max.y-faceWidth)*m_Scale);
-            var firstPlate = SignAppearance.FirstPlateHeight(mainBottom, labels.Length, m_PlateSpacing);
+            var firstPlate = SignAppearance.FirstPlateHeight(mainBottom, legends.Length, m_PlateSpacing);
             var lift = math.max(0,firstPlate + .125f + .18f - mainBottom) + m_Height;
             first.y += lift; second.y += lift;
             // Entries come from the same derived topology as Directional Restrictions.
@@ -308,10 +345,17 @@ public sealed partial class RoadRestrictionVisualSignsSystem : GameSystemBase
             try
             {
                 var anchor = CreateVisualAnchor(target,target,prefab,first,rotation,entry.Connection,ordinal);
-                var left = CreateMarker(target, anchor, prefab, first, rotation, entry.Connection,ordinal); markers.Add(left);
-                CreateAssembly(target,left,prefab,first,rotation,labels,firstPlate-lift+m_Height);
-                var right = CreateMarker(target, anchor, prefab, second, rotation, entry.Connection,ordinal); markers.Add(right);
-                CreateAssembly(target,right,prefab,second,rotation,labels,firstPlate-lift+m_Height);
+                var leftHand = World.GetOrCreateSystemManaged<CityConfigurationSystem>().leftHandTraffic;
+                var roadside = leftHand ? first : second;
+                var main = CreateMarker(target, anchor, prefab, roadside, rotation, entry.Connection,ordinal); markers.Add(main);
+                CreateAssembly(target,main,prefab,roadside,rotation,legends,profile,firstPlate-lift+m_Height);
+                // Repeat only on wide approaches, as a gameplay visibility adjustment.
+                if (RoadSignPlacement.RepeatOppositeSide(low,high))
+                {
+                    var opposite = leftHand ? second : first;
+                    var repeat = CreateMarker(target, anchor, prefab, opposite, rotation, entry.Connection,ordinal); markers.Add(repeat);
+                    CreateAssembly(target,repeat,prefab,opposite,rotation,legends,profile,firstPlate-lift+m_Height);
+                }
                 var gate = entry.Gates[0];
                 Mod.Log.Info($"[RouteFilter.RoadSigns] target={target} connection={entry.Connection} EntryLane={gate.m_EntryLane} NextLane={gate.m_NextLane} LEFT={first} RIGHT={second} Rotation={rotation.value} Scale=1 edgeMargins={leftMargin}/{rightMargin} laneBounds={low}/{high} prefab={prefab.Name}");
             }

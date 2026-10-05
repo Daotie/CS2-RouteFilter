@@ -2,6 +2,15 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Semantic Versioning prerelease conventions.
 
+## 2.1.0-dev — 2026-10-05 — localized traffic-sign semantics
+
+- Replaced category-to-plate enumeration with visual-only stable semantic IDs and coverage-aware consolidation; unknown/missing assets use a safe selected-vehicle description.
+- Complete goods/large-goods/maintenance semantics, selected-subset qualifiers, at most two text-only legends, and no redundant plate when the verified primary fully expresses the scope.
+- Added independent AUTO / Generic Europe / CN / UK / US preferences, per-entry theme + locale heuristic, explicit CN/UK primary fallback and hidden HK/JP profiles. Custom stable asset selection remains separate.
+- Added dedicated semantic locale keys, formal Simplified Chinese, independent British/American terms, installed regional font candidates and measured layout tiers/margins. No fonts or standard graphics bundled.
+- Ordinary traffic-hand roadside placement; wide-approach repetition is a gameplay visibility adjustment. Stable enforcement and city-save schema unchanged.
+- Build `RF21-20261005-SIGN-32`; automated build/rules/raster checks verified, game/performance/save-load/migration acceptance NOT TESTED.
+
 ## 2.1.0-dev — 2026-10-05 — UX conformance build
 
 - Restored compact primary editing, search-first library tabs, independent star favorites and a header Tools menu.

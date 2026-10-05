@@ -6,6 +6,11 @@ import mod from "mod.json";
 import { icons } from "../assets";
 import styles from "../route-filter.module.scss";
 
+const profile$ = bindValue<string>(mod.id,"signageProfile","AUTO");
+const profileResolved$ = bindValue<string>(mod.id,"signageProfileResolved","GENERIC_EUROPE");
+const profileFallback$ = bindValue<boolean>(mod.id,"signageProfileFallback",false);
+const profiles = ["AUTO","GENERIC_EUROPE","CN","UK","US"] as const;
+const profileNames: Record<string,string> = {AUTO:"Auto",GENERIC_EUROPE:"Generic Europe",CN:"Mainland China",UK:"United Kingdom",US:"United States",MIXED:"Resolved per entry road theme"};
 const catalog$ = bindValue<string>(mod.id, "roadSignCatalog", "");
 const selection$ = bindValue<string>(mod.id, "roadSignSelection", "");
 const resolved$ = bindValue<string>(mod.id, "roadSignResolved", "");
@@ -13,6 +18,9 @@ const unavailable$ = bindValue<boolean>(mod.id, "roadSignUnavailable", false);
 
 export const RoadSignSelector = ({ closeToken = 0, onPopupOpen }: {closeToken?: number; onPopupOpen?: () => void}) => {
   const catalog = useValue(catalog$);
+  const profile = useValue(profile$);
+  const profileResolved = useValue(profileResolved$);
+  const profileFallback = useValue(profileFallback$);
   const selection = useValue(selection$);
   const resolved = useValue(resolved$);
   const unavailable = useValue(unavailable$);
@@ -66,7 +74,7 @@ export const RoadSignSelector = ({ closeToken = 0, onPopupOpen }: {closeToken?: 
   const select = (value: string) => { trigger(mod.id, "selectRoadSignPrefab", value); close(); };
   const selected = useMemo(() => options.find(option => option.id === selection), [options, selection]);
   const automatic = useMemo(() => options.find(option => option.id === resolved), [options, resolved]);
-  const auto = tr("RouteFilter.UI.RoadSignAuto", "Auto — Match Road Theme");
+  const auto = tr("RouteFilter.UI.RoadSignAuto", "Auto — Match Road Theme and Language");
   const query = search.trim().toLocaleLowerCase();
   const namedOptions = useMemo(() => options.map(option => ({ ...option, displayName: name(option.id) })), [options, translate]);
   const filtered = useMemo(() => namedOptions.filter(option => !query || `${option.displayName} ${option.id}`.toLocaleLowerCase().includes(query)), [namedOptions, query]);
@@ -79,6 +87,14 @@ export const RoadSignSelector = ({ closeToken = 0, onPopupOpen }: {closeToken?: 
   </span>;
   return <div className={styles.signSelector}>
     <div className={styles.signTitle}>{tr("RouteFilter.UI.RoadSignStyle", "Road restriction sign style")}</div>
+    <label className={styles.signTitle}>{tr("RouteFilter.UI.SignageProfile","Signage profile")}
+      <select className={styles.signSearch} value={profiles.includes(profile as typeof profiles[number]) ? profile : "AUTO"} onChange={event=>trigger(mod.id,"selectSignageProfile",event.target.value)}>
+        {profiles.map(id=><option key={id} value={id}>{tr(`RouteFilter.UI.Profile.${id}`,profileNames[id])}</option>)}
+      </select>
+    </label>
+    {profile==="AUTO" && <div className={styles.signResolved}>{tr("RouteFilter.UI.RoadSignResolved","Auto resolved")}: {tr(`RouteFilter.UI.Profile.${profileResolved}`,profileNames[profileResolved] ?? profileNames.GENERIC_EUROPE)}</div>}
+    {profileFallback && <div className={styles.signResolved}>{tr("RouteFilter.UI.ProfileFallback","Verified regional primary asset unavailable; using a compatible no-entry fallback.")}</div>}
+    <div className={styles.signResolved}>{tr("RouteFilter.UI.PlateLanguage","Supplementary text follows UI language; unsupported languages fall back to English.")}</div>
     <div ref={anchor}>
       <Button variant="flat" className={styles.signToggle} onSelect={toggle} aria-expanded={!!popup} aria-haspopup="listbox">
         {row(selected?.icon ?? automatic?.icon ?? icons.prohibition, selection ? name(selection) : auto)}

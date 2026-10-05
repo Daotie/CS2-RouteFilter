@@ -35,6 +35,7 @@ public sealed class Setting : ModSetting
     [SettingsUIHidden] public float RoadSignRotation { get; set; }
     [SettingsUIHidden] public float RoadPlateSpacing { get; set; }
     [SettingsUIHidden] public string CustomRoadSignPrefab { get; set; }
+    [SettingsUIHidden] public string SignageProfile { get; set; }
     [SettingsUIHidden] public string RoadSignPrefabMode { get; set; }
 
     /// <summary>Master switch for the road enforcement backend.</summary>
@@ -100,6 +101,7 @@ public sealed class Setting : ModSetting
         ShowRoadRestrictionSigns = true;
         CustomRoadSignPrefab = string.Empty;
         RoadSignPrefabMode = "AUTO";
+        SignageProfile = "AUTO";
         RoadSignScale = 1f;
         RoadSignHeight = 0f;
         RoadSignLateralOffset = 0f;
@@ -120,10 +122,11 @@ internal abstract class LocaleBase : IDictionarySource
     protected readonly Setting Setting;
     protected LocaleBase(Setting setting) => Setting = setting;
     protected abstract bool Chinese { get; }
+    protected virtual string SignLocale => Chinese ? "zh-CN" : "en-US";
 
     public IEnumerable<KeyValuePair<string, string>> ReadEntries(IList<IDictionaryEntryError> errors, Dictionary<string, int> indexCounts)
     {
-        return new Dictionary<string, string>
+        var entries = new Dictionary<string, string>
         {
             [Setting.GetSettingsLocaleID()] = "RouteFilter",
             ["RouteFilter.UI.RangeStart"] = Chinese ? "请选择起点路段" : "Select the start segment",
@@ -131,7 +134,17 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.RangeDisconnected"] = Chinese ? "无法生成连接链，请重新选择终点" : "No connected chain between the segments",
             ["RouteFilter.UI.RangeReady"] = Chinese ? "连接链已准备好，请确认" : "Connected chain ready for confirmation",
             ["RouteFilter.UI.VehicleCategories"] = Chinese ? "车辆类别" : "Vehicle categories",
+            ["RouteFilter.UI.SpecifiedVehicles"] = Chinese ? "指定车辆" : "Selected vehicles",
             ["RouteFilter.UI.AllVehicles"] = Chinese ? "全部道路车辆" : "All road vehicles",
+            ["RouteFilter.UI.SignageProfile"] = Chinese ? "标志规范" : "Signage profile",
+            ["RouteFilter.UI.Profile.AUTO"] = Chinese ? "自动" : "Auto",
+            ["RouteFilter.UI.Profile.GENERIC_EUROPE"] = Chinese ? "欧洲通用" : "Generic Europe",
+            ["RouteFilter.UI.Profile.CN"] = Chinese ? "中国大陆" : "Mainland China",
+            ["RouteFilter.UI.Profile.UK"] = Chinese ? "英国" : "United Kingdom",
+            ["RouteFilter.UI.Profile.US"] = Chinese ? "美国" : "United States",
+            ["RouteFilter.UI.Profile.MIXED"] = Chinese ? "按各入口道路主题匹配" : "Resolved per entry road theme",
+            ["RouteFilter.UI.ProfileFallback"] = Chinese ? "缺少已验证的对应地区主标志资产，暂用兼容的禁止驶入标志。" : "Verified regional primary asset unavailable; using a compatible no-entry fallback.",
+            ["RouteFilter.UI.PlateLanguage"] = Chinese ? "辅助标志文字跟随界面语言；未支持的语言回退至英语。" : "Supplementary text follows UI language; unsupported languages fall back to English.",
             ["RouteFilter.UI.Tools"] = Chinese ? "工具" : "Tools",
             ["RouteFilter.UI.SignStyle"] = Chinese ? "道路限制标志样式" : "Road restriction sign style",
             ["RouteFilter.UI.Appearancelongitudinal"] = Chinese ? "纵向偏移" : "Longitudinal offset",
@@ -152,7 +165,6 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.SignInfo"] = Chinese ? "道路限制禁令标志" : "Road restriction sign",
             ["RouteFilter.UI.EditSign"] = Chinese ? "在 RouteFilter 中编辑" : "Edit in RouteFilter",
             ["RouteFilter.UI.VehicleAssets"] = Chinese ? "车辆资产" : "Vehicle assets",
-            ["RouteFilter.Plate.Motorcycles"] = Chinese ? "摩托车" : "Motorcycles",
             ["RouteFilter.UI.Presets"] = Chinese ? "限制预设" : "Presets",
             ["RouteFilter.UI.Map"] = Chinese ? "限行地图" : "Restriction Map",
             ["RouteFilter.UI.Appearance"] = Chinese ? "标志位置调整" : "Sign appearance",
@@ -175,16 +187,8 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.Appearancescale"] = Chinese ? "主标志缩放" : "Main sign scale",
             ["RouteFilter.UI.Appearanceheight"] = Chinese ? "高度（米）" : "Height (m)",
             ["RouteFilter.UI.Appearanceoffset"] = Chinese ? "横向偏移（米）" : "Lateral offset (m)",
-            ["RouteFilter.UI.Appearancespacing"] = Chinese ? "辅助标牌间距（米）" : "Plate gap (m)",
-            ["RouteFilter.UI.AppearanceHint"] = Chinese ? "RF-Plate 固定为 0.800 × 0.250 × 0.020 米。多类别堆叠会提升整组标志，保留离地净空。" : "RF-Plate stays 0.800 × 0.250 × 0.020 m. Tall stacks lift the assembly to retain ground clearance.",
-            ["RouteFilter.Plate.Cars"] = Chinese ? "汽车" : "Cars",
-            ["RouteFilter.Plate.Buses"] = Chinese ? "公交车" : "Buses",
-            ["RouteFilter.Plate.Garbage"] = Chinese ? "垃圾车" : "Garbage trucks",
-            ["RouteFilter.Plate.Fire"] = Chinese ? "消防车" : "Fire engines",
-            ["RouteFilter.Plate.Ambulance"] = Chinese ? "救护车" : "Ambulances",
-            ["RouteFilter.Plate.Police"] = Chinese ? "警车" : "Police cars",
-            ["RouteFilter.Plate.Taxi"] = Chinese ? "出租车" : "Taxis",
-            ["RouteFilter.Plate.Trucks"] = Chinese ? "货车" : "Trucks",
+            ["RouteFilter.UI.Appearancespacing"] = Chinese ? "辅助标志间距（米）" : "Plate gap (m)",
+            ["RouteFilter.UI.AppearanceHint"] = Chinese ? "RF-Plate 固定为 0.800 × 0.250 × 0.020 米。语义合并后最多显示两块文字辅助标志。" : "RF-Plate stays 0.800 × 0.250 × 0.020 m. Semantic consolidation limits supplementary text to two plates.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.ShowRoadRestrictionSigns))] = Chinese ? "显示道路限制禁令标志" : "Show Road Restriction Signs",
             [Setting.GetOptionDescLocaleID(nameof(Setting.ShowRoadRestrictionSigns))] = Chinese ? "在已应用的道路禁行入口两侧显示标志牌。样式可在 RouteFilter 面板选择。" : "Shows signs beside applied restricted road entries. Choose the style in the RouteFilter panel.",
             ["RouteFilter.UI.LibraryAll"] = Chinese ? "全部" : "All",
@@ -195,14 +199,14 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.LibraryFavoriteToggle"] = Chinese ? "切换收藏" : "Toggle favorite",
             ["RouteFilter.UI.RoadSignSearch"] = Chinese ? "搜索交通标志资产……" : "Search sign assets…",
             ["RouteFilter.UI.RoadSignStyle"] = Chinese ? "道路限制标志样式" : "Road restriction sign style",
-            ["RouteFilter.UI.RoadSignAuto"] = Chinese ? "自动匹配道路主题" : "Auto — Match Road Theme",
+            ["RouteFilter.UI.RoadSignAuto"] = Chinese ? "自动匹配道路主题" : "Auto — Match Road Theme and Language",
             ["RouteFilter.UI.RoadSignResolved"] = Chinese ? "当前匹配" : "Auto resolved",
-            ["RouteFilter.UI.RoadSignUnavailable"] = Chinese ? "没有兼容标志牌；禁行仍然有效" : "No compatible sign; restrictions remain active",
+            ["RouteFilter.UI.RoadSignUnavailable"] = Chinese ? "没有兼容主标志；道路通行限制仍然有效" : "No compatible sign; restrictions remain active",
             ["RouteFilter.UI.RoadSignMissing"] = Chinese ? "自定义标志未加载；暂用自动样式" : "Custom sign unavailable; using Auto temporarily",
             [Setting.GetOptionTabLocaleID(Setting.kSection)] = Chinese ? "主要设置" : "General",
             [Setting.GetOptionGroupLocaleID(Setting.kGeneralGroup)] = Chinese ? "常规" : "General",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "限制标记" : "Restriction badges",
-            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "在已应用限制的道路入口显示地面限制线。" : "Shows ground restriction lines at applied road entries.",
+            [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRestrictionBadges))] = Chinese ? "旧版显示选项；正常游玩不显示地面限制线。" : "Shows ground restriction lines at applied road entries.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "道路通行限制（测试版）" : "Road enforcement (test build)",
             [Setting.GetOptionDescLocaleID(nameof(Setting.EnableRoadEnforcement))] = Chinese ? "为距离足够且导航明确的指定车辆请求一次原生绕行，仅在该请求中排除受限目标；无替代路线时放行。实际游戏行为仍待验证。" : "Requests one native reroute for a sufficiently distant, unambiguous restricted vehicle. Excludes the target only for that request; falls back when no alternative exists. Gameplay verification pending.",
             [Setting.GetOptionLabelLocaleID(nameof(Setting.EnableRailEnforcement))] = Chinese ? "轨道禁行（测试版）" : "Rail enforcement (test build)",
@@ -269,6 +273,13 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.Expand"] = Chinese ? "展开" : "Expand",
             ["RouteFilter.UI.Collapse"] = Chinese ? "收起" : "Collapse",
         };
+        foreach(RouteFilter.Persistence.TrafficVehicleSemantic semantic in System.Enum.GetValues(typeof(RouteFilter.Persistence.TrafficVehicleSemantic)))
+        foreach(var partial in new[] {false,true})
+        {
+            var legend=new RouteFilter.Persistence.TrafficLegend(semantic,partial);
+            entries[legend.Key]=RouteFilter.Persistence.TrafficSignLocalization.Text(legend,SignLocale);
+        }
+        return entries;
     }
 
     public void Unload() { }
@@ -276,3 +287,5 @@ internal abstract class LocaleBase : IDictionarySource
 
 internal sealed class LocaleEN : LocaleBase { public LocaleEN(Setting setting) : base(setting) { } protected override bool Chinese => false; }
 internal sealed class LocaleZH : LocaleBase { public LocaleZH(Setting setting) : base(setting) { } protected override bool Chinese => true; }
+
+internal sealed class LocaleENGB : LocaleBase { public LocaleENGB(Setting setting) : base(setting) { } protected override bool Chinese => false; protected override string SignLocale => "en-GB"; }

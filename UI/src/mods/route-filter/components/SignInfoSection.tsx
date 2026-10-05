@@ -12,7 +12,7 @@ export const SignInfoSection = (section: { targetKind: string; assets: number; e
     <strong>{tr("SignInfo","Road restriction sign")}</strong>
     <span>RouteFilter · {tr(section.targetKind,section.targetKind)}</span>
     {section.targetName && <span>{section.targetName}</span>}
-    <span>{tr("VehicleCategories","Vehicle categories")}: {section.categories || tr("AllVehicles","All road vehicles")}</span>
+    <span>{tr("VehicleCategories","Vehicle categories")}: {section.categories || tr("SpecifiedVehicles","Selected vehicles")}</span>
     <span>{tr("EntryDirections","Restricted entry")} {section.entryOrdinal}</span>
     <span>{tr("VehicleAssets","Vehicle assets")}: {section.assets} · {tr("EntryDirections","Restricted entries")}: {section.entries}</span>
     <Button variant="flat" onSelect={() => trigger(mod.id,"editSelectedSign")}>{tr("EditSign","Edit in RouteFilter")}</Button>

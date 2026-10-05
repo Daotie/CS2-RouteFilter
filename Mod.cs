@@ -19,7 +19,7 @@ public sealed class Mod : IMod
     public const string Version = "2.1.0-dev";
     // Bump this for every deployable build so the in-game panel and log identify
     // exactly which compiled payload is loaded by the active playset.
-    public const string BuildId = "RF21-20261005-UX-31";
+    public const string BuildId = "RF21-20261005-SIGN-32";
     public const string ToggleToolAction = "ToggleRestrictionTool";
     public const string ApplyAction = "ApplyRestriction";
     public const string ClearAction = "ClearRestriction";
@@ -88,6 +88,7 @@ public sealed class Mod : IMod
         RegisterKeyBindingsSafe();
 
         GameManager.instance.localizationManager.AddSource("en-US", new LocaleEN(Settings));
+        GameManager.instance.localizationManager.AddSource("en-GB", new LocaleENGB(Settings));
         GameManager.instance.localizationManager.AddSource("zh-HANS", new LocaleZH(Settings));
         GameManager.instance.localizationManager.AddSource("zh-CN", new LocaleZH(Settings));
         Log.Info("[RouteFilter.Settings] locale registered en-US / zh-HANS / zh-CN");

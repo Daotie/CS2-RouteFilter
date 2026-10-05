@@ -1,10 +1,10 @@
-# RouteFilter 2.1.0-dev — UX conformance test build
+# RouteFilter 2.1.0-dev — localized traffic-sign semantic test build
 
-Build: `RF21-20261005-UX-31`.
+Build: `RF21-20261005-SIGN-32`.
 
-Restores the compact restriction panel, search-first library tabs, independent favorite stars and secondary Tools menu. Reworks auxiliary plate orientation and measured typography, removes persistent red ground lines, integrates native selected-info sections, adds built-in/rename presets, introduces wheel-driven sign adjustment and start/end connected Segment Range, and separates cached road geometry from restriction map overlays.
+Replaces internal category plate stacks with coverage-aware vehicle semantics, concise text-only legends and independent Signage Profile selection. Full vehicle restrictions use the main sign alone; partial assets retain selected qualifiers. Adds CN / British / American semantic terminology, measured locale font fitting, theme-and-locale AUTO, explicit regional-asset fallback and ordinary roadside placement. CN/UK dedicated national assets are unavailable; HK/JP remain hidden. No standards compliance is claimed.
 
-This unified build is prepared for player game acceptance. The stable 2.0 enforcement and save schema remain unchanged. See `UNIFIED_TEST_REPORT.md` for validation and the game checklist.
+Previous UX-31 editing, presets, appearance, native info, range and map improvements remain. Stable 2.0 enforcement and city-save schema are unchanged. SIGN-32 game, performance and save/load acceptance remain NOT TESTED. See `UNIFIED_TEST_REPORT.md`.
 
 ## RouteFilter 2.0.0 — Previous stable release
 

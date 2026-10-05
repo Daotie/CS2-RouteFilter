@@ -41,8 +41,52 @@ Check(ConnectedRoadRange.Find(1,4,node => graph[node],100).SequenceEqual(new[] {
 Check(ConnectedRoadRange.Find(1,1,node => graph[node],100).SequenceEqual(new[] {1}),"same-edge range");
 Check(ConnectedRoadRange.Find(1,5,node => graph[node],100).Count == 0,"disconnected endpoints cannot commit");
 Check(ConnectedRoadRange.Find(1,4,node => graph[node],1).Count == 0,"bounded topology search");
-Check(VehiclePlateLabels.Select(new[] {1,2,3},new[] {1,2,3},id => "Trucks").Length == 0,"all applicable vehicles require no plates");
-Check(VehiclePlateLabels.Select(new[] {1,1,2},new[] {1,2,3},id => "Trucks").SequenceEqual(new[] {"Trucks"}),"visual category duplicates removed");
-Check(VehiclePlateLabels.Select(new[] {1},new[] {1,2},id => "Cars").Length == 1,"direction coverage cannot imply all-vehicle coverage");
-Check(VehiclePlateLabels.Select(new[] {1,2},new[] {1,2,3},id => id == 1 ? "Trucks" : "Motorcycles").Length == 2,"truck and motorcycle categories remain distinct");
-Console.WriteLine($"UX preference / appearance / brush rules: {checks} checks passed.");
+// Actual production visual resolver: category coverage, never direction count.
+var fleet=new Dictionary<int,TrafficVehicleSemantic> { [1]=TrafficVehicleSemantic.GoodsVehicle,[2]=TrafficVehicleSemantic.HeavyGoodsVehicle,[3]=TrafficVehicleSemantic.HeavyGoodsVehicle,[4]=TrafficVehicleSemantic.Bus,[5]=TrafficVehicleSemantic.RoadMaintenance,[6]=TrafficVehicleSemantic.RoadMaintenance,[7]=TrafficVehicleSemantic.FireEngine,[8]=TrafficVehicleSemantic.Ambulance,[9]=TrafficVehicleSemantic.PoliceVehicle };
+TrafficLegend[] Mean(params int[] ids)=>TrafficSignSemantics.Resolve(ids,fleet.Keys,id=>fleet[id]);
+var all=Mean(fleet.Keys.ToArray());
+Check(TrafficSignSemantics.PrimaryFullyExpresses(all,TrafficVehicleSemantic.AllRoadMotorVehicles),"all motor vehicles: no redundant plate");
+Check(!TrafficSignSemantics.PrimaryFullyExpresses(Mean(1),TrafficVehicleSemantic.AllRoadMotorVehicles),"all directions cannot imply all vehicles");
+Check(Mean(1,2,3).Single().Semantic==TrafficVehicleSemantic.GoodsVehicle && !Mean(1,2,3)[0].Partial,"complete goods family consolidates light/heavy subclasses");
+Check(Mean(2,3).Single().Semantic==TrafficVehicleSemantic.HeavyGoodsVehicle && !Mean(2,3)[0].Partial,"large goods restriction never widens to all goods vehicles");
+Check(Mean(2).Single().Partial,"subset of heavy goods retains selected qualifier");
+Check(Mean(2,2,3).Length==1,"multiple prefabs and duplicates make one semantic legend");
+Check(Mean(5,6).Single().Semantic==TrafficVehicleSemantic.RoadMaintenance,"native maintenance class remains one category");
+Check(Mean(7,8,9).Single().Semantic==TrafficVehicleSemantic.EmergencyVehicle,"only complete emergency family consolidates");
+Check(Mean(7).Single().Semantic==TrafficVehicleSemantic.FireEngine,"fire-only never claims all emergency vehicles");
+Check(Mean(1,4,5,7).Single().Semantic==TrafficVehicleSemantic.SpecifiedVehicles,"complex mixed selection becomes concise safe description");
+Check(Mean(99).Single().Semantic==TrafficVehicleSemantic.SpecifiedVehicles,"missing assets survive as generic visual semantics");
+Check(Mean().Length==0,"empty restriction does not fabricate a category");
+Check(TrafficSignSemantics.PrimaryFullyExpresses(Mean(1,2,3),TrafficVehicleSemantic.GoodsVehicle),"verified dedicated primary consumes redundant goods legend");
+Check(!TrafficSignSemantics.PrimaryFullyExpresses(Mean(2),TrafficVehicleSemantic.HeavyGoodsVehicle),"dedicated primary cannot erase a partial scope qualifier");
+for(int mask=1;mask<(1<<fleet.Count);mask++)
+{
+    var selected=fleet.Keys.Where((id,i)=>(mask&(1<<i))!=0).ToArray(); var legends=Mean(selected);
+    Check(legends.Length>0 && legends.Length<=2,"all selection combinations have bounded nonempty semantics");
+    foreach(var legend in legends)
+    {
+        Check(!TrafficSignLocalization.Text(legend,"zh-CN").Contains("TrafficSign."),"no localization keys on physical plate");
+        if(!legend.Partial && legend.Semantic!=TrafficVehicleSemantic.SpecifiedVehicles && legend.Semantic!=TrafficVehicleSemantic.GoodsVehicle && legend.Semantic!=TrafficVehicleSemantic.EmergencyVehicle && legend.Semantic!=TrafficVehicleSemantic.AllRoadMotorVehicles)
+            Check(fleet.Where(pair=>pair.Value==legend.Semantic).All(pair=>selected.Contains(pair.Key)),"unqualified category never broadens partial selection");
+    }
+}
+foreach(var locale in new[]{"en-US","en-GB","zh-CN","zh-HK","ja-JP"}) Check(SignageProfiles.Resolve("AUTO","NA",locale)=="US","US road family dominates language");
+Check(SignageProfiles.Resolve("AUTO","EU","zh-CN")=="CN","EU Chinese refines AUTO to CN");
+Check(SignageProfiles.Resolve("AUTO","EU","en-GB")=="UK","EU British English refines AUTO to UK");
+foreach(var locale in new[]{"zh-HK","ja-JP","en-US","de-DE"}) Check(SignageProfiles.Resolve("AUTO","EU",locale)=="GENERIC_EUROPE","unfinished / generic refinement uses safe baseline");
+foreach(var profile in SignageProfiles.Exposed.Where(value=>value!="AUTO")) foreach(var locale in new[]{"en-US","zh-CN"}) foreach(var theme in new[]{"NA","EU"}) Check(SignageProfiles.Resolve(profile,theme,locale)==profile,"manual profile survives theme and language changes");
+Check(!SignageProfiles.IsExposed("HK") && !SignageProfiles.IsExposed("JP"),"unreviewed regional profiles hidden");
+Check(SignageProfiles.Resolve("AUTO","Unknown","zh-CN")=="GENERIC_EUROPE","unknown theme is not guessed from locale");
+Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.GoodsVehicle),"zh-CN")=="载货汽车","formal CN goods term");
+Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.HeavyGoodsVehicle),"zh-CN")=="大型载货汽车","precise large goods term");
+Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.RoadMaintenance),"en-US")=="ROAD MAINTENANCE","short professional maintenance legend");
+Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.GoodsVehicle),"en-GB")=="GOODS VEHICLES","independent British terminology");
+Check(TrafficSignLocalization.Text(new TrafficLegend(TrafficVehicleSemantic.GoodsVehicle),"en-US")=="TRUCKS","independent American terminology");
+Check(TrafficSignLocalization.Language("zh-HK")=="en-US" && TrafficSignLocalization.Language("ja-JP")=="en-US","unreviewed locales use explicit English fallback");
+var goodsLegend=new TrafficLegend(TrafficVehicleSemantic.GoodsVehicle);
+Check(TrafficSignLocalization.ResolveText(goodsLegend,"en-GB",key=>"GOODS VEHICLES")=="GOODS VEHICLES","exact reviewed dictionary overrides semantic text");
+Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-HANS",key=>"载货汽车")=="载货汽车","supported base language dictionary");
+Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-HK",key=>"载货汽车")=="TRUCKS","unreviewed locale never inherits mainland terminology");
+Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-CN",key=>key)=="载货汽车","missing key never rendered");
+Check(TrafficSignLocalization.ResolveText(goodsLegend,"zh-CN",key=>new string('x',65))=="载货汽车","invalid overlong legend uses equivalent semantic fallback");
+Console.WriteLine($"UX / traffic semantics / profiles: {checks} checks passed.");

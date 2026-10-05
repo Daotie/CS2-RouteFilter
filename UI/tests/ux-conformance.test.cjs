@@ -54,3 +54,13 @@ const {SignInfoSection}=load(path.join(base,'components/SignInfoSection.tsx'));
 const info=renderToStaticMarkup(React.createElement(SignInfoSection,{targetKind:'Segment',targetName:'Oak Street',categories:'Trucks',assets:2,entries:1,entryOrdinal:1}));
 assert.match(info,/Oak Street/);assert.match(info,/Vehicle categories/);assert.match(info,/Edit in RouteFilter/);
 console.log('PASS: independent favorite, right checkbox, secondary-only tools, empty clipboard, built-in presets, range confirmation gating, native-section data props.');
+
+const {RoadSignSelector}=load(path.join(base,'components/RoadSignSelector.tsx'));
+bindings.set('signageProfile','AUTO');bindings.set('signageProfileResolved','US');bindings.set('signageProfileFallback',true);
+const signStyle=renderToStaticMarkup(React.createElement(RoadSignSelector,{}));
+assert.match(signStyle,/Signage profile/);assert.match(signStyle,/value="CN"/);assert.match(signStyle,/value="UK"/);assert.match(signStyle,/value="US"/);
+assert.doesNotMatch(signStyle,/value="HK"|value="JP"/);
+assert.match(signStyle,/Auto resolved/);assert.match(signStyle,/no-entry fallback/);assert.match(signStyle,/unsupported languages fall back to English/);
+const emptyInfo=renderToStaticMarkup(React.createElement(SignInfoSection,{targetKind:'Segment',categories:'',assets:1,entries:1,entryOrdinal:1}));
+assert.match(emptyInfo,/Selected vehicles/);assert.doesNotMatch(emptyInfo,/All road vehicles/);
+console.log('PASS: regional profile choices, hidden unfinished profiles, visible fallback, locale policy and conservative native info.');

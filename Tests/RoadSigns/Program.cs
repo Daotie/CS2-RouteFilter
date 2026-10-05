@@ -31,4 +31,5 @@ Check(lm == .8f && rm == .8f, "wide median placement unchanged");
 lm = rm = .8f;
 RoadSignPlacement.ConstrainToDivider(-3, 3, 3.2f, 7, ref lm, ref rm);
 Check(math.abs(lm - .1f) < .001f, "painted divider midpoint");
+Check(!RoadSignPlacement.RepeatOppositeSide(-1.75f,1.75f) && RoadSignPlacement.RepeatOppositeSide(-5,5),"ordinary roadside placement; wide approaches repeat for gameplay visibility");
 Console.WriteLine($"Road sign geometry: {checks} checks passed. Native rendering, theme assets and save/load require game testing.");

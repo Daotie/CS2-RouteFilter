@@ -43,6 +43,8 @@ public sealed partial class RouteFilterUISystem : UISystemBase
     private ValueBinding<int> m_EnabledEntryCountBinding = null!;
     private ValueBinding<bool> m_EntrySupportedBinding = null!;
     private ValueBinding<bool> m_ToolActiveBinding = null!;
+    private ValueBinding<string> m_SignProfileBinding, m_SignProfileResolvedBinding;
+    private ValueBinding<bool> m_SignProfileFallbackBinding;
     private ValueBinding<string> m_SignCatalogBinding = null!;
     private ValueBinding<string> m_SignSelectionBinding = null!;
     private ValueBinding<string> m_SignResolvedBinding = null!;
@@ -77,6 +79,15 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         m_VehiclePrefabQuery = GetEntityQuery(ComponentType.ReadOnly<VehicleData>(), ComponentType.ReadOnly<PrefabData>());
 
         m_ToolActiveBinding = CreateValue("toolActive", false);
+        m_SignProfileBinding=CreateValue("signageProfile",Mod.Settings.SignageProfile ?? "AUTO");
+        m_SignProfileResolvedBinding=CreateValue("signageProfileResolved","GENERIC_EUROPE");
+        m_SignProfileFallbackBinding=CreateValue("signageProfileFallback",false);
+        AddBinding(new TriggerBinding<string>(Mod.Id,"selectSignageProfile",profile=>
+        {
+            if(!RouteFilter.Persistence.SignageProfiles.IsExposed(profile)) return;
+            Mod.Settings.SignageProfile=profile;
+            Mod.Settings.ApplyAndSave();
+        }));
         m_SignCatalogBinding = CreateValue("roadSignCatalog", string.Empty);
         m_SignSelectionBinding = CreateValue("roadSignSelection", Mod.Settings.RoadSignPrefabMode == "CUSTOM" ? Mod.Settings.CustomRoadSignPrefab ?? string.Empty : string.Empty);
         m_SignResolvedBinding = CreateValue("roadSignResolved", string.Empty);
@@ -194,6 +205,9 @@ public sealed partial class RouteFilterUISystem : UISystemBase
         if (signs != null)
         {
             m_SignCatalogBinding.Update(signs.Catalog);
+            m_SignProfileBinding.Update(Mod.Settings.SignageProfile ?? "AUTO");
+            m_SignProfileResolvedBinding.Update(signs.ProfileFor(m_RestrictionTool.SelectedTarget));
+            m_SignProfileFallbackBinding.Update(signs.ProfileFallbackFor(m_RestrictionTool.SelectedTarget) && (Mod.Settings.RoadSignPrefabMode!="CUSTOM" || signs.CustomUnavailable));
             m_SignResolvedBinding.Update(signs.ResolvedName);
             m_SignSelectionBinding.Update(Mod.Settings.RoadSignPrefabMode == "CUSTOM" ? Mod.Settings.CustomRoadSignPrefab ?? string.Empty : string.Empty);
             m_SignUnavailableBinding.Update(signs.CustomUnavailable);

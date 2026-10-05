@@ -55,6 +55,7 @@ public sealed class RouteFilterSignInfoSection : InfoSectionBase
     }
     protected override void OnProcess()
     {
+        m_Assets=0; m_Entries=0;
         if (EntityManager.TryGetBuffer(m_Target,true,out DynamicBuffer<RestrictedVehicleAssetV1> assets)) m_Assets = assets.Length;
         m_TargetName = m_NameSystem.GetRenderedLabelName(m_Target) ?? "";
         m_Categories = string.Join(" · ",World.GetExistingSystemManaged<RoadRestrictionVisualSignsSystem>()?.Labels(m_Target) ?? Array.Empty<string>());
