@@ -192,7 +192,7 @@ internal abstract class LocaleBase : IDictionarySource
             ["RouteFilter.UI.BatchDrag"] = Chinese ? "左键应用 · 右键清除" : "Left: apply · Right: clear",
             ["RouteFilter.UI.Brush"] = Chinese ? "批量路段限制" : "Batch segment restrictions",
             ["RouteFilter.UI.BrushApply"] = Chinese ? "按住拖选，松开应用" : "Hold to select; release to apply",
-            ["RouteFilter.UI.BrushClear"] = Chinese ? "取消范围选择" : "Cancel range selection",
+            ["RouteFilter.UI.BrushClear"] = Chinese ? "批量清除限制" : "Clear restrictions in batch",
             ["RouteFilter.UI.BrushHint"] = Chinese ? "按住拖选路段，松开提交。" : "Hold to select road segments; release to commit.",
             ["RouteFilter.UI.PresetName"] = Chinese ? "预设名称" : "Preset name",
             ["RouteFilter.UI.PresetSave"] = Chinese ? "保存选中资产" : "Save selected assets",

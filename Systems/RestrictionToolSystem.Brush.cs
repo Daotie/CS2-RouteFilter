@@ -37,7 +37,7 @@ public sealed partial class RestrictionToolSystem
         if (m_MouseApplyAction != null) m_MouseApplyDisplay = new Game.Input.DisplayNameOverride(Mod.Id, m_MouseApplyAction,
             BrushEnabled ? "RouteFilter.UI.BrushApply" : "RouteFilter.UI.Select", Game.Input.DisplayNameOverride.kToolTipPriority, Game.Input.InputManager.DeviceType.Mouse);
         if (m_MouseCancelAction != null) m_MouseCancelDisplay = new Game.Input.DisplayNameOverride(Mod.Id, m_MouseCancelAction,
-            BrushEnabled ? "RouteFilter.UI.Cancel" : "RouteFilter.UI.Cancel", Game.Input.DisplayNameOverride.kToolTipPriority, Game.Input.InputManager.DeviceType.Mouse);
+            BrushEnabled ? "RouteFilter.UI.BrushClear" : "RouteFilter.UI.Cancel", Game.Input.DisplayNameOverride.kToolTipPriority, Game.Input.InputManager.DeviceType.Mouse);
         var active = m_ToolSystem.activeTool == this;
         if (m_MouseApplyDisplay != null) m_MouseApplyDisplay.active = active;
         if (m_MouseCancelDisplay != null) m_MouseCancelDisplay.active = active;
@@ -94,20 +94,24 @@ public sealed partial class RestrictionToolSystem
         catch(System.Exception error){Mod.Log.Warn("[RouteFilter.Batch] native selection unavailable: "+error.Message);result.Clear();}
         return result;
     }
+    private RouteFilter.Components.BrushButtonInput BrushButtons => new(
+        Mod.Apply?.WasPressedThisFrame() == true, Mod.Clear?.WasPressedThisFrame() == true,
+        Mod.Apply?.WasReleasedThisFrame() == true, Mod.Clear?.WasReleasedThisFrame() == true);
+    private bool BrushButtonReleased => m_RangeDragging && BrushButtons.Released(m_RangeClear);
     private void CollectBrushTarget(Entity target, float3 hit)
     {
         if(PointerOverUi || UnityEngine.Time.frameCount<=m_ActivationFrame)return;
-        bool rightPressed=cancelAction.WasPressedThisFrame();
-        bool pressed=Mod.Apply?.WasPressedThisFrame()==true || rightPressed;
-        bool released=m_RangeClear?cancelAction.WasReleasedThisFrame():Mod.Apply?.WasReleasedThisFrame()==true;
+        var buttons=BrushButtons;
+        bool pressed=buttons.Pressed;
         if(pressed)
         {
             CancelBrush();
             if(!ValidRangeEdge(target))return;
-            m_RangeClear=rightPressed;m_RangeDragging=true;m_RangeStart=target;m_RangeAssets=Mod.SelectedVehicleAssets.ToArray();
+            m_RangeClear=buttons.ClearPressed;m_RangeDragging=true;m_RangeStart=target;m_RangeAssets=Mod.SelectedVehicleAssets.ToArray();
             m_RangeStartPoint=RangePoint(target,hit);
         }
         if(!m_RangeDragging)return;
+        bool released=buttons.Released(m_RangeClear);
         if(!ValidRangeEdge(target)){m_Range.Clear();World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.ClearBrushPreview();if(released)CancelBrush();return;}
         var candidate=RangePoint(target,hit);
         if(target!=m_RangeEnd || pressed || math.abs(candidate.m_CurvePosition-m_RangeEndPoint.m_CurvePosition)>.03f)

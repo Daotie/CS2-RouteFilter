@@ -87,6 +87,18 @@ const segmentFooter=renderToStaticMarkup(React.createElement(ActionBar,{targetMo
 const nodeFooter=renderToStaticMarkup(React.createElement(ActionBar,{targetMode:0,editable:true}));
 assert.match(segmentFooter,/>Batch apply</);assert.doesNotMatch(segmentFooter,/Batch clear/);assert.doesNotMatch(nodeFooter,/>Batch apply</);
 console.log('PASS: segment-only batch controls in lower functional row, absent from tools menu and Node mode.');
+const batchElement=React.Children.toArray(ActionBar({targetMode:1,editable:true}).props.children)[1];
+const batchButton=editable=>batchElement.type({editable}).props.children[0];
+for(const [active,clear,right,enabled] of [[false,false,true,true],[true,false,true,true],[true,true,false,true],[true,false,false,false],[true,true,true,false]]) {
+ bindings.set('segmentBrush',active);bindings.set('segmentBrushClear',clear);events.length=0;
+ const button=batchButton(true);let prevented=false;
+ if(right)button.props.onContextMenu({preventDefault:()=>prevented=true});else button.props.onClick();
+ assert.deepEqual(events,[['RouteFilter','setSegmentBrushOperation',right],['RouteFilter','setSegmentBrush',enabled]]);
+ if(right)assert.equal(prevented,true);
+}
+events.length=0;batchButton(false).props.onContextMenu({preventDefault:()=>{}});assert.equal(events.length,0);
+bindings.set('segmentBrush',true);bindings.set('segmentBrushClear',false);
+console.log('PASS: right-click activates clearing, changing operation keeps batch mode active, same-operation click toggles off, disabled batch cannot activate.');
 
 const {AssetList}=load(path.join(base,'components/AssetList.tsx'));
 ui.Scrollable=({children,vertical,trackVisibility,...props})=>React.createElement('div',props,children);

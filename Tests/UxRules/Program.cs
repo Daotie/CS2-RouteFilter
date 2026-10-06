@@ -3,6 +3,17 @@ using RouteFilter.Systems;
 
 int checks = 0;
 void Check(bool valid,string reason) { checks++; if (!valid) throw new Exception(reason); }
+foreach (var clear in new[] { false, true })
+{
+    var press = new RouteFilter.Components.BrushButtonInput(!clear, clear, false, false);
+    Check(press.Pressed && press.ClearPressed == clear && !press.Released(clear), "stroke starts with the pressed mouse button");
+    var otherRelease = new RouteFilter.Components.BrushButtonInput(false, false, clear, !clear);
+    Check(!otherRelease.Released(clear), "opposite button release cannot commit or cancel the stroke");
+    var release = new RouteFilter.Components.BrushButtonInput(false, false, !clear, clear);
+    Check(release.Released(clear), "owning button release commits or cancels over UI/missed raycast");
+    var click = new RouteFilter.Components.BrushButtonInput(!clear, clear, !clear, clear);
+    Check(click.Pressed && click.Released(click.ClearPressed), "press and release in the same frame uses the new operation");
+}
 var presets = new[] { new UserPreset { Name = "中文 | test\n", Assets = new[] { "Truck|01", "Van\nTwo", "资产%3" } }, new UserPreset { Name = "Empty", Assets = Array.Empty<string>() } };
 var decoded = UserPreferenceData.Read(UserPreferenceData.Write(presets));
 Check(decoded.Count == 2 && decoded[0].Name == presets[0].Name.Trim() && decoded[0].Assets.SequenceEqual(presets[0].Assets),"unicode and delimiter roundtrip");

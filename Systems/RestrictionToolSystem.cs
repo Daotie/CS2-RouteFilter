@@ -158,7 +158,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
         if (PointerOverUi)
         {
-            if (BrushEnabled && Mod.Apply?.WasReleasedThisFrame() == true) CancelBrush();
+            if (BrushEnabled && BrushButtonReleased) CancelBrush();
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
             m_ToolSystem.selected = P0Diagnostics.Highlight ? SelectedTarget : Entity.Null;
@@ -167,7 +167,7 @@ public sealed partial class RestrictionToolSystem : ToolBaseSystem
 
         if (!GetRaycastResult(out Entity entity, out RaycastHit hit))
         {
-            if (BrushEnabled) { m_Range.Clear(); World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.ClearBrushPreview(); if(Mod.Apply?.WasReleasedThisFrame()==true || cancelAction.WasReleasedThisFrame()) CancelBrush(); }
+            if (BrushEnabled) { m_Range.Clear(); World.GetExistingSystemManaged<RestrictionGroundIndicatorSystem>()?.ClearBrushPreview(); if(BrushButtonReleased) CancelBrush(); }
             HoveredTarget = Entity.Null;
             HoveredTransportMode = 0;
             m_ToolSystem.selected = P0Diagnostics.Highlight ? SelectedTarget : Entity.Null;
