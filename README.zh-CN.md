@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-2.1.0-2d8b70" alt="版本 2.1.0">
+  <img src="https://img.shields.io/badge/版本-2.1.1-2d8b70" alt="版本 2.1.1">
   <img src="https://img.shields.io/badge/状态-正式版-1976d2" alt="状态">
   <img src="https://img.shields.io/badge/许可证-GPL--3.0--only-blue" alt="许可证">
 </p>
@@ -30,7 +30,7 @@
 
 ---
 
-**2.1.0：** 修复禁行漏车问题。本版加入扩展资产目录、限行地图、批量应用与交通标志调整。见[更新日志](CHANGELOG.md)。
+**2.1.1：** 修复批量应用右键无法清除的问题。见[更新日志](CHANGELOG.md)。
 
 RouteFilter 可控制具体车辆资产能否通过某个路网节点或整段道路、有轨电车轨道、铁路、地铁线路。
 
@@ -137,7 +137,7 @@ RouteFilter 会检查当前车道、前方导航车道、底层路径元素、�
 
 ## 存档数据与升级
 
-RouteFilter `2.1.0` 使用带版本号的存档数据块保存每个受限目标的禁行资产清单，以稳定的 prefab 名称存储，并在读档后自动重新应用。
+RouteFilter `2.1.1` 使用带版本号的存档数据块保存每个受限目标的禁行资产清单，以稳定的 prefab 名称存储，并在读档后自动重新应用。
 
 `1.0.1` 及更早版本的存档仍可正常读取，并保留原有的逐实体限制数据。
 
