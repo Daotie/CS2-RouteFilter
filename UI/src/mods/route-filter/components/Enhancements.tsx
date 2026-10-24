@@ -78,7 +78,7 @@ const PresetMenu=({editable,onLoaded}:{editable:boolean;onLoaded:()=>void})=>{
   const {translate}=useLocalization();const tr=(id:string,fallback:string)=>String(translate(`RouteFilter.UI.${id}`,fallback)??fallback);
   return <div role="menu">
     <div className={styles.menuSectionLabel}>{tr("PresetBuiltIn","Built-in presets")}</div>
-    {["Trucks","CargoTrucks"].map(id=><MenuItem key={id} disabled={!editable} onSelect={()=>{trigger(mod.id,"loadBuiltinPreset",id);onLoaded();}}>{tr(`Preset${id}`,id==="Trucks"?"Trucks":"Cargo trucks")}</MenuItem>)}
+    {["Trucks","CargoTrains"].map(id=><MenuItem key={id} disabled={!editable} onSelect={()=>{trigger(mod.id,"loadBuiltinPreset",id);onLoaded();}}>{tr(`Preset${id}`,id==="Trucks"?"Trucks":"Freight trains")}</MenuItem>)}
     <div className={styles.menuSeparator}/><div className={styles.menuSectionLabel}>{tr("PresetMine","My presets")}</div>
     {presets.map(preset=><React.Fragment key={preset}><div className={styles.presetMenuRow}><MenuItem disabled={!editable} onSelect={()=>{trigger(mod.id,"loadUserPreset",preset);onLoaded();}}>{preset}</MenuItem><button type="button" className={styles.windowControl} onClick={()=>setActions(actions===preset?"":preset)} aria-label={`${tr("PresetActions","Preset actions")}: ${preset}`}>⋯</button></div>
       {actions===preset && <div className={styles.presetContext}><MenuItem onSelect={()=>{setEditor({old:preset,name:preset});setActions("");}}>{tr("PresetRename","Rename")}</MenuItem><MenuItem onSelect={()=>{trigger(mod.id,"deleteUserPreset",preset);setActions("");}}>{tr("PresetDelete","Delete")}</MenuItem></div>}

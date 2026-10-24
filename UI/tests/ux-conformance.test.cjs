@@ -47,7 +47,7 @@ const tools=renderToStaticMarkup(React.createElement(Enhancements,{...props,popu
 assert.doesNotMatch(tools,/Copy vehicle restrictions|Paste vehicle restrictions|Sign position adjustment/);
 assert.doesNotMatch(tools,/Batch segment restrictions/);
 const presets=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Presets'}));
-assert.match(presets,/Cargo trucks/);assert.match(presets,/Save current selection/);assert.doesNotMatch(presets,/Preset name/);assert.match(presets,/Built-in presets/);assert.match(presets,/My presets/);
+assert.match(presets,/Freight trains/);assert.doesNotMatch(presets,/Cargo trucks/);assert.match(presets,/Save current selection/);assert.doesNotMatch(presets,/Preset name/);assert.match(presets,/Built-in presets/);assert.match(presets,/My presets/);
 bindings.set('rangeStatus','End');bindings.set('segmentBrush',true);bindings.set('brushPending',1);
 const range=renderToStaticMarkup(React.createElement(Enhancements,{...props,popup:'Range'}));
 assert.doesNotMatch(range,/Apply to range/);

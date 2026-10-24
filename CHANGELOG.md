@@ -2,6 +2,16 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Semantic Versioning prerelease conventions.
 
+## 2.1.2 — 2026-10-24
+
+### English
+
+- Fixed intermittent segment restrictions not taking effect.
+
+### 简体中文
+
+- 修复偶发路段禁行不生效问题。
+
 ## 2.1.1 — 2026-10-06
 
 ### English

@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-2.1.1-2d8b70" alt="版本 2.1.1">
+  <img src="https://img.shields.io/badge/版本-2.1.2-2d8b70" alt="版本 2.1.2">
   <img src="https://img.shields.io/badge/状态-正式版-1976d2" alt="状态">
   <img src="https://img.shields.io/badge/许可证-GPL--3.0--only-blue" alt="许可证">
 </p>
@@ -30,7 +30,7 @@
 
 ---
 
-**2.1.1：** 修复批量应用右键无法清除的问题。见[更新日志](CHANGELOG.md)。
+**2.1.2：** 修复偶发路段禁行不生效问题。见[更新日志](CHANGELOG.md)。
 
 RouteFilter 可控制具体车辆资产能否通过某个路网节点或整段道路、有轨电车轨道、铁路、地铁线路。
 
@@ -38,7 +38,7 @@ RouteFilter 可控制具体车辆资产能否通过某个路网节点或整段�
 
 <!-- RouteFilter 功能简介 -->
 <p align="center">
-  <img src="assets/showcase/P1.png" width="100%" alt="RouteFilter 功能简介与使用效果">
+  <img src="assets/showcase/2.1.2/P1.png" width="100%" alt="RouteFilter 功能简介与使用效果">
 </p>
 
 ## 主要功能
@@ -91,7 +91,7 @@ RouteFilter 会检查当前车道、前方导航车道、底层路径元素、�
 
 <!-- RouteFilter 如何影响车辆寻路 -->
 <p align="center">
-  <img src="assets/showcase/P2.png" width="100%" alt="RouteFilter 如何影响车辆寻路">
+  <img src="assets/showcase/2.1.2/P2.png" width="100%" alt="RouteFilter 如何影响车辆寻路">
 </p>
 
 <!-- 截图占位：assets/screenshots/04-rerouting-result.png -->
@@ -137,7 +137,7 @@ RouteFilter 会检查当前车道、前方导航车道、底层路径元素、�
 
 ## 存档数据与升级
 
-RouteFilter `2.1.1` 使用带版本号的存档数据块保存每个受限目标的禁行资产清单，以稳定的 prefab 名称存储，并在读档后自动重新应用。
+RouteFilter `2.1.2` 使用带版本号的存档数据块保存每个受限目标的禁行资产清单，以稳定的 prefab 名称存储，并在读档后自动重新应用。
 
 `1.0.1` 及更早版本的存档仍可正常读取，并保留原有的逐实体限制数据。
 
@@ -256,3 +256,13 @@ RouteFilter 是由 Daotie 独立开发和维护的社区开源项目。
 RouteFilter 与 Colossal Order 或 Paradox Interactive 不存在隶属、赞助、授权、认可、背书或其他官方合作关系。
 
 本项目对《都市：天际线 II》及相关产品名称的引用仅用于说明兼容性及其目标游戏环境。
+
+## AI 辅助开发说明
+
+RouteFilter 在开发中使用了 AI 辅助。核心代码由作者人工审查，发布前通过严格的人工游戏内测试检查禁行行为与存档兼容性。AI 辅助产出的内容经过检查后才会采用，最终技术判断与发布决定由作者负责。
+
+## 资产目录、限行地图与预设
+
+![逐资产筛选](assets/showcase/2.1.2/P3.png)
+![限行地图](assets/showcase/2.1.2/P4.png)
+![复制、粘贴与预设](assets/showcase/2.1.2/P5.png)

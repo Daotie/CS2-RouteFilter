@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.1.1-2d8b70" alt="Version 2.1.1">
+  <img src="https://img.shields.io/badge/version-2.1.2-2d8b70" alt="Version 2.1.2">
   <img src="https://img.shields.io/badge/status-stable-1976d2" alt="Status">
   <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="License">
 </p>
@@ -30,7 +30,7 @@
 
 ---
 
-**2.1.1:** Fixed right-click clearing in batch application. See the [changelog](CHANGELOG.md).
+**2.1.2:** Fixed intermittent segment restrictions not taking effect. See the [changelog](CHANGELOG.md).
 
 RouteFilter lets you decide which exact vehicle assets may pass through one network node or an entire road, tram, train, or subway segment.
 
@@ -38,7 +38,7 @@ Matching vehicles take a legal alternative route when available. A reliably conf
 
 <!-- RouteFilter overview -->
 <p align="center">
-  <img src="assets/showcase/P1.png" width="100%" alt="RouteFilter overview and usage demonstration">
+  <img src="assets/showcase/2.1.2/P1.png" width="100%" alt="RouteFilter overview and usage demonstration">
 </p>
 
 ## Highlights
@@ -91,7 +91,7 @@ For each admitted matching vehicle, the native pathfinder evaluates a request-lo
 
 <!-- How RouteFilter affects vehicle routing -->
 <p align="center">
-  <img src="assets/showcase/P2.png" width="100%" alt="How RouteFilter affects vehicle routing">
+  <img src="assets/showcase/2.1.2/P2.png" width="100%" alt="How RouteFilter affects vehicle routing">
 </p>
 
 <!-- Screenshot placeholder: assets/screenshots/04-rerouting-result.png -->
@@ -137,7 +137,7 @@ The shortcut is remappable in the game's settings. Closing the panel also closes
 
 ## Save data and upgrades
 
-RouteFilter `2.1.1` stores each restricted target's forbidden asset list in the save's versioned payload using stable prefab names and re-applies it after loading.
+RouteFilter `2.1.2` stores each restricted target's forbidden asset list in the save's versioned payload using stable prefab names and re-applies it after loading.
 
 Saves from `1.0.1` and earlier remain readable; their per-entity restriction data is preserved.
 
@@ -256,3 +256,13 @@ RouteFilter is an independent community-developed open-source project by Daotie.
 RouteFilter is not affiliated with, sponsored by, authorized by, endorsed by, or otherwise officially associated with Colossal Order or Paradox Interactive.
 
 References to Cities: Skylines II and related products are used solely to identify compatibility and the intended game environment.
+
+## AI-assisted development
+
+RouteFilter uses AI as a development aid. The author manually reviews the core code and carries out rigorous in-game testing of restriction behavior and save compatibility before release. AI-assisted changes are checked before they are included; final technical and release decisions remain with the author.
+
+## Asset library, restriction map and presets
+
+![Per-asset filtering](assets/showcase/2.1.2/P3.png)
+![Restriction map](assets/showcase/2.1.2/P4.png)
+![Copy, paste and presets](assets/showcase/2.1.2/P5.png)

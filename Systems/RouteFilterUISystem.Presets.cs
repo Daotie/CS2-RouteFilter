@@ -27,14 +27,14 @@ public sealed partial class RouteFilterUISystem
         }));
         AddBinding(new TriggerBinding<string>(Mod.Id,"loadBuiltinPreset",name =>
         {
-            if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable || (name != "Trucks" && name != "CargoTrucks")) return;
+            if (!World.GetOrCreateSystemManaged<RestrictionPersistenceSystem>().ConfigurationEditable || (name != "Trucks" && name != "CargoTrains")) return;
             Mod.SelectedVehicleAssets.Clear();
             foreach (var asset in m_AssetsById.Values)
             {
                 var semantic=VehicleSemanticClassifier.Classify(EntityManager,asset);
                 var roadCargo = semantic==TrafficVehicleSemantic.GoodsVehicle || semantic==TrafficVehicleSemantic.HeavyGoodsVehicle;
                 var railCargo = EntityManager.HasComponent<Game.Prefabs.TrainData>(asset) && EntityManager.HasComponent<Game.Prefabs.CargoTransportVehicleData>(asset);
-                if (name == "CargoTrucks" ? roadCargo || railCargo : roadCargo) Mod.SelectedVehicleAssets.Add(asset);
+                if (name == "CargoTrains" ? railCargo : roadCargo) Mod.SelectedVehicleAssets.Add(asset);
             }
             m_PresetMissing.Update(0); m_PresetUnsupported.Update(0); UpdateSelectedBinding(); PublishRestriction(); LibraryFeedback("Preset",Mod.SelectedVehicleAssets.Count);
         }));

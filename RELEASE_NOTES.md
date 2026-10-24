@@ -1,9 +1,9 @@
-# RouteFilter 2.1.1
+# RouteFilter 2.1.2
 
 ## English
 
-- Fixed right-click clearing in batch application.
+- Fixed intermittent segment restrictions not taking effect.
 
 ## 简体中文
 
-- 修复批量应用右键无法清除的问题。
+- 修复偶发路段禁行不生效问题。
