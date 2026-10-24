@@ -19,6 +19,7 @@ using NetEdge = Game.Net.Edge;
 using NetLane = Game.Net.Lane;
 using NetSubLane = Game.Net.SubLane;
 using TrackLane = Game.Net.TrackLane;
+using EndpointGates = RouteFilter.Components.RailEndpointGateBuilder<Unity.Entities.Entity, Game.Pathfind.PathNode>;
 
 namespace RouteFilter.Systems;
 
@@ -136,7 +137,8 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
                     if (ParkedTrains.HasComponent(physical)) continue;
 
                     if (!TryCanonicalizeConsist(physical, out var head)) continue;
-                    if (ConsistSeen.Count() >= 4096 || !ConsistSeen.Add(head)) continue;
+                    var frontLane = CurrentLanes[Layouts[head][0].m_Vehicle].m_Front.m_Lane;
+                    if (!RailConsistObservation.TryClaim(entryLane, frontLane, head, ref ConsistSeen)) continue;
                     WorkCounters[1]++;
 
                     var gate = firstGate;
@@ -742,8 +744,9 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
         if (EntityManager.HasComponent<NetEdge>(target))
         {
             var edge = EntityManager.GetComponentData<NetEdge>(target);
-            if (edge.m_Start != Entity.Null) CollectTrackTraversals(edge.m_Start, m_AdjacentTraversals);
-            if (edge.m_End != Entity.Null) CollectTrackTraversals(edge.m_End, m_AdjacentTraversals);
+            CollectSegmentEndpoint(edge.m_Start, target);
+            if (edge.m_End != edge.m_Start) CollectSegmentEndpoint(edge.m_End, target);
+            return;
         }
         else if (EntityManager.TryGetBuffer(target, true, out DynamicBuffer<ConnectedEdge> connected))
         {
@@ -770,7 +773,6 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
                     !(toTwoWay && from.m_EndNode.Equals(to.m_EndNode)) &&
                     !(fromTwoWay && toTwoWay && from.m_StartNode.Equals(to.m_EndNode))) continue;
                 m_GateList.Add(new DirectedTrackGate(adjacent, internalLane, target));
-                if (EntityManager.HasComponent<NetEdge>(target)) AddUpstreamTrackWatches(adjacent, internalLane, target);
             }
         }
         // Native direct track joins may coexist with node connectors, just like roads.
@@ -793,23 +795,35 @@ public sealed partial class RailEnforcementBackend : GameSystemBase
             }
     }
 
-    private void AddUpstreamTrackWatches(Entity connectorEntity, Entity targetLane, Entity target)
+    private void CollectSegmentEndpoint(Entity node, Entity target)
     {
-        if (!EntityManager.TryGetComponent(connectorEntity, out NetLane connector) ||
-            !EntityManager.TryGetComponent(connectorEntity, out Owner owner) ||
-            !EntityManager.TryGetBuffer(owner.m_Owner, true, out DynamicBuffer<ConnectedEdge> edges)) return;
-        foreach (var edge in edges)
+        if (node == Entity.Null) return;
+        var connectors = new List<Entity>();
+        var approaches = new List<Entity>();
+        CollectTrackTraversals(node, connectors);
+        if (EntityManager.TryGetBuffer(node, true, out DynamicBuffer<ConnectedEdge> edges))
+            foreach (var edge in edges)
+                if (edge.m_Edge != target) CollectTrackTraversals(edge.m_Edge, approaches);
+        foreach (var gate in EndpointGates.Build(TrackDescriptions(m_InternalTraversals),
+                     TrackDescriptions(connectors), TrackDescriptions(approaches)))
         {
-            if (edge.m_Edge == target || !EntityManager.TryGetBuffer(edge.m_Edge, true, out DynamicBuffer<NetSubLane> lanes)) continue;
-            foreach (var sub in lanes)
-            {
-                var entity = sub.m_SubLane;
-                if (!EntityManager.TryGetComponent(entity, out NetLane lane) || !EntityManager.HasComponent<TrackLane>(entity)) continue;
-                if (!lane.m_EndNode.Equals(connector.m_StartNode) && !lane.m_StartNode.Equals(connector.m_EndNode) &&
-                    !lane.m_StartNode.Equals(connector.m_StartNode) && !lane.m_EndNode.Equals(connector.m_EndNode)) continue;
-                m_GateList.Add(new DirectedTrackGate(entity, targetLane, target, connectorEntity));
-            }
+            var directed = new DirectedTrackGate(gate.Entry, gate.Next, target, gate.Via);
+            if (!m_GateList.Contains(directed)) m_GateList.Add(directed);
+            // The imminent node connector is excluded only when the builder proves
+            // it leads exclusively into this segment. All ownership remains on target.
+            m_TargetLanes[target].Add(gate.Next);
         }
+    }
+
+    private List<EndpointGates.Traversal> TrackDescriptions(List<Entity> lanes)
+    {
+        var result = new List<EndpointGates.Traversal>(lanes.Count);
+        foreach (var entity in lanes)
+            if (m_Index.TryGetConnectionLane(entity, out NetLane lane) &&
+                EntityManager.TryGetComponent(entity, out TrackLane track))
+                result.Add(new EndpointGates.Traversal(entity, lane.m_StartNode, lane.m_EndNode,
+                    (track.m_Flags & TrackLaneFlags.Twoway) != 0));
+        return result;
     }
 
     private void CollectTrackTraversals(Entity owner, List<Entity> output)

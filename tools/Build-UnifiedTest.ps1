@@ -7,7 +7,7 @@ try {
         dotnet build RouteFilter.csproj -c $configuration --nologo
         if ($LASTEXITCODE -ne 0) { throw "$configuration build failed" }
     }
-    foreach ($test in @('RoadCoverage','LeaseRules','SafetyRules','SaveFormatTests','RoadSigns','UxRules')) {
+    foreach ($test in @('RoadCoverage','RailTopology','LeaseRules','SafetyRules','SaveFormatTests','RoadSigns','UxRules')) {
         dotnet run --project "Tests/$test" -c Release
         if ($LASTEXITCODE -ne 0) { throw "$test failed" }
     }

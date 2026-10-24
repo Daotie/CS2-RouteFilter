@@ -22,6 +22,8 @@ jobs:
         run: dotnet run --project Tests/RoadCoverage/RoadCoverage.csproj -c Release
       - name: Verify enforcement receipt rules
         run: dotnet run --project Tests/LeaseRules/LeaseRules.csproj -c Release
+      - name: Verify rail segment endpoint coverage and consist scan order
+        run: dotnet run --project Tests/RailTopology/RailTopology.csproj -c Release
       - name: Verify save compatibility fixtures
         run: dotnet run --project Tests/SaveFormatTests/SaveFormatTests.csproj -c Release
       - name: Verify UX preference, appearance, and brush rules

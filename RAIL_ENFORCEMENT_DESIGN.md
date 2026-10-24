@@ -25,6 +25,23 @@ set, temporarily removes Track eligibility under exclusive ownership, runs the o
 verifies its returned path avoids those lanes and compare-restores the method snapshots.
 只置一次 Obsolete；以独立轨道集合执行临时排除，原生查询结束后核对结果并比较恢复。
 
+## Segment endpoints / 路段两端入口
+
+Segment restrictions build runtime gates at both endpoint nodes, including direct native track
+joins without node-owned connector lanes. Gates retain the segment as their restriction target;
+they never add node restriction components, save records, signs or map markers. Upstream detection
+uses an imminent connector alone only when its exit leads exclusively into the restricted segment;
+shared exits require the exact connector/segment navigation sequence. The query excludes the
+segment's tracks and any such dedicated incoming connectors, not every exit of the endpoint node.
+Consist deduplication occurs only on the physical front's current lane, so a carriage encountered
+on another watched lane cannot hide the approaching front.
+
+路段限制在两端节点构建运行时入口，覆盖没有节点连接轨道的直接接轨。入口仍归属于原路段，
+不增加节点禁行组件、存档记录、标志或地图节点。仅对出口专门通向受限路段的连接轨道，
+允许按下一条连接轨道提前检测；出口存在分支时仍核对完整的连接轨道／受限路段导航顺序。
+查询排除路段轨道及上述专用入口连接轨道，不封闭端点节点的其它出口。编组只在物理前端
+所在轨道参与去重，避免其它被监视轨道上的车厢提前占用检测名额。
+
 ## Fixed lines and failure / 固定线路与失败
 
 Passenger/freight trains, subway and tram retain native stops/destinations. A detour is possible only
