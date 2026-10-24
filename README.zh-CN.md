@@ -91,7 +91,7 @@ RouteFilter 会检查当前车道、前方导航车道、底层路径元素、�
 
 <!-- RouteFilter 如何影响车辆寻路 -->
 <p align="center">
-  <img src="assets/showcase/2.1.2/P2.png" width="100%" alt="RouteFilter 如何影响车辆寻路">
+  <img src="assets/showcase/2.1.2/P3.png" width="100%" alt="节点与路段通行控制">
 </p>
 
 <!-- 截图占位：assets/screenshots/04-rerouting-result.png -->
@@ -202,7 +202,7 @@ RouteFilter 使用《都市：天际线 II》官方代码模组工具链，无�
 
 ## AI 辅助开发说明
 
-完整源代码已在 GitHub 上以 **GPL-3.0** 开源。RouteFilter 使用了 **AI 辅助开发**，我选择公开说明这一点。但开发并不是让 AI 不断生成代码，直到能够编译为止。我仍会审查核心逻辑，并对设计和发布决定负责。开发过程包括观察游戏行为、反编译并研究相关游戏系统、调查失败原因，以及测试车辆限制、寻路、性能和存档兼容方案。AI 用于辅助实现、调试、文档和 UI 素材制作；仅仅构建成功，并不能证明修改在游戏内正确运行。
+RouteFilter 在开发中使用了 AI 辅助。核心代码由作者人工审查，发布前通过严格的人工游戏内测试检查禁行行为与存档兼容性。AI 辅助产出的内容经过检查后才会采用，最终技术判断与发布决定由作者负责。
 
 ## 开发
 
@@ -257,12 +257,9 @@ RouteFilter 与 Colossal Order 或 Paradox Interactive 不存在隶属、赞助�
 
 本项目对《都市：天际线 II》及相关产品名称的引用仅用于说明兼容性及其目标游戏环境。
 
-## AI 辅助开发说明
-
-RouteFilter 在开发中使用了 AI 辅助。核心代码由作者人工审查，发布前通过严格的人工游戏内测试检查禁行行为与存档兼容性。AI 辅助产出的内容经过检查后才会采用，最终技术判断与发布决定由作者负责。
 
 ## 资产目录、限行地图与预设
 
-![逐资产筛选](assets/showcase/2.1.2/P3.png)
+![逐资产筛选](assets/showcase/2.1.2/P2.png)
 ![限行地图](assets/showcase/2.1.2/P4.png)
-![复制、粘贴与预设](assets/showcase/2.1.2/P5.png)
+![批量应用、复制粘贴与预设](assets/showcase/2.1.2/P5.png)

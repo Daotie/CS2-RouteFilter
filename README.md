@@ -91,7 +91,7 @@ For each admitted matching vehicle, the native pathfinder evaluates a request-lo
 
 <!-- How RouteFilter affects vehicle routing -->
 <p align="center">
-  <img src="assets/showcase/2.1.2/P2.png" width="100%" alt="How RouteFilter affects vehicle routing">
+  <img src="assets/showcase/2.1.2/P3.png" width="100%" alt="Node and segment access control">
 </p>
 
 <!-- Screenshot placeholder: assets/screenshots/04-rerouting-result.png -->
@@ -202,7 +202,7 @@ For reproducible bugs, performance issues, compatibility problems, and feature r
 
 ## AI-assisted development
 
-The complete source is available on GitHub under **GPL-3.0**. RouteFilter has been developed with the help of **AI**, and I prefer being transparent about that involvement. However, development is not simply a matter of generating code until it compiles. I review the core logic and remain responsible for design and release decisions. The work includes observing game behavior, decompiling and studying relevant game systems, investigating failures, and testing approaches to vehicle restrictions, pathfinding, performance, and save compatibility. AI assists with implementation, debugging, documentation, and UI assets; a successful build alone does not establish that a change works correctly in the game.
+RouteFilter uses AI as a development aid. The author manually reviews the core code and carries out rigorous in-game testing of restriction behavior and save compatibility before release. AI-assisted changes are checked before they are included; final technical and release decisions remain with the author.
 
 ## Development
 
@@ -257,12 +257,9 @@ RouteFilter is not affiliated with, sponsored by, authorized by, endorsed by, or
 
 References to Cities: Skylines II and related products are used solely to identify compatibility and the intended game environment.
 
-## AI-assisted development
-
-RouteFilter uses AI as a development aid. The author manually reviews the core code and carries out rigorous in-game testing of restriction behavior and save compatibility before release. AI-assisted changes are checked before they are included; final technical and release decisions remain with the author.
 
 ## Asset library, restriction map and presets
 
-![Per-asset filtering](assets/showcase/2.1.2/P3.png)
+![Per-asset filtering](assets/showcase/2.1.2/P2.png)
 ![Restriction map](assets/showcase/2.1.2/P4.png)
-![Copy, paste and presets](assets/showcase/2.1.2/P5.png)
+![Batch application, copy/paste and presets](assets/showcase/2.1.2/P5.png)
